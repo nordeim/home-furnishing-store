@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+/* Candidate-scan guard (S76 remedy, pinned by tests/unit/tailwind-scan-guard.test.ts):
+ * Tailwind v4's automatic candidate scan reads every non-gitignored text file —
+ * .md prose included. Doc/prose surfaces in this repo quote utility class names
+ * verbatim (including the colon-form `md:aspect-[3:1]`), which once compiled to
+ * invalid `aspect-ratio: 3:1` CSS and broke the clean production build with a
+ * PostCSS "Missed semicolon" error. Prose, docs, skills, tests and scripts are
+ * not render surfaces — exclude them from the scan. */
+@source not "../../**/*.md";
+@source not "../../**/*.mdx";
+@source not "../../docs";
+@source not "../../skills";
+@source not "../../tests";
+@source not "../../scripts";
+
 @theme {
   --color-brand: #0058a3;
   --color-brand-dark: #004382;
