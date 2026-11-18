@@ -1,0 +1,149 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { useCart } from "@/lib/cart-store";
+import { formatSGD, priceTotals } from "@/lib/utils";
+
+type Method = "delivery" | "click-collect" | "express";
+
+export default function CheckoutPage() {
+  const { lines, subtotalCents, promoCode, clear } = useCart();
+  const router = useRouter();
+  const [form, setForm] = useState({ email: "", fullName: "", phone: "", address: "", postal: "", slot: "Standard (3–5 days)", store: "tampines", pay: "card" });
+  const [method, setMethod] = useState<Method>("delivery");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const promo = useMemo(() => {
+    if (!promoCode) return null;
+    if (promoCode === "FLAT20") return { kind: "fixed", value: 2000 };
+    if (promoCode === "MAKAN15") return { kind: "percent", value: 15 };
+    return { kind: "percent", value: 10 };
+  }, [promoCode]);
+  const t = priceTotals({ subtotalCents, promo, deliveryMethod: method });
+
+  function set(k: keyof typeof form, v: string) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: form.email, fullName: form.fullName, phone: form.phone,
+          address: form.address, postal: form.postal, deliveryMethod: method,
+          deliverySlot: form.slot, storeSlug: form.store, paymentMethod: form.pay,
+          promoCode, lines: lines.map((l) => ({ productId: l.productId, qty: l.qty })),
+        }),
+      });
+      const json = (await res.json()) as { ok: boolean; data?: { orderNumber: string }; error?: { message: string } };
+      if (!json.ok || !json.data) throw new Error(json.error?.message ?? "Checkout failed");
+      clear();
+      router.push(`/order/${json.data.orderNumber}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Checkout failed. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (lines.length === 0) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-16 text-center">
+        <h1 className="text-[26px] font-black">Nothing to check out yet</h1>
+        <p className="mt-2 text-[#5b5b5b]">Your bag is empty — add a few favourites first.</p>
+        <Link href="/shop" className="mt-6 inline-block rounded-full bg-[#0058a3] px-7 py-3 font-bold text-white">Browse the range</Link>
+      </div>
+    );
+  }
+
+  const input = "w-full rounded-xl border border-[#ddd] bg-white px-4 py-3 text-[15px] outline-none focus:border-[#0058a3] focus:ring-2 focus:ring-[#0058a3]/20";
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+      <h1 className="text-[clamp(1.8rem,4vw,2.6rem)] font-black tracking-tight">Checkout</h1>
+      <form onSubmit={submit} className="mt-6 grid gap-8 lg:grid-cols-[1fr_380px]">
+        <div className="space-y-6">
+          <section className="rounded-2xl p-6 ring-1 ring-[#ece8df]" aria-labelledby="contact-h">
+            <h2 id="contact-h" className="font-black">1 · Contact & delivery address</h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="text-[13px] font-bold">Email<input required type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="you@email.com" className={input} autoComplete="email" /></label>
+              <label className="text-[13px] font-bold">Full name<input required value={form.fullName} onChange={(e) => set("fullName", e.target.value)} placeholder="Recipient name" className={input} autoComplete="name" /></label>
+              <label className="text-[13px] font-bold">Phone<input required value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+65 8XXX XXXX" className={input} autoComplete="tel" /></label>
+              <label className="text-[13px] font-bold">Postal code<input required value={form.postal} onChange={(e) => set("postal", e.target.value)} placeholder="6 digits" inputMode="numeric" maxLength={6} className={input} autoComplete="postal-code" /></label>
+              <label className="text-[13px] font-bold sm:col-span-2">Address<input required value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="Blk, street, unit number" className={input} autoComplete="street-address" /></label>
+            </div>
+          </section>
+
+          <section className="rounded-2xl p-6 ring-1 ring-[#ece8df]" aria-labelledby="method-h">
+            <h2 id="method-h" className="font-black">2 · Fulfilment</h2>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Delivery method">
+              {([["delivery", "Delivery", "From $12 · free $200+"], ["click-collect", "Click & Collect", "Free · ready in 2 hrs"], ["express", "Express", "Next-day · $29"]] as Array<[Method, string, string]>).map(([v, title, sub]) => (
+                <button type="button" key={v} role="radio" aria-checked={method === v} onClick={() => setMethod(v)}
+                  className={`rounded-xl border-2 p-4 text-left focus-ring ${method === v ? "border-[#0058a3] bg-[#f0f6fc]" : "border-[#eee]"}`}>
+                  <span className="block font-black">{title}</span><span className="text-[13px] text-[#5b5b5b]">{sub}</span>
+                </button>
+              ))}
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="text-[13px] font-bold">Fulfilment store
+                <select value={form.store} onChange={(e) => set("store", e.target.value)} className={input}>
+                  <option value="tampines">Tampines</option><option value="jurong">Jurong</option><option value="alexandra">Alexandra</option>
+                </select>
+              </label>
+              <label className="text-[13px] font-bold">Time slot
+                <select value={form.slot} onChange={(e) => set("slot", e.target.value)} className={input}>
+                  <option>Standard (3–5 days)</option><option>Evening (6–9pm)</option><option>Weekend morning</option><option>Click & Collect — today 2pm</option>
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <section className="rounded-2xl p-6 ring-1 ring-[#ece8df]" aria-labelledby="pay-h">
+            <h2 id="pay-h" className="font-black">3 · Payment <span className="ml-1 rounded-full bg-[#e8f3e9] px-2 py-0.5 text-[12px] text-[#2e6b34]">Demo — no charge</span></h2>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Payment method">
+              {[["card", "Card"], ["paynow", "PayNow"], ["grabpay", "GrabPay"], ["atome", "Atome ×3"]].map(([v, l]) => (
+                <button type="button" key={v} role="radio" aria-checked={form.pay === v} onClick={() => set("pay", v)}
+                  className={`rounded-xl border-2 py-3 font-bold focus-ring ${form.pay === v ? "border-[#0058a3] bg-[#f0f6fc]" : "border-[#eee]"}`}>{l}</button>
+              ))}
+            </div>
+            {form.pay === "card" && (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="text-[13px] font-bold sm:col-span-2">Card number<input inputMode="numeric" placeholder="4111 1111 1111 1111" className={input} /></label>
+                <label className="text-[13px] font-bold">Expiry<input placeholder="MM/YY" className={input} /></label>
+                <label className="text-[13px] font-bold">CVC<input inputMode="numeric" placeholder="123" maxLength={4} className={input} /></label>
+              </div>
+            )}
+            {error && <p className="mt-4 rounded-xl bg-[#fff0f0] p-3 text-[14px] font-bold text-[#a00008]" role="alert">{error}</p>}
+          </section>
+        </div>
+
+        <aside className="h-fit rounded-2xl bg-[#111] p-6 text-white lg:sticky lg:top-40">
+          <h2 className="font-black">Your order</h2>
+          <ul className="mt-3 max-h-64 space-y-2 overflow-auto text-[13px]">
+            {lines.map((l) => (
+              <li key={l.productId} className="flex justify-between gap-2"><span className="text-white/80">{l.qty}× {l.name}</span><span className="font-bold">{formatSGD(l.unitPriceCents * l.qty)}</span></li>
+            ))}
+          </ul>
+          <dl className="mt-4 space-y-2 border-t border-white/15 pt-4 text-[14px]">
+            <div className="flex justify-between"><dt className="text-white/70">Subtotal</dt><dd className="font-bold">{formatSGD(t.subtotalCents)}</dd></div>
+            {t.discountCents > 0 && <div className="flex justify-between text-[#8fe388]"><dt>Discount {promoCode && `(${promoCode})`}</dt><dd className="font-bold">−{formatSGD(t.discountCents)}</dd></div>}
+            <div className="flex justify-between"><dt className="text-white/70">Delivery</dt><dd className="font-bold">{t.deliveryFeeCents === 0 ? "FREE" : formatSGD(t.deliveryFeeCents)}</dd></div>
+            <div className="flex justify-between border-t border-white/15 pt-3 text-[19px] font-black"><dt>Total</dt><dd>{formatSGD(t.totalCents)}</dd></div>
+          </dl>
+          <button disabled={busy} className="mt-4 w-full rounded-full bg-[#ffdb00] py-4 font-black text-black hover:bg-white disabled:opacity-60 focus-ring">
+            {busy ? "Placing order…" : `Pay ${formatSGD(t.totalCents)}`}
+          </button>
+          <p className="mt-3 text-center text-[12px] text-white/60">Demo checkout — no real payment is processed.</p>
+        </aside>
+      </form>
+    </div>
+  );
+}

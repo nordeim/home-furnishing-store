@@ -1,0 +1,244 @@
+import { db } from "@/db";
+import { cartItems, carts, categories, inspirations, inventory, orderItems, orders, products, promotions, reviews, stores } from "@/db/schema";
+import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES } from "@/lib/catalog";
+import { orderNumber } from "@/lib/utils";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+
+let seedPromise: Promise<void> | null = null;
+
+/** Idempotent seed: fills empty tables from the static catalogue. Safe for concurrent first requests. */
+export function ensureSeed(): Promise<void> {
+  if (!seedPromise) {
+    seedPromise = (async () => {
+      try {
+        const existing = await db.select({ id: products.id }).from(products).limit(1);
+        if (existing.length > 0) return;
+        await db.insert(categories).values(CATEGORIES.map((c) => ({ ...c }))).onConflictDoNothing();
+        await db.insert(stores).values(STORES.map((s) => ({ ...s }))).onConflictDoNothing();
+        await db.insert(products).values(PRODUCTS.map((p) => ({ ...p }))).onConflictDoNothing();
+        await db.insert(promotions).values(PROMOS.map((p) => ({ ...p }))).onConflictDoNothing();
+        await db.insert(inspirations).values(INSPIRATIONS.map((i) => ({ ...i }))).onConflictDoNothing();
+        const all = await db.select().from(products);
+        const invRows: Array<{ productId: number; storeSlug: string; quantity: number; aisleBin: string }> = [];
+        for (const p of all) {
+          const base = (p.id * 37) % 40;
+          invRows.push(
+            { productId: p.id, storeSlug: "tampines", quantity: Math.max(0, base + 8), aisleBin: `A${String((p.id % 24) + 1).padStart(2, "0")}-B${String((p.id % 12) + 1).padStart(2, "0")}` },
+            { productId: p.id, storeSlug: "jurong", quantity: Math.max(0, base - 4), aisleBin: `C${String((p.id % 20) + 1).padStart(2, "0")}-D${String((p.id % 10) + 1).padStart(2, "0")}` },
+            { productId: p.id, storeSlug: "alexandra", quantity: Math.max(0, base - 10), aisleBin: `E${String((p.id % 16) + 1).padStart(2, "0")}-F${String((p.id % 8) + 1).padStart(2, "0")}` },
+          );
+        }
+        if (invRows.length) await db.insert(inventory).values(invRows).onConflictDoNothing();
+        const seedReviews = [
+          { slug: "solbakken-3-seat-sofa", author: "Mei L.", rating: 5, title: "Survived two kids and a cat", body: "Covers wash beautifully. Delivery to Sengkang was on time and the crew carried it up.", verified: true },
+          { slug: "solbakken-3-seat-sofa", author: "Arjun S.", rating: 4, title: "Great, firm at first", body: "Took two weeks to break in. Now the favourite seat in the house.", verified: true },
+          { slug: "makan-extendable-table", author: "Grace T.", rating: 5, title: "CNY hero", body: "Sat 8 comfortably for reunion dinner. The butterfly leaf is genuinely one-person work.", verified: true },
+          { slug: "ergonomi-task-chair", author: "Daniel K.", rating: 5, title: "Back pain gone", body: "Upgraded from a dining chair. Lumbar dial + tilt lock are worth every cent.", verified: false },
+          { slug: "hdb-kitchen-trolley", author: "Nur A.", rating: 5, title: "Extra counter that moves", body: "Use it as an island daily and roll it aside when cooking big. Very stable.", verified: true },
+        ];
+        for (const r of seedReviews) {
+          const prod = all.find((p) => p.slug === r.slug);
+          if (prod) await db.insert(reviews).values({ productId: prod.id, author: r.author, rating: r.rating, title: r.title, body: r.body, verified: r.verified }).onConflictDoNothing();
+        }
+      } catch (err) {
+        // Seed must never break rendering — catalogue fallback covers reads.
+        console.error("[seed] failed", err);
+        seedPromise = null;
+      }
+    })();
+  }
+  return seedPromise;
+}
+
+export type ProductRow = typeof products.$inferSelect;
+
+export async function getAllProducts(): Promise<ProductRow[]> {
+  await ensureSeed();
+  try {
+    return await db.select().from(products).orderBy(products.id);
+  } catch {
+    // Static fallback keeps the storefront alive if Postgres is unreachable.
+    return PRODUCTS.map((p, i) => ({ ...p, id: i + 1, compareAtCents: p.compareAtCents ?? null, flatPack: true, createdAt: new Date() }));
+  }
+}
+
+export async function getProductBySlug(slug: string): Promise<ProductRow | null> {
+  const all = await getAllProducts();
+  return all.find((p) => p.slug === slug) ?? null;
+}
+
+export async function searchProducts(q: string, cat?: string): Promise<ProductRow[]> {
+  const needle = q.trim().toLowerCase();
+  const all = await getAllProducts();
+  return all.filter((p) => {
+    if (cat && cat !== "all" && p.categorySlug !== cat) return false;
+    if (!needle) return true;
+    return `${p.name} ${p.tagline} ${p.description} ${p.sku} ${p.categorySlug}`.toLowerCase().includes(needle);
+  });
+}
+
+export async function getInventory(productId: number) {
+  await ensureSeed();
+  try {
+    return await db.select().from(inventory).where(eq(inventory.productId, productId));
+  } catch {
+    return [];
+  }
+}
+
+export async function getReviews(productId: number) {
+  await ensureSeed();
+  try {
+    return await db.select().from(reviews).where(eq(reviews.productId, productId)).orderBy(desc(reviews.createdAt)).limit(20);
+  } catch {
+    return [];
+  }
+}
+
+export async function getInspirations() {
+  await ensureSeed();
+  try {
+    return await db.select().from(inspirations).orderBy(inspirations.id);
+  } catch {
+    return INSPIRATIONS.map((i, idx) => ({ ...i, id: idx + 1, createdAt: new Date() }));
+  }
+}
+
+export async function validatePromo(code: string, subtotalCents: number) {
+  await ensureSeed();
+  const c = code.trim().toUpperCase();
+  if (!c) return { ok: false as const, error: "Enter a promo code." };
+  try {
+    const rows = await db.select().from(promotions).where(eq(promotions.code, c)).limit(1);
+    const promo = rows[0];
+    if (!promo || !promo.active) return { ok: false as const, error: "This code is not valid." };
+    if (subtotalCents < promo.minSubtotalCents)
+      return { ok: false as const, error: `Requires a minimum spend of $${(promo.minSubtotalCents / 100).toFixed(0)}.` };
+    return { ok: true as const, promo };
+  } catch {
+    const local = PROMOS.find((p) => p.code === c);
+    if (!local) return { ok: false as const, error: "This code is not valid." };
+    if (subtotalCents < local.minSubtotalCents) return { ok: false as const, error: `Requires a minimum spend of $${(local.minSubtotalCents / 100).toFixed(0)}.` };
+    return { ok: true as const, promo: local };
+  }
+}
+
+export interface CheckoutInput {
+  email: string;
+  fullName: string;
+  phone: string;
+  address: string;
+  postal: string;
+  deliveryMethod: string;
+  deliverySlot: string;
+  storeSlug: string;
+  paymentMethod: string;
+  promoCode?: string | null;
+  lines: Array<{ productId: number; qty: number }>;
+  totals: { subtotalCents: number; discountCents: number; deliveryFeeCents: number; gstCents: number; totalCents: number };
+}
+
+export async function placeOrder(input: CheckoutInput) {
+  await ensureSeed();
+  const all = await getAllProducts();
+  const byId = new Map(all.map((p) => [p.id, p]));
+  // Re-derive money server-side; never trust client totals.
+  const lines = input.lines
+    .map((l) => ({ product: byId.get(l.productId), qty: Math.min(99, Math.max(1, Math.floor(l.qty))) }))
+    .filter((l): l is { product: ProductRow; qty: number } => !!l.product);
+  if (lines.length === 0) throw new Error("Your bag is empty.");
+  const subtotalCents = lines.reduce((a, l) => a + l.product.priceCents * l.qty, 0);
+  let discountCents = 0;
+  const code = (input.promoCode ?? "").trim().toUpperCase();
+  if (code) {
+    const v = await validatePromo(code, subtotalCents);
+    if (!v.ok) throw new Error(v.error);
+    const promo = v.promo;
+    discountCents = promo.kind === "percent" ? Math.round((subtotalCents * promo.value) / 100) : Math.min(subtotalCents, promo.value);
+  }
+  const net = subtotalCents - discountCents;
+  const deliveryFeeCents =
+    input.deliveryMethod === "express" ? 2900 : input.deliveryMethod === "click-collect" ? 0 : net >= 20000 ? 0 : 1200;
+  const gstCents = Math.round(((net + deliveryFeeCents) * 0.09) / 1.09);
+  const totalCents = net + deliveryFeeCents;
+  const num = orderNumber();
+
+  const inserted = await db
+    .insert(orders)
+    .values({
+      orderNumber: num,
+      email: input.email.trim(),
+      fullName: input.fullName.trim(),
+      phone: input.phone.trim(),
+      address: input.address.trim(),
+      postal: input.postal.trim(),
+      deliveryMethod: input.deliveryMethod,
+      deliverySlot: input.deliverySlot,
+      storeSlug: input.storeSlug,
+      paymentMethod: input.paymentMethod,
+      subtotalCents,
+      discountCents,
+      deliveryFeeCents,
+      gstCents,
+      totalCents,
+      status: "confirmed",
+    })
+    .returning();
+  const order = inserted[0];
+  if (!order) throw new Error("Could not create order.");
+  await db.insert(orderItems).values(
+    lines.map((l) => ({
+      orderId: order.id,
+      productId: l.product.id,
+      name: l.product.name,
+      sku: l.product.sku,
+      imageUrl: l.product.imageUrls[0] ?? "",
+      unitPriceCents: l.product.priceCents,
+      qty: l.qty,
+    })),
+  );
+  // Decrement store inventory (best-effort, never fails checkout).
+  try {
+    for (const l of lines) {
+      await db
+        .update(inventory)
+        .set({ quantity: sql`greatest(0, ${inventory.quantity} - ${l.qty})` })
+        .where(and(eq(inventory.productId, l.product.id), eq(inventory.storeSlug, input.storeSlug || "tampines")));
+    }
+  } catch { /* non-blocking */ }
+  return order;
+}
+
+export async function trackOrder(orderNumberInput: string, email: string) {
+  await ensureSeed();
+  const num = orderNumberInput.trim().toUpperCase();
+  const rows = await db.select().from(orders).where(eq(orders.orderNumber, num)).limit(1);
+  const order = rows[0];
+  if (!order || order.email.toLowerCase() !== email.trim().toLowerCase()) return null;
+  const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id));
+  return { order, items };
+}
+
+// Server cart helpers (cookie token → rows) for API parity with localStorage cart.
+export async function getOrCreateCart(token: string) {
+  const rows = await db.select().from(carts).where(eq(carts.token, token)).limit(1);
+  if (rows[0]) return rows[0];
+  const ins = await db.insert(carts).values({ token }).returning();
+  return ins[0]!;
+}
+
+export async function getCartLines(token: string) {
+  const cart = await getOrCreateCart(token);
+  const items = await db.select().from(cartItems).where(eq(cartItems.cartId, cart.id));
+  const all = await getAllProducts();
+  const byId = new Map(all.map((p) => [p.id, p]));
+  return {
+    cart,
+    lines: items
+      .map((i) => ({ item: i, product: byId.get(i.productId) }))
+      .filter((x): x is { item: typeof x.item; product: ProductRow } => !!x.product),
+  };
+}
+
+export { db };
+export { and, desc, eq, ilike, or };
