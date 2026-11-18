@@ -11,10 +11,13 @@ const STEPS = ["Confirmed", "Picking", "On the way", "Delivered"];
 
 export default async function OrderPage({ params }: { params: Promise<{ number: string }> }) {
   const { number } = await params;
-  const decoded = decodeURIComponent(number);
   let order = null;
   let items: typeof orderItems.$inferSelect[] = [];
   try {
+    // Malformed percent-encoding (e.g. /order/%ZZ) throws URIError — decode
+    // inside the guard so it lands in the friendly not-found state, not the
+    // error boundary (Task 118 F-15).
+    const decoded = decodeURIComponent(number);
     const rows = await db.select().from(orders).where(eq(orders.orderNumber, decoded)).limit(1);
     order = rows[0] ?? null;
     if (order) items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id));

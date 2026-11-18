@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-18 (Task 114: test harness, lint debt, a11y, SEO, PII)
+last_updated: 2026-11-18 (Task 118: dev-hydration allowedDevOrigins fix, lineage-drift pins, honesty + boundary cycle)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -127,28 +127,32 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`typecheck:tests` covers the test tree) |
-| `npm run test` | Vitest unit suite (50 tests, pure seams) |
-| `npm run test:e2e` | Playwright e2e (23 tests, production build on :3100) |
+| `npm run test` | Vitest unit suite (58 tests, pure seams) |
+| `npm run test:e2e` | Playwright e2e (27 tests, production build on :3100) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
-**Current state (Task 117):** a NORDHEM-native suite is wired into the gates.
+**Current state (Task 118):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 50 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 58 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
-  `maskEmail`, and the `robots.ts` / `sitemap.ts` SEO policy. Node environment
-  with a localStorage shim (`tests/unit/setup.ts`); no jsdom, no component
-  rendering.
-- **E2E (Playwright, 23 tests)** against the **production build** (the webServer
+  `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
+  candidate-scan guard, and the repo-infrastructure contract (`.env.example`
+  single-variable, docker-compose postgres-only, `allowedDevOrigins` — the
+  Task 118 lineage-drift pins). Node environment with a localStorage shim
+  (`tests/unit/setup.ts`); no jsdom, no component rendering.
+- **E2E (Playwright, 27 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
-  hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD,
-  robots/sitemap endpoints, API envelope + boundary validation (invalid
-  productId → 422, malformed body → 400), fetch-failure resilience for
-  wishlist/search, and the full bag → promo → checkout → masked confirmation →
-  tracking journey against live Postgres).
+  hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
+  incl. derived availability + badge dedupe, robots/sitemap endpoints, API
+  envelope + boundary validation (invalid/unknown productId → 422, malformed
+  body → 400), the 20/min/IP rate-limit pins on track/promo, fetch-failure
+  resilience for wishlist/search, cart promo persistence (failed apply keeps
+  the discount; the Remove button), and the full bag → promo → checkout →
+  masked confirmation → tracking journey against live Postgres).
 - The predecessor's 73-unit/15-e2e dead tree (ely-beauty imports) was retired;
   `tsconfig.tests.json` + `typecheck:tests` now cover the NORDHEM test tree.
 
@@ -190,6 +194,10 @@ fix and passes after.
 - Debugging a "Missed semicolon" build failure in `globals.css`: it is almost
   always the Tailwind candidate scan picking up a class-like string from prose —
   see the scan guard at the top of `globals.css` and AGENTS.md gotcha #1.
+- "Dev page renders but drawer/cart/search do nothing (no console errors), only
+  via `http://127.0.0.1:3000`": Next 16 `allowedDevOrigins` dropped the `/_next/hmr`
+  websocket — the page never hydrated. `next.config.ts` pins
+  `allowedDevOrigins: ["127.0.0.1"]` (unit-pinned; see AGENTS.md gotcha #11).
 - "App connects to the wrong DB / health 500 with the DB up": an exported shell
   `DATABASE_URL` overrides `.env` (dotenv never overrides). Check
   `env | grep DATABASE` and pin the value per command.

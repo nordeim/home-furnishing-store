@@ -64,7 +64,7 @@ export function Header() {
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-1.5 text-[12px] sm:px-6">
           <p className="truncate">
             <span className="mr-2 inline-block rounded-sm bg-[#ffdb00] px-1.5 py-0.5 font-bold text-black">NEW</span>
-            Festive market is on — up to 30% off dining & decor
+            Festive market is on — up to 24% off dining & decor
             <Link href="/offers" className="ml-2 underline underline-offset-2">Shop offers</Link>
           </p>
           <nav className="hidden items-center gap-4 md:flex" aria-label="Utility">

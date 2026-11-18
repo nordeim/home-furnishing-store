@@ -27,8 +27,9 @@ static-catalogue fallback.
   selectors, flagged "Demo — no charge"). These are documented deferrals
   (`docs/implementation-plan.md`), not omissions to work around.
 - The build output is the plain `.next/` directory served by `next start`.
-  `next.config.ts` sets no options — there is no standalone bundle assembly
-  and no `.env` copying into the build.
+  `next.config.ts` sets a single option — `allowedDevOrigins: ["127.0.0.1"]`,
+  the dev-mode HMR/hydration guard (irrelevant to the production build). There
+  is no standalone bundle assembly and no `.env` copying into the build.
 
 ## 2. Prerequisites
 
@@ -173,11 +174,18 @@ Operational notes:
   `app_db`.
 
 **Alternatives.** Any reachable PostgreSQL serves equally — a system
-service (`apt-get install postgresql`), Docker
-(`docker run -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:17`), or a
+service (`apt-get install postgresql`), Docker, or a
 managed provider. The application is indifferent; §5–§6 are the same either
 way. The rootless method above is the one this repository documents,
 verifies, and keeps in lockstep with its pinned connection string.
+
+For a Docker-based local database the repository ships a **postgres-only**
+`docker-compose.yml` (Task 118 aligned it to this architecture: PostgreSQL 17
+with `app_db`/`postgres`/`postgres` on :5432, matching `drizzle.config.json`
+exactly — `docker compose up -d`, then `npx drizzle-kit push`). It
+intentionally runs no other service: there is no Redis, no Stripe, and no
+init-script mount — the schema needs no PostgreSQL extensions (integer serial
+keys, `ilike` search).
 
 ## 5. Schema push
 
@@ -317,8 +325,8 @@ rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_
 npm run typecheck
 npm run typecheck:tests
 npm run lint                # 0 errors / 0 warnings expected
-npm run test                # 40/40 unit (Vitest, pure seams)
-npm run test:e2e            # 18/18 e2e — needs the live Postgres
+npm run test                # 58/58 unit (Vitest, pure seams)
+npm run test:e2e            # 27/27 e2e — needs the live Postgres
 ```
 
 One-time before e2e: `npm run test:e2e:install` (installs the pinned

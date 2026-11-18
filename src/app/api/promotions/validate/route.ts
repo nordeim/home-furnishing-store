@@ -3,7 +3,27 @@ import { validatePromo } from "@/lib/server-data";
 
 export const dynamic = "force-dynamic";
 
+// Every validation is a Postgres read (ensureSeed + select) — same fixed-window
+// limiter posture as the checkout and reviews routes (20 req/min/IP, in-process;
+// documented single-node limitation) bounds the unauthenticated DB hit rate.
+const rate = new Map<string, { n: number; reset: number }>();
+
+function throttled(ip: string): boolean {
+  const now = Date.now();
+  const row = rate.get(ip);
+  if (!row || now > row.reset) {
+    rate.set(ip, { n: 1, reset: now + 60_000 });
+    return false;
+  }
+  row.n += 1;
+  return row.n > 20;
+}
+
 export async function POST(req: Request) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  if (throttled(ip)) {
+    return NextResponse.json({ ok: false, error: { code: "RATE_LIMIT", message: "Too many attempts. Please wait a minute." } }, { status: 429 });
+  }
   let body: { code?: string; subtotalCents?: number };
   try {
     body = (await req.json()) as typeof body;

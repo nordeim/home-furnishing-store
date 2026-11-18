@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAllProducts, getInventory, getProductBySlug, getReviews } from "@/lib/server-data";
-import { formatSGD } from "@/lib/utils";
+import { formatSGD, stars, visibleBadges } from "@/lib/utils";
 import { ProductCard } from "@/components/ProductCard";
 import { BuyBox } from "@/components/BuyBox";
 import { ReviewSection } from "@/components/ReviewSection";
@@ -39,6 +39,9 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const discount = p.compareAtCents && p.compareAtCents > p.priceCents
     ? Math.round(((p.compareAtCents - p.priceCents) / p.compareAtCents) * 100)
     : 0;
+  // Shared star seam: a 4.5 renders 4 full + a faded half, not 5 full stars
+  // while the aria-label truthfully says 4.5 (Task 118 F-14).
+  const ratingStars = stars(parseFloat(String(p.ratingAvg)));
 
   // schema.org Product structured data — server-controlled catalogue values
   // only; `<` is escaped so no string can break out of the script element.
@@ -60,7 +63,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       url: `${SITE}/product/${p.slug}`,
       priceCurrency: "SGD",
       price: (p.priceCents / 100).toFixed(2),
-      availability: "https://schema.org/InStock",
+      // Derived from the product's stock aggregate — never a hardcoded
+      // InStock claim (BuyBox on this page can honestly show a degrade or
+      // out-of-stock state).
+      availability: p.stockTotal > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
       itemCondition: "https://schema.org/NewCondition",
     },
   };
@@ -92,7 +98,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             </div>
           )}
           <div className="mt-4 grid grid-cols-3 gap-3 text-center text-[13px]">
-            {[["Flat-pack", "Fits any lift"], ["10-yr", "warranty"], ["365-day", "returns"]].map(([a, b]) => (
+            {[["Flat-pack", "Fits any lift"], ["Assembly", "from $25"], ["365-day", "returns"]].map(([a, b]) => (
               <div key={a} className="rounded-xl bg-[#f5f3ee] p-3">
                 <p className="font-black text-[15px]">{a}</p><p className="text-[#5b5b5b]">{b}</p>
               </div>
@@ -104,12 +110,18 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <div className="flex flex-wrap gap-2">
             {p.isNew && <span className="rounded-full bg-[#0058a3] px-3 py-1 text-[12px] font-bold text-white">NEW</span>}
             {discount > 0 && <span className="rounded-full bg-[#cc0008] px-3 py-1 text-[12px] font-bold text-white">-{discount}% NOW</span>}
-            {p.badges.map((b) => <span key={b} className="rounded-full bg-[#ffdb00] px-3 py-1 text-[12px] font-bold">{b}</span>)}
+            {visibleBadges(p.badges, { isNew: p.isNew, discountPercent: discount }).map((b) => (
+              <span key={b} className="rounded-full bg-[#ffdb00] px-3 py-1 text-[12px] font-bold">{b}</span>
+            ))}
           </div>
           <h1 className="mt-2 text-[clamp(1.7rem,3.5vw,2.6rem)] font-black tracking-tight">{p.name}</h1>
           <p className="mt-1 text-[16px] text-[#5b5b5b]">{p.tagline}</p>
           <p className="mt-2 text-[14px]" aria-label={`Rated ${p.ratingAvg} from ${p.ratingCount} reviews`}>
-            <span className="text-[#e5a000]">{"★".repeat(Math.round(parseFloat(String(p.ratingAvg))))}{"☆".repeat(5 - Math.round(parseFloat(String(p.ratingAvg))))}</span>{" "}
+            <span className="text-[#e5a000]" aria-hidden="true">
+              {"★".repeat(ratingStars.full)}
+              {ratingStars.half && <span className="text-[#e5a000]/40">★</span>}
+              {"☆".repeat(ratingStars.empty)}
+            </span>{" "}
             <span className="font-bold">{String(p.ratingAvg)}</span> · <a href="#reviews" className="text-[#0058a3] underline">{p.ratingCount} reviews</a> · SKU {p.sku}
           </p>
           <div className="mt-4 flex items-baseline gap-3">

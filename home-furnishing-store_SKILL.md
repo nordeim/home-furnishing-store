@@ -1,15 +1,16 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 1.1.0
-last_updated: "2026-11-18"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 50/50 unit · 23/23 e2e · cold build green (29 routes) · PostgreSQL 17.12 live-verified"
+version: 1.2.0
+last_updated: "2026-11-18 (Task 118: dev-hydration allowedDevOrigins fix, lineage-drift pins, honesty + boundary cycle)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 58/58 unit · 27/27 e2e · cold build green (29 routes) · PostgreSQL 17.12 live-verified"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
 
 > How to use: this is the distilled engineering memory of the NORDHEM codebase
-> after the Task 114 remediation and the Task 117 honesty/hardening cycle. `AGENTS.md` is the quick operator
+> after the Task 114 remediation, the Task 117 honesty/hardening cycle, and the
+> Task 118 dev-hydration/lineage-drift cycle. `AGENTS.md` is the quick operator
 > reference, the PAD is the full blueprint, and this skill is the
 > pattern/lesson layer an agent needs before touching the code. When code and
 > this document disagree, **the code wins** — then fix this document in the
@@ -65,8 +66,16 @@ git clone https://github.com/nordeim/home-furnishing-store.git && cd home-furnis
 npm install
 cp .env.example .env            # set DATABASE_URL (any Postgres; unreachable = static fallback)
 npx drizzle-kit push            # 11 tables; seeding happens automatically on first read
-npm run dev                     # http://localhost:3000
+npm run dev                     # http://localhost:3000 (or 127.0.0.1:3000 — allowedDevOrigins covers it)
 ```
+
+The env contract is single-variable (DATABASE_URL) and **pinned by test**
+(`tests/unit/env-example.test.ts`): a sibling-project `.env.example` once
+replaced it inter-session listing Stripe/BDT/auth variables this codebase
+never reads — the pin fails BY CONTENT if that drift class returns. The same
+file pins `docker-compose.yml` to a postgres-only service (no Redis/Stripe/
+Adminer — this architecture has none) and the `allowedDevOrigins` entry in
+`next.config.ts` (see §10: the dev-hydration trap).
 
 Gate chain (there is no hosted CI; the local gate is the only gate):
 
@@ -74,8 +83,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 50/50
-npm run test:e2e                                               # 23/23 (live Postgres for the journey)
+npm run test                                                   # 58/58
+npm run test:e2e                                               # 27/27 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -238,6 +247,20 @@ matches ("Go" ⊂ "ERGONOMI").
     inlined 2900/20000/1200/0.09 while `utils.ts` exported named constants
     (Task 117 unified them); every fee the server charges must come from the
     same exported constant the display uses.
+15. **Hardcoding structured-data claims** — JSON-LD `availability: InStock`
+    regardless of actual stock (Task 118): every crawler-facing claim must be
+    derived from the same data the visible page renders.
+16. **Default titles that imply unearned trust** — `r.title || "Verified
+    review"` stamped "Verified" on unverified user reviews (Task 118); render
+    the field only when it exists.
+17. **Destroying user state on a failed action** — the cart's promo catch wiped
+    an applied code because a NEW apply failed (Task 118); failed actions
+    must leave prior state intact, and removal must be an explicit affordance.
+18. **Accepting whole-file lineage pastes** — the operator's inter-session
+    commits brought a sibling repo's `.env.example`, docker-compose (Redis/
+    Stripe/Adminer) and a "Maison" init script for extensions this schema
+    doesn't use (Task 118): infra files are code — pin them to the codebase
+    with content tests, not convention.
 
 ## 10. Debugging Guide
 
@@ -257,6 +280,7 @@ matches ("Go" ⊂ "ERGONOMI").
 | Seeding localStorage in e2e has no effect | The external stores read localStorage once at module load | Seed via `page.addInitScript` (before app boot), never post-load `evaluate` |
 | Agent-browser ref extraction returns the whole line | Button refs render as `[expanded=false, ref=e477]` — `\[ref=` patterns miss | `grep -oE "ref=e[0-9]+"` then prefix `@` |
 | Search "Try again" button does nothing | `setQ(needle)` with an unchanged value never re-runs the effect | A `retry` counter state in the effect deps (see `search/page.tsx`) |
+| Dev page renders but nothing is interactive (no console errors), only via `http://127.0.0.1:3000` | Next 16 `allowedDevOrigins` dropped the `/_next/hmr` websocket (origin host ≠ banner host); the RSC client discarded the inline flight payload and waits forever — `self.__next_f` array(0) | `allowedDevOrigins: ["127.0.0.1"]` in `next.config.ts` (unit-pinned); or open `localhost:3000`. Detect: `Object.keys(document.body).some(k => k.startsWith("__react"))` after load |
 
 ## 11. Pre-Ship Checklist
 
@@ -313,6 +337,17 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
     "not installed" row and Pattern 5's retired code sample stale; a doc
     sweep must `rg` the whole doc set for the old claim (route counts, test
     totals, lineage notes), not just edit the section you touched.
+12. **Dev-only bugs are gate-invisible.** The 127.0.0.1 hydration trap
+    (Task 118) broke every interactive element on the dev server while ALL
+    gates stayed green — the e2e suite boots the production build, which has
+    no HMR. When a bug class lives only in one runtime mode, add a probe for
+    that mode to the audit ritual (a hydration check is now part of the
+    dev-server smoke).
+13. **The environment participates in debugging.** Two "impossible" symptoms
+    this lineage traced to the sandbox, not the code: a display-redaction
+    layer mangling tool output, and Next 16's cross-origin HMR guard. When
+    evidence contradicts a green gate, suspect the environment layer next
+    (shell env shadows, proxies, origin guards) before rewriting code.
 
 ## 13. Pitfalls to Avoid
 

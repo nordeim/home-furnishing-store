@@ -1,9 +1,21 @@
+# NORDHEM (home-furnishing-store) — local PostgreSQL via Docker.
+#
 # Usage:
 #   Start:   docker compose up -d
 #   Stop:    docker compose down
 #   Reset:   docker compose down -v  (WARNING: deletes all data)
 #   Logs:    docker compose logs -f postgres
-# ══════════════════════════════════════════════════════════════════
+#
+# The credentials/port match drizzle.config.json exactly
+# (postgresql://postgres:postgres@127.0.0.1:5432/app_db). After the first
+# `docker compose up -d`, run `npx drizzle-kit push` from the repo root to
+# create the 11 tables — seeding happens automatically on the app's first
+# database read (ensureSeed).
+#
+# This compose file intentionally runs ONLY the postgres service: the app
+# has no Redis, no Stripe, and no other backing service (payments are mock
+# selectors; rate limiting is in-process). The schema needs no PostgreSQL
+# extensions (integer serial PKs; ilike search) — no init scripts are mounted.
 
 services:
 
@@ -21,69 +33,14 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d app_db"]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 10s
-    networks:
-      - nordhem_net
-
-  # ─── Redis 7 (rate limiting, idempotency keys) ───────────────────
-  # Note: In production, use Upstash Redis (serverless). This is for local dev.
-  redis:
-    image: redis:7-alpine
-    container_name: nordhem_redis
-    restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass nordhem_redis_dev
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "nordhem_redis_dev", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    networks:
-      - nordhem_net
-
-  # ─── Stripe CLI (webhook forwarding to local) ────────────────────
-  # Usage: docker compose --profile stripe up -d stripe
-  # Then: docker exec -it nordhem_stripe stripe listen --forward-to host.docker.internal:3000/api/webhooks/stripe
-  stripe:
-    image: stripe/stripe-cli:latest
-    container_name: nordhem_stripe
-    profiles: ["stripe"]
-    network_mode: host
-    environment:
-      STRIPE_API_KEY: ${STRIPE_SECRET_KEY}
-    command: listen --forward-to localhost:3000/api/webhooks/stripe
-
-  # ─── Adminer (lightweight DB GUI — dev only) ─────────────────────
-  adminer:
-    image: adminer:latest
-    container_name: nordhem_adminer
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - nordhem_net
-    profiles: ["tools"]
 
 # ─── Named Volumes ─────────────────────────────────────────────────
 volumes:
   postgres_data:
     driver: local
-  redis_data:
-    driver: local
-
-# ─── Networks ──────────────────────────────────────────────────────
-networks:
-  nordhem_net:
-    driver: bridge

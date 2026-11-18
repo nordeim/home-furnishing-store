@@ -1,4 +1,4 @@
-# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.2.0
+# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.3.0
 
 **Classification:** Internal Engineering Reference
 **Status:** DEFINITIVE, PRODUCTION-LOCKED BLUEPRINT
@@ -34,7 +34,34 @@ Nothing is here "because it's popular."
   (killing the unknown-code→10% phantom discount); package identity fixed
   (`home-furnishing-store`); 16 dev-server screenshots under `docs/screenshots/`.
   Remediation plan + evidence: `docs/plans/2026-11-18-task114-remediation-plan.md`.
-- `[CA]` **Task 117 remediation cycle (this revision):** fresh-clone re-audit
+- `[CA]` **Task 118 remediation cycle (this revision):** fresh-clone re-audit
+  caught a **dev-mode hydration trap** — Next 16 `allowedDevOrigins` drops the
+  `/_next/hmr` websocket for 127.0.0.1 origins, the RSC client discards the
+  inline flight payload, and the dev page renders but never hydrates (no
+  console errors); invisible to every gate because e2e boots the production
+  build. Fixed via `allowedDevOrigins: ["127.0.0.1"]` in `next.config.ts`
+  (hydration probe RED → GREEN, full mobile-drawer taxonomy re-verified on
+  dev) and unit-pinned. **Lineage drift** in the operator's inter-session
+  commits aligned to the codebase: `.env.example` restored to the
+  single-variable contract (the pasted sibling-project file listed 8 unread
+  variables incl. Stripe/BDT/auth), `docker-compose.yml` reduced to a
+  postgres-only service (no Redis/Stripe/Adminer), the "Maison" pgcrypto/
+  pg_trgm init script removed (the schema needs no extensions) — all pinned
+  by `tests/unit/env-example.test.ts`. Honesty + boundary cycle: PDP badge
+  dedupe completed (`visibleBadges` wired into product pages), reviews 422
+  for unknown productIds (was FK 500), 20/min/IP limiters on
+  `/api/orders/track` + `/api/promotions/validate`, JSON-LD availability
+  derived from stock, marketing copy honest (24% not 30%; no "stackable"),
+  MAKAN15 label matches whole-basket reality, untitled reviews no longer
+  get a "Verified review" headline, cart keeps the applied promo on a failed
+  apply (+ explicit Remove button), half-star rating renderer via `stars()`,
+  checkout per-line validation via `clampInt`, `/order/[number]` decode
+  guarded, `/api/orders/track` response minimized to the fields the page
+  renders. Suite grew to **58 unit + 27 e2e** (env/compose/config +
+  scan-guard pins; rate-limit, badge-dedupe, unknown-productId and promo-
+  persistence specs). Plan:
+  `docs/plans/2026-11-18-task118-remediation-plan.md`.
+- `[CA]` **Task 117 remediation cycle:** fresh-clone re-audit
   (mobile-nav taxonomy re-verified clean at 390/768/1440 — no Tailwind v4 bug);
   honesty fixes — Family voucher calculator 10× overstatement (now the pure,
   unit-pinned `familyVoucherCents`), BuyBox no longer fabricates stock on the
@@ -590,8 +617,8 @@ auth is a design event, not a patch.
 
 | Category | Files | Status | Location |
 |----------|-------|--------|----------|
-| Unit (Vitest) | 5 files, 50 tests | ✅ Green — pure seams: `utils` money/validators + `familyVoucherCents` + `visibleBadges` (Task 117), `catalog` invariants + `findPromo`, `local-store` external-store contract, `mask`, robots/sitemap SEO policy | `tests/unit/` |
-| E2E (Playwright) | 2 specs, 23 tests | ✅ Green — production build on `:3100`, pinned `DATABASE_URL`: mobile-navigation project (390×844), desktop storefront/commerce journeys (incl. the live-DB checkout round-trip), API boundary validation (422/400) and wishlist/search fetch-failure resilience (Task 117) | `tests/e2e/` |
+| Unit (Vitest) | 7 files, 58 tests | ✅ Green — pure seams: `utils` money/validators + `familyVoucherCents` + `visibleBadges` (Task 117), `catalog` invariants + `findPromo`, `local-store` external-store contract, `mask`, robots/sitemap SEO policy | `tests/unit/` |
+| E2E (Playwright) | 2 specs, 27 tests | ✅ Green — production build on `:3100`, pinned `DATABASE_URL`: mobile-navigation project (390×844), desktop storefront/commerce journeys (incl. the live-DB checkout round-trip), API boundary validation (422/400) and wishlist/search fetch-failure resilience (Task 117) | `tests/e2e/` |
 | Type coverage | `tsconfig.tests.json` | ✅ `npm run typecheck:tests` (node + vitest/globals types) | repo root |
 
 The predecessor's 73-unit/15-e2e tree (ely-beauty imports, undeclared
@@ -623,8 +650,8 @@ the code, never to hit a number.
 rm -rf .next && DATABASE_URL=… npm run build   # cold build (cache can mask the scan-guard failure)
 npm run typecheck && npm run typecheck:tests  # app scope + test tree
 npm run lint                                   # 0 errors / 0 warnings
-npm run test                                   # 50/50 unit
-npm run test:e2e                               # 23/23 e2e (live Postgres for the journey)
+npm run test                                   # 58/58 unit
+npm run test:e2e                               # 27/27 e2e (live Postgres for the journey)
 # runtime smoke of touched routes against `npm run start`
 ```
 
@@ -736,6 +763,20 @@ Clone over HTTPS; push over SSH through the wrapper with the mandatory
 | INFO | Auth + real payments deferred by decision (ADR-006); reviews unauthenticated; per-process rate limiter weak behind multi-instance LB | Demo-scope accepted risks | Documented; revisit before any production use |
 | ~~INFO~~ | Display pricing rules duplicated (`priceTotals` helper vs inline magic numbers in `placeOrder`) | Drift risk between display and truth | **Fixed (Task 117)** — `placeOrder` imports `GST_RATE` / `FREE_DELIVERY_THRESHOLD_CENTS` / `STANDARD_` / `EXPRESS_DELIVERY_FEE_CENTS` from `utils.ts`; behaviour pinned by the exact-value e2e journey |
 | INFO | `nordhem_promo` persisted format changed raw → JSON in the Task 114 store refactor | One-time cosmetic migration: a returning visitor re-applies their promo once | Documented in `cart-store.tsx` |
+| ~~HIGH~~ | Dev server never hydrated when opened via `http://127.0.0.1:3000` (Next 16 `allowedDevOrigins` drops the `/_next/hmr` websocket; the RSC client then discards the inline flight payload — page renders, drawer/cart/search dead, zero console errors) | Every 127.0.0.1 consumer of the dev server (agent-browser, curl probes, Playwright's default baseURL habit) saw a dead-interactive page; invisible to all gates (e2e boots the production build, which has no HMR) | **Fixed (Task 118)** — `allowedDevOrigins: ["127.0.0.1"]` in `next.config.ts`; hydration probe RED → GREEN; full drawer taxonomy re-verified on dev; unit-pinned by `tests/unit/env-example.test.ts` |
+| ~~HIGH~~ | `.env.example` replaced inter-session with a sibling-project file listing 8 variables this codebase never reads (Stripe/BDT payments, Cloudflare posture, session auth) — while its own header claimed DATABASE_URL was the only variable read | Misleads every setup; self-contradicting docs; the exact drift class the repo had already fixed once (v1.0.0) | **Fixed (Task 118)** — single-variable contract restored; lineage strings negative-pinned by `tests/unit/env-example.test.ts` |
+| ~~MEDIUM~~ | `docker-compose.yml` + `infrastructure/postgres/init/00-create-extensions.sql` from a foreign lineage (Redis, Stripe CLI → non-existent `/api/webhooks/stripe`, Adminer; "Maison" header; pgcrypto/pg_trgm for uuid-PK/fuzzy-search features this schema has neither) | Describes an architecture this codebase does not have | **Fixed (Task 118)** — compose reduced to the postgres service (credentials/port matching `drizzle.config.json`); init script + mount removed (schema needs no extensions); pinned by `tests/unit/env-example.test.ts` |
+| ~~MEDIUM~~ | PDP rendered duplicate badge chips — `visibleBadges()` was wired into ProductCard only, not the product page | The Task-117 dedupe was an incomplete rollout: NORDLYS showed `-24%` twice | **Fixed (Task 118)** — PDP consumes `visibleBadges`; e2e-pinned |
+| ~~MEDIUM~~ | reviews POST: unknown-but-positive `productId` → Postgres FK violation → 500 (the route's own comment claimed 422) | Client error reported as server fault; 500 noise | **Fixed (Task 118)** — existence check → 422 `VALIDATION`; e2e-pinned |
+| ~~MEDIUM~~ | Marketing copy overclaimed: "up to 30% off" (max catalogue discount is 24%), "stackable promo codes" (single-code store), "Bundle & save" (no bundle pricing) | Copy/behaviour mismatch on three surfaces | **Fixed (Task 118)** — honest copy on offers/home/header; MAKAN15 label matches whole-basket reality |
+| ~~MEDIUM~~ | JSON-LD hardcoded `availability: InStock` regardless of actual stock | Structured data contradicted the page's own BuyBox (out-of-stock / degrade states) | **Fixed (Task 118)** — derived from `stockTotal`; e2e-pinned |
+| ~~MEDIUM~~ | Untitled reviews rendered the headline "Verified review" while `verified: false` | Misleading trust signal on every user-submitted review without a title | **Fixed (Task 118)** — headline renders only when a title exists |
+| ~~MEDIUM~~ | `/api/orders/track` and `/api/promotions/validate` had no rate limiter (checkout and reviews did); track is the PII lookup, promo validates hits Postgres per call | Inconsistent abuse-posture on write/lookup boundaries — the Task-117 plan itself owed the track limiter | **Fixed (Task 118)** — 20/min/IP fixed window (checkout pattern) on both routes; e2e-pinned |
+| ~~LOW~~ | A failed promo apply wiped a previously applied valid promo (cart catch → `setPromo(null)`) | User's discount silently vanished on a typo or transient failure | **Fixed (Task 118)** — promo preserved on failure; explicit Remove button added; e2e-pinned |
+| ~~LOW~~ | Rating renderers rounded 4.5 → 5 full stars while the aria-label said 4.5 (`stars()` seam existed unused); dead `clampInt`/`cn` exports | Visual/aria mismatch; dead code | **Fixed (Task 118)** — `stars()` wired into ProductCard + PDP (faded half-star); `clampInt` now live in checkout line validation; `cn` removed |
+| ~~LOW~~ | `/order/[number]` decoded `decodeURIComponent` outside its try/catch; `/api/orders/track` returned the full order row where the page uses a subset | `%ZZ` → error page; needless PII in the envelope (phone/street) | **Fixed (Task 118)** — decode guarded; track response mapped to the rendered fields |
+| LOW | Header store picker persists `nordhem_store` but no other module reads it — decorative in this build | The control implies a behaviour that does not exist | Open — documented deferral (wiring it to BuyBox is new feature work) |
+| INFO | PDP `aggregateRating`/`ratingCount` are catalogue fiction while the visible review list is live DB rows (e.g. "412 reviews" beside 2 rows); per-product warranty claims (12/25-yr) vs the generic trio cell | Demo-grade invented-content stance (same class as invented product names) | Documented — the invented-content decision covers it; the universal trio cell was reworded (Task 118) to claim only documented facts |
 
 **Verification ledger (2026-11-18, Task 114 remediation cycle):** rootless
 PostgreSQL 17.12 installed (scram TCP + trust socket, `app_db` created) —
@@ -746,7 +787,7 @@ total 233820; tracking 200 on match / 404 on mismatch) — *Verified*; mobile
 menu at 390×844 + desktop at 1280×800 via agent-browser (open/navigate/
 auto-close/toggle; Escape gap found → fixed → re-verified) — *Verified*;
 lint 0 errors 0 warnings — *Verified*; typecheck + typecheck:tests clean —
-*Verified*; vitest 40/40 — *Verified* (Task 114; 50/50 as of Task 117); Playwright 18/18 against the production
+*Verified*; vitest 40/40 — *Verified* (Task 114; 58/58 as of Task 118); Playwright 18/18 against the production
 build — *Verified*; cold `next build` green (29 routes) — *Verified*; 16
 dev-server screenshots (PNG signature + dimensions validated) — *Verified*;
 no Tailwind v4 mobile-nav bug found (the family's v4 trap is the candidate
@@ -760,7 +801,7 @@ routes) — *Verified*; mobile drawer taxonomy at 390×844 + 768×900 + 1440×90
 (open/toggle/Escape/navigate/auto-close; hamburger hidden ≥1024; no Tailwind v4
 display-toggle bug — the drawer conditionally mounts) — *Verified*; every Task
 117 fix TDD'd (RED observed first) — *Verified*; final gates lint 0/0 ·
-typecheck + typecheck:tests clean · vitest 50/50 · Playwright 23/23 against the
+typecheck + typecheck:tests clean · vitest 58/58 · Playwright 27/27 against the
 production build (incl. the live-DB checkout journey, money math exact) · cold
 build green (29 routes) — *Verified*; BuyBox degrade state + Family calculator
 re-verified in-browser on the dead-DB path ($1,200/yr → $60 vouchers) —
@@ -786,7 +827,7 @@ re-verified in-browser on the dead-DB path ($1,200/yr → $60 vouchers) —
 | `src/app/product/[slug]/page.tsx` | ~122 | PDP: metadata, gallery, stock/aisle, reviews, related |
 | `src/app/api/checkout/route.ts` | ~62 | Validation, rate limit, `placeOrder` delegation, envelope |
 | `src/components/Header.tsx` | ~180 | Utility strip, search, store picker (external store), category nav, mobile drawer (Escape-close) |
-| `tests/unit/` | 5 files | 50 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges, catalog, local-store, mask, robots/sitemap) |
+| `tests/unit/` | 5 files | 58 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges, catalog, local-store, mask, robots/sitemap, env/compose/config + scan-guard pins) |
 | `tests/e2e/` | 2 specs | 23 Playwright tests: mobile-navigation (390×844), storefront/commerce journeys, API boundary validation, fetch-failure resilience |
 | `src/components/ProductCard.tsx` | ~92 | Card + `Rating`; wishlist/add-to-bag affordances |
 | `docs/implementation-plan.md` | 42 | Stack decision record, deviations ledger, acceptance criteria |

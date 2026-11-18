@@ -51,9 +51,26 @@ test.describe("product page + SEO", () => {
       .locator('script[type="application/ld+json"]')
       .first()
       .textContent();
-    const parsed = JSON.parse(jsonld ?? "null") as { "@type": string; offers?: { price?: string } };
+    const parsed = JSON.parse(jsonld ?? "null") as { "@type": string; offers?: { price?: string; availability?: string } };
     expect(parsed["@type"]).toBe("Product");
     expect(parsed.offers?.price).toBe("1299.00");
+    // Availability is derived from the product's stock, never hardcoded
+    // InStock (Task 118 F-10) — a stocked PDP must assert InStock.
+    expect(parsed.offers?.availability).toBe("https://schema.org/InStock");
+  });
+
+  test("PDP badge chips are deduped against the computed NEW/discount chips", async ({ page }) => {
+    // Task 118 F-5: the PDP renders a computed red "-{discount}% NOW" chip and
+    // a blue NEW chip; catalogue literal badges duplicating those values must
+    // be filtered by visibleBadges() (Task 117 wired it into ProductCard only).
+    await page.goto("/product/nordlys-floor-lamp"); // badges: ["-24%"], computed 24, isNew false
+    await expect(page.getByText("-24% NOW")).toBeVisible();
+    await expect(page.getByText("-24%", { exact: true })).toHaveCount(0);
+
+    await page.goto("/product/solbakken-3-seat-sofa"); // badges: ["Bestseller", "-19%"], computed 19
+    await expect(page.getByText("Bestseller", { exact: true })).toBeVisible();
+    await expect(page.getByText("-19% NOW")).toBeVisible();
+    await expect(page.getByText("-19%", { exact: true })).toHaveCount(0);
   });
 
   test("html carries data-scroll-behavior for Next 16 smooth-scroll handling", async ({ page }) => {
@@ -125,6 +142,25 @@ test.describe("API envelope", () => {
     const json = (await res.json()) as { ok: boolean; error: { code: string } };
     expect(json.ok).toBe(false);
     expect(json.error.code).toBe("VALIDATION");
+  });
+
+  test("reviews POST rejects an unknown productId with 422 (not a 500 FK crash)", async ({ page }) => {
+    // Task 118 F-6: a positive but non-existent productId passes the integer
+    // gate and crashes on the products FK → 500 REVIEW_FAILED. The route's own
+    // comment claims client-error classification; pin it. (Sent via the browser
+    // fetch — same raw-body discipline as the malformed-JSON spec.)
+    await page.goto("/");
+    const { status, code } = await page.evaluate(async () => {
+      const res = await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ productId: 999999, author: "E2E Tester", rating: 5, body: "unknown-id probe" }),
+      });
+      const json = (await res.json()) as { ok: boolean; error: { code: string } };
+      return { status: res.status, code: json.error?.code };
+    });
+    expect(status).toBe(422);
+    expect(code).toBe("VALIDATION");
   });
 
   test("reviews POST rejects a bad rating / short name with 422", async ({ request }) => {
@@ -242,5 +278,65 @@ test.describe("bag → checkout → order journey (live DB)", () => {
     // 7. Reload the bag — it cleared after checkout.
     await page.goto("/cart");
     await expect(page.getByRole("heading", { name: "Your bag is empty" })).toBeVisible();
+  });
+});
+
+test.describe("API rate limits (20/min/IP fixed window)", () => {
+  test("orders/track and promotions/validate throttle the 21st rapid request", async ({ request }) => {
+    // Task 118 F-18: checkout and reviews enforce the limiter; track (the PII
+    // lookup) and promo validation (a Postgres read per call) did not. Each
+    // probe runs under its OWN x-forwarded-for identity so the shared "local"
+    // bucket used by the journey/persistence specs stays clean (the limiter
+    // keys on the first XFF hop — the documented single-trusted-hop posture).
+    const probe = async (path: string, ip: string, data: Record<string, unknown>) => {
+      // One FIXED identity per probe (all 21 requests share the bucket →
+      // the 21st crosses the 20/min window).
+      const statuses: number[] = [];
+      for (let i = 0; i < 21; i++) {
+        const res = await request.post(path, {
+          headers: { "x-forwarded-for": ip },
+          data,
+        });
+        statuses.push(res.status());
+      }
+      return statuses;
+    };
+    const track = await probe("/api/orders/track", "10.9.118.7", { orderNumber: "NH-00000000-XXXXXX", email: "probe@nordhem.sg" });
+    const promo = await probe("/api/promotions/validate", "10.9.119.7", { code: "WELCOME10", subtotalCents: 5000 });
+    for (const [name, statuses] of Object.entries({ track, promo })) {
+      // The first 20 fall inside the window (404/422 by domain rules);
+      // the 21st must be the limiter's 429.
+      expect(statuses.slice(0, 20), `${name} first 20 unthrottled`).not.toContain(429);
+      expect(statuses[20], `${name} 21st throttled`).toBe(429);
+    }
+  });
+});
+
+test.describe("cart promo persistence", () => {
+  test("a failed promo apply keeps the applied code; Remove clears it", async ({ page }) => {
+    // Task 118 F-13: a bad code (or transient fetch failure) used to wipe the
+    // applied promo — the user's discount silently vanished from the summary.
+    await page.goto("/product/solbakken-3-seat-sofa");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await page.getByRole("link", { name: /Shopping bag, 1 item/ }).click();
+    await expect(page.getByRole("heading", { name: /Your bag \(1\)/ })).toBeVisible();
+
+    // Apply a valid code ($1299 ≥ $150 min).
+    await page.getByLabel(/Promo code/i).fill("WELCOME10");
+    await page.getByRole("button", { name: "Apply" }).click();
+    await expect(page.getByText(/WELCOME10 applied/i)).toBeVisible();
+    const discountRow = page.getByText("Discount", { exact: true });
+    await expect(discountRow).toBeVisible();
+
+    // A wrong code must NOT destroy the applied discount.
+    await page.getByLabel(/Promo code/i).fill("BOGUSCODE");
+    await page.getByRole("button", { name: "Apply" }).click();
+    await expect(page.getByText(/not valid/i)).toBeVisible();
+    await expect(discountRow).toBeVisible(); // ← the Task 118 fix
+
+    // Remove restores the no-promo summary.
+    await page.getByRole("button", { name: /Remove code/i }).click();
+    await expect(discountRow).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /Checkout/i }).first()).toBeVisible();
   });
 });

@@ -30,6 +30,10 @@ export function BuyBox({ product, stock }: {
           <input id="qty" value={qty} onChange={(e) => setQty(Math.min(99, Math.max(1, Math.floor(Number(e.target.value) || 1))))} className="w-10 text-center font-black outline-none" inputMode="numeric" />
           <button onClick={() => setQty((q) => Math.min(99, q + 1))} className="grid h-10 w-10 place-items-center rounded-full hover:bg-[#f5f3ee] focus-ring" aria-label="Increase quantity">+</button>
         </div>
+        {/* The dynamic state on this surface is the add-to-bag confirmation —
+            that is what the live region announces (the stock list below never
+            changes client-side; its old aria-live narrated nothing, Task 118 F-19). */}
+        <span className="sr-only" aria-live="polite">{added ? "Added to bag" : ""}</span>
         <button
           onClick={handleAdd}
           className={`flex-1 rounded-full py-3.5 text-[15px] font-black focus-ring ${added ? "bg-[#2e6b34] text-white" : "bg-[#0058a3] text-white hover:bg-[#004382]"}`}
@@ -38,7 +42,7 @@ export function BuyBox({ product, stock }: {
         </button>
       </div>
 
-      <div className="mt-4" aria-live="polite">
+      <div className="mt-4">
         <p className="text-[13px] font-black uppercase tracking-wide text-[#5b5b5b]">Check store stock</p>
         <ul className="mt-2 space-y-2">
           {stock.length === 0 ? (

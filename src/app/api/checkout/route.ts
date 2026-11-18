@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { placeOrder } from "@/lib/server-data";
-import { isValidEmail, isValidPhone, isValidPostal } from "@/lib/utils";
+import { clampInt, isValidEmail, isValidPhone, isValidPostal } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -29,14 +29,28 @@ export async function POST(req: Request) {
     const phone = String(body.phone ?? "");
     const postal = String(body.postal ?? "");
     const address = String(body.address ?? "").trim();
-    const lines = Array.isArray(body.lines) ? (body.lines as Array<{ productId: number; qty: number }>) : [];
+    const rawLines = Array.isArray(body.lines) ? (body.lines as unknown[]) : [];
+    // Per-line boundary validation (Task 118 F-17): a crafted non-finite qty or
+    // productId must drop out here, not slip past Math.min/max as NaN into a
+    // Postgres 500. qty clamps through the shared clampInt seam — the same
+    // 1–99 clamp placeOrder itself applies; productId must be a positive
+    // integer (unknown ids drop downstream, as they always have).
+    const lines = rawLines
+      .map((l) => {
+        const line = (l ?? {}) as Record<string, unknown>;
+        const productId = Number(line.productId);
+        return Number.isInteger(productId) && productId > 0
+          ? { productId, qty: clampInt(Number(line.qty), 1, 99, Number.NaN) }
+          : null;
+      })
+      .filter((l): l is { productId: number; qty: number } => l !== null && Number.isInteger(l.qty));
 
     if (!isValidEmail(email)) return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Enter a valid email address." } }, { status: 422 });
     if (fullName.length < 2) return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Enter the recipient's name." } }, { status: 422 });
     if (!isValidPhone(phone)) return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Enter a valid phone number." } }, { status: 422 });
     if (!isValidPostal(postal)) return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Postal code must be 6 digits." } }, { status: 422 });
     if (address.length < 6) return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Enter your block, street and unit number." } }, { status: 422 });
-    if (lines.length === 0) return NextResponse.json({ ok: false, error: { code: "EMPTY_BAG", message: "Your bag is empty." } }, { status: 422 });
+    if (rawLines.length === 0 || lines.length === 0) return NextResponse.json({ ok: false, error: { code: "EMPTY_BAG", message: "Your bag is empty." } }, { status: 422 });
 
     const order = await placeOrder({
       email,

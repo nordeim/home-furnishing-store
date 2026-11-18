@@ -16,7 +16,7 @@ export default async function OffersPage() {
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <p className="inline-block rounded-full bg-[#cc0008] px-3 py-1 text-[12px] font-black uppercase tracking-[0.12em] text-white">Ends 28 Dec</p>
       <h1 className="mt-2 text-[clamp(1.9rem,4vw,3rem)] font-black tracking-tight">Festive market offers</h1>
-      <p className="mt-2 text-[#5b5b5b]">Up to 30% off dining, decor and sleep — plus stackable promo codes below.</p>
+      <p className="mt-2 text-[#5b5b5b]">Up to 24% off dining, decor and sleep — plus a promo code below (one code per order).</p>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
         {PROMOS.map((p) => (
@@ -34,12 +34,12 @@ export default async function OffersPage() {
       </div>
 
       <div className="mt-10 rounded-2xl bg-[#111] p-8 text-white">
-        <h2 className="text-[22px] font-black">Bundle & save: the first-home starter kit</h2>
-        <p className="mt-1 text-white/75">Bed + extendable table + kitchen trolley — use code <strong className="text-[#ffdb00]">FLAT20</strong> for an extra $20 off $250.</p>
+        <h2 className="text-[22px] font-black">First-home starter kit</h2>
+        <p className="mt-1 text-white/75">Bed + extendable table + kitchen trolley — our first-home picks. Pair the set with code <strong className="text-[#ffdb00]">FLAT20</strong> for $20 off orders over $250.</p>
         <div className="mt-4 flex flex-wrap gap-2 text-[14px]">
           {bundles.map((b) => <span key={b.id} className="rounded-full bg-white/10 px-4 py-2">{b.name} · {formatSGD(b.priceCents)}</span>)}
         </div>
-        <Link href="/shop" className="mt-5 inline-block rounded-full bg-[#ffdb00] px-6 py-3 text-[14px] font-black text-black">Build your bundle →</Link>
+        <Link href="/shop" className="mt-5 inline-block rounded-full bg-[#ffdb00] px-6 py-3 text-[14px] font-black text-black">Shop the picks →</Link>
       </div>
     </div>
   );

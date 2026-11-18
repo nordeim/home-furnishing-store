@@ -137,7 +137,7 @@ export interface PromoLike {
 
 export const PROMOS: PromoLike[] = [
   { code: "WELCOME10", label: "10% off your first order over $150", kind: "percent", value: 10, minSubtotalCents: 15000 },
-  { code: "MAKAN15", label: "15% off dining collections over $400", kind: "percent", value: 15, minSubtotalCents: 40000 },
+  { code: "MAKAN15", label: "15% off orders over $400", kind: "percent", value: 15, minSubtotalCents: 40000 },
   { code: "FLAT20", label: "$20 off orders over $250", kind: "fixed", value: 2000, minSubtotalCents: 25000 },
 ];
 

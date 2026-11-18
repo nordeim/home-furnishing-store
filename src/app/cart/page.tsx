@@ -40,11 +40,19 @@ export default function CartPage() {
       setPromo(c);
       setApplyMsg({ ok: true, text: `${c} applied — ${json.data?.label ?? "discount"}` });
     } catch (e) {
-      setPromo(null);
+      // A failed apply must NOT destroy an already-applied code (Task 118
+      // F-13): the user's discount vanished silently on a typo. Removal is an
+      // explicit action — the Remove button below.
       setApplyMsg({ ok: false, text: e instanceof Error ? e.message : "Invalid code" });
     } finally {
       setChecking(false);
     }
+  }
+
+  function removePromo() {
+    setPromo(null);
+    setApplyMsg(null);
+    setCode("");
   }
 
   // Totals preview client-side via the shared findPromo source; checkout
@@ -101,6 +109,9 @@ export default function CartPage() {
           <div className="mt-3 flex gap-2">
             <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Promo code (try WELCOME10)" aria-label="Promo code" className="flex-1 rounded-full border border-[#ddd] bg-white px-4 py-2.5 text-[14px] outline-none focus:border-[#0058a3]" />
             <button onClick={applyPromo} disabled={checking} className="rounded-full bg-[#111] px-5 py-2.5 text-[14px] font-bold text-white disabled:opacity-60 focus-ring">{checking ? "…" : "Apply"}</button>
+            {promoCode && (
+              <button onClick={removePromo} className="rounded-full border border-[#ddd] px-4 py-2.5 text-[14px] font-bold text-[#5b5b5b] hover:bg-[#f5f3ee] hover:text-black focus-ring" aria-label={`Remove code ${promoCode}`}>Remove</button>
+            )}
           </div>
           {promoMsg && <p className={`mt-2 text-[13px] font-bold ${promoMsg.ok ? "text-[#2e6b34]" : "text-[#cc0008]"}`} role="status">{promoMsg.text}</p>}
           <dl className="mt-4 space-y-2 text-[14px]">

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { getReviews } from "@/lib/server-data";
-import { reviews } from "@/db/schema";
+import { products, reviews } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -47,9 +48,15 @@ export async function POST(req: Request) {
     const rating = Math.floor(Number(body.rating));
     const author = String(body.author ?? "").trim().slice(0, 60);
     // Positive-integer productId: a non-existent or negative id is a client
-    // error (422), not an FK-crash 500.
+    // error (422), not an FK-crash 500. The existence check closes the gap the
+    // comment always claimed: an unknown-but-positive id used to reach the
+    // insert and fail as a Postgres FK violation (500).
     if (!Number.isInteger(productId) || productId <= 0 || !(rating >= 1 && rating <= 5) || author.length < 2) {
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Please add your name and a 1–5 star rating." } }, { status: 422 });
+    }
+    const known = await db.select({ id: products.id }).from(products).where(eq(products.id, productId)).limit(1);
+    if (known.length === 0) {
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "That product does not exist." } }, { status: 422 });
     }
     const title = String(body.title ?? "").trim().slice(0, 120);
     const text = String(body.body ?? "").trim().slice(0, 2000);

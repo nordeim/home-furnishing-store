@@ -25,7 +25,7 @@ export default async function HomePage() {
               A merrier home starts with makan-ready spaces
             </h1>
             <p className="mt-4 max-w-md text-[16px] leading-relaxed text-white/85">
-              Up to 30% off extendable dining tables, stackable chairs and warm lighting —
+              Up to 24% off extendable dining tables, stackable chairs and warm lighting —
               plus free Click &amp; Collect at Tampines, Jurong and Alexandra.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
