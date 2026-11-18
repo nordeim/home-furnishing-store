@@ -1127,3 +1127,236 @@ test.describe("home social preview (Task 121 F-18)", () => {
     expect(await og.getAttribute("content")).toMatch(/^https:\/\/.+\.(?:jpeg|jpg|png)/);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// Task 122 — skipped-fix debt, crash-boundary truth, display/money honesty
+// ─────────────────────────────────────────────────────────────────────────
+
+test.describe("cart promo min-spend display gate (Task 122 F-5)", () => {
+  test("the discount preview disappears when items drop the bag below the promo minimum", async ({ page }) => {
+    // findPromo dropped minSubtotalCents: WELCOME10 applied on a $150+ bag
+    // kept showing its 10% after items were removed — a discount the server
+    // refuses at placeOrder (INVALID_PROMO). The effectivePromo gate must
+    // hide it from the preview the moment the subtotal falls below the min.
+    await page.goto("/product/solbakken-3-seat-sofa");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await page.goto("/product/katong-bedside-table");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await page.getByRole("link", { name: /Shopping bag, 2 items/ }).click();
+    await expect(page.getByRole("heading", { name: /Your bag \(2\)/ })).toBeVisible();
+
+    // $1299 + $89 = $1388 ≥ $150 → the code applies and the row shows.
+    await page.getByLabel(/Promo code/i).fill("WELCOME10");
+    await page.getByRole("button", { name: "Apply" }).click();
+    const discountRow = page.getByText("Discount", { exact: true });
+    await expect(discountRow).toBeVisible();
+
+    // Remove the sofa → $89 < $150: the code can no longer be effective.
+    await page.getByRole("button", { name: "Remove SOLBAKKEN 3-seat sofa" }).click();
+    await expect(page.getByRole("heading", { name: /Your bag \(1\)/ })).toBeVisible();
+    await expect(discountRow).toHaveCount(0);
+  });
+});
+
+test.describe("checkout payload caps (Task 122 F-7)", () => {
+  test("an overlong promoCode is refused, not accepted verbatim", async ({ request }) => {
+    const res = await request.post("/api/checkout", {
+      headers: { "x-forwarded-for": "10.9.122.1" },
+      data: {
+        email: "caps-probe@nordhem.sg",
+        fullName: "Caps Probe",
+        phone: "+65 91234567",
+        address: "Blk 1 Testing Rd #01-01",
+        postal: "089001",
+        promoCode: "A".repeat(33),
+        lines: [{ productId: 1, qty: 1 }],
+      },
+    });
+    expect(res.status()).toBe(422);
+  });
+
+  test("a 101-line bag is refused (bounded write, not a 101-row insert)", async ({ request }) => {
+    const lines = Array.from({ length: 101 }, (_, i) => ({ productId: (i % 20) + 1, qty: 1 }));
+    const res = await request.post("/api/checkout", {
+      headers: { "x-forwarded-for": "10.9.122.2" },
+      data: {
+        email: "caps-probe@nordhem.sg",
+        fullName: "Caps Probe",
+        phone: "+65 91234567",
+        address: "Blk 1 Testing Rd #01-01",
+        postal: "089001",
+        lines,
+      },
+    });
+    expect(res.status()).toBe(422);
+  });
+});
+
+test.describe("checkout qty:null drop semantics (Task 122 F-8)", () => {
+  test("a null qty line drops out instead of coercing to qty 1", async ({ request }) => {
+    // Number(null) === 0 is finite, so the min-clamp turned a null qty into
+    // 1 — a crafted single-line order with qty:null placed a real order.
+    // null/undefined must behave like every other non-number: drop the line
+    // (an all-dropped bag is EMPTY_BAG, never a quiet qty-1 order).
+    const res = await request.post("/api/checkout", {
+      headers: { "x-forwarded-for": "10.9.122.3" },
+      data: {
+        email: "nullqty-probe@nordhem.sg",
+        fullName: "Null Qty Probe",
+        phone: "+65 91234567",
+        address: "Blk 1 Testing Rd #01-01",
+        postal: "089001",
+        lines: [{ productId: 1, qty: null }],
+      },
+    });
+    const body = (await res.json()) as { ok?: boolean; error?: { code?: string } };
+    expect(res.status()).toBe(422);
+    expect(body.error?.code).toBe("EMPTY_BAG");
+  });
+});
+
+test.describe("reviews refuse-never-truncate (Task 122 F-11)", () => {
+  test("an overlong review body is refused with 422, not silently truncated", async ({ request }) => {
+    const res = await request.post("/api/reviews", {
+      headers: { "x-forwarded-for": "10.9.122.4" },
+      data: {
+        productId: 1,
+        author: "Truncation Probe",
+        rating: 5,
+        title: "Long body probe",
+        body: "x".repeat(3000),
+      },
+    });
+    const body = (await res.json()) as { ok?: boolean; error?: { code?: string; message?: string } };
+    expect(res.status()).toBe(422);
+    expect(body.error?.code).toBe("VALIDATION");
+    expect(body.error?.message).toMatch(/too long|shorter/i);
+  });
+});
+
+test.describe("inventory unique (product_id, store_slug) constraint (Task 122 F-12)", () => {
+  test("a duplicate (product_id, store_slug) row is rejected by the schema", async () => {
+    // The seed's onConflictDoNothing had no conflict target — duplicates
+    // would make the per-store decrement UPDATE hit every copy.
+    const client = new Client({
+      connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+    });
+    await client.connect();
+    let probeId: number | null = null;
+    try {
+      const row = await client.query("select product_id, store_slug, quantity, aisle_bin from inventory order by id limit 1");
+      const { product_id, store_slug, quantity, aisle_bin } = row.rows[0];
+      let violated = false;
+      try {
+        const ins = await client.query(
+          "insert into inventory (product_id, store_slug, quantity, aisle_bin) values ($1, $2, $3, $4) returning id",
+          [product_id, store_slug, quantity, aisle_bin],
+        );
+        probeId = ins.rows[0].id as number; // RED-run residue tracking
+      } catch (err) {
+        violated = (err as { code?: string }).code === "23505"; // unique_violation
+      }
+      expect(violated).toBe(true);
+    } finally {
+      // RED-run safety net: the constraint-absent run inserts a real row —
+      // delete THAT row by id (parallel-safe, never a neighbour's).
+      if (probeId !== null) {
+        await client.query("delete from inventory where id = $1", [probeId]);
+      }
+      await client.end();
+    }
+  });
+});
+
+test.describe("business quote stepper floor (Task 122 F-15)", () => {
+  test("the quote minus button is disabled at the 0 floor (cart/PDP parity)", async ({ page }) => {
+    // Units ship with non-zero defaults (locker starts at 2) — drive one to
+    // the floor and pin the disabled state there.
+    await page.goto("/business");
+    const minus = page.getByRole("button", { name: "Fewer Staff locker tower" });
+    await expect(minus).toBeEnabled();
+    await minus.click(); // 2 → 1
+    await minus.click(); // 1 → 0 — the floor
+    await expect(minus).toBeDisabled();
+  });
+});
+
+test.describe("checkout summary GST disclosure (Task 122 F-15)", () => {
+  test("the checkout summary shows the GST component like the cart does", async ({ page }) => {
+    await page.goto("/product/katong-bedside-table");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await page.getByRole("link", { name: /Shopping bag, 1 item/ }).click();
+    await page.getByRole("link", { name: /Go to checkout/i }).click();
+    await expect(page.getByRole("heading", { name: "Checkout" })).toBeVisible();
+    // Same totals seam as the cart — the disclosure must not vanish here.
+    await expect(page.getByText("Incl. 9% GST")).toBeVisible();
+  });
+});
+
+test.describe("inspiration index pieces total (Task 122 F-16)", () => {
+  test("the index card shows the shoppable pieces total, not the editorial budget", async ({ page }) => {
+    // The detail page splits "Room budget $800" from "These pieces $667";
+    // the index labelled the BUDGET as "Shop this room · $800.00" — the
+    // exact conflation Task 119 F-4 fixed on the detail page.
+    await page.goto("/inspiration");
+    const card = page.locator("a", { hasText: "Renter refresh" });
+    await expect(card).toBeVisible();
+    await expect(card.getByText(/Shop this room/)).toContainText("667.00");
+    await expect(card.getByText(/Shop this room/)).not.toContainText("800.00");
+  });
+});
+
+test.describe("search URL sync (Task 122 F-17)", () => {
+  test("submitting a search reflects it in the URL, and a reload restores the results", async ({ page }) => {
+    // Scope to the page form — the header carries two more "Search products"
+    // inputs (desktop + mobile variants); strict mode rejects the ambiguity.
+    await page.goto("/search");
+    await page.locator("main").getByLabel("Search products").fill("oak");
+    await page.locator("main").getByRole("button", { name: "Search" }).click();
+    await expect(page).toHaveURL(/\/search\?q=oak/);
+    // The results verdict settles (the F-1 discipline), then reload: the
+    // URL-carried query must re-seed the input and re-run the search.
+    await expect(page.getByText(/result/i).first()).toBeVisible();
+    await page.reload();
+    await expect(page.locator("main").getByLabel("Search products")).toHaveValue("oak");
+    await expect(page.getByText(/result/i).first()).toBeVisible();
+  });
+
+  test("a popular chip search also lands in the URL", async ({ page }) => {
+    await page.goto("/search");
+    await page.getByRole("button", { name: "sofa", exact: true }).click();
+    await expect(page).toHaveURL(/\/search\?q=sofa/);
+  });
+});
+
+test.describe("home hero discount attribution (Task 122 F-19)", () => {
+  test("the hero's max-discount claim attributes the top discount honestly", async ({ page }) => {
+    // The catalogue max is 24% (NORDLYS floor lamp, decor/lighting); the old
+    // copy attributed it to extendable dining tables (undiscounted) — the
+    // Task-118 false-attribution class. The honest line leads with what
+    // actually carries the max.
+    await page.goto("/");
+    const hero = page.locator("section").first();
+    await expect(hero.getByText(/Up to 24% off/)).toContainText(/lighting/i);
+    await expect(hero.getByText(/Up to 24% off/)).not.toContainText(/extendable dining tables/i);
+  });
+});
+
+test.describe("shop SSR sort order (Task 122 F-6)", () => {
+  test("price-asc sort ships ascending prices in the SSR HTML", async ({ browser }) => {
+    // The sort seam is shared by the API and the SSR grid; a regression that
+    // re-sorts only one caller would pass presence-only assertions.
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    await page.goto("/shop?sort=price-asc");
+    // The card renders the current price plus (when discounted) a struck-
+    // through compare-at — sort only by the CURRENT price elements.
+    const priceParas = page.locator("main p:not(.line-through)").filter({ hasText: /^\$[\d,]+\.\d{2}$/ });
+    const prices = await priceParas.allTextContents();
+    const cents = prices.map((t) => Math.round(parseFloat(t.replace(/[$,]/g, "")) * 100));
+    expect(cents.length).toBeGreaterThanOrEqual(20);
+    const sorted = [...cents].sort((a, b) => a - b);
+    expect(cents).toEqual(sorted);
+    await context.close();
+  });
+});

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useCart } from "@/lib/cart-store";
-import { findPromo } from "@/lib/catalog";
+import { effectivePromo } from "@/lib/catalog";
 import { formatSGD, priceTotals } from "@/lib/utils";
 
 export default function CartPage() {
@@ -55,9 +55,10 @@ export default function CartPage() {
     setCode("");
   }
 
-  // Totals preview client-side via the shared findPromo source; checkout
-  // re-derives server-side (server is truth).
-  const promo = promoCode ? findPromo(promoCode) : null;
+  // Totals preview client-side via the effectivePromo gate (Task 122 F-5:
+  // a below-minimum code must not display a discount the server refuses);
+  // checkout re-derives server-side (server is truth).
+  const promo = effectivePromo(promoCode, subtotalCents);
   const t = priceTotals({ subtotalCents, promo, deliveryMethod: "delivery" });
 
   if (lines.length === 0) {

@@ -11,7 +11,6 @@ export const dynamic = "force-dynamic";
 // The campaign banner's end date is computed, not hardcoded (Task 119 F-21) —
 // and rolls forward inside the Dec 29–31 window instead of advertising a
 // already-past date (Task 121 F-19; the pure seam is unit-pinned in utils).
-const CAMPAIGN_END = campaignEndLabel();
 // Hero price derives from the loaded catalogue (Task 119 F-13): the hero card
 // previously hard-coded 79900 — a catalogue edit would have made the hero
 // contradict the PDP it links to.
@@ -44,6 +43,11 @@ export default async function HomePage() {
   const best = all.filter((p) => p.isBestseller).slice(0, 8);
   const fresh = all.filter((p) => p.isNew).slice(0, 4);
   const deals = all.filter((p) => p.compareAtCents && p.compareAtCents > p.priceCents).slice(0, 4);
+  // Task 122 F-10: computed per render, not at module load — the module-init
+  // value froze for the process lifetime, so a server started Dec 20 kept
+  // advertising "ends 28 Dec" on Dec 30 (force-dynamic re-runs this component
+  // every request; the pure function is cheap).
+  const CAMPAIGN_END = campaignEndLabel();
 
   return (
     <div>
@@ -58,7 +62,11 @@ export default async function HomePage() {
               A merrier home starts with makan-ready spaces
             </h1>
             <p className="mt-4 max-w-md text-[16px] leading-relaxed text-white/85">
-              Up to 24% off extendable dining tables, stackable chairs and warm lighting —
+              {/* Task 122 F-19: the catalogue max discount (24%) is the NORDLYS
+                  floor lamp — attribute the headline to what actually carries
+                  it (the old copy led with extendable dining tables, the one
+                  discounted-set member with NO deal). */}
+              Up to 24% off lighting, cookware and home favourites —
               plus free Click &amp; Collect at Tampines, Jurong and Alexandra.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">

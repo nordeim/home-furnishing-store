@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 1.5.0
-last_updated: "2026-11-19 (Task 121: client-state robustness, click-&-collect stock honesty, shop SSR content, search settle discipline, SEO completion)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 94/94 unit · 59/59 e2e · cold build green (29 routes) · PostgreSQL 17 live-verified · counts pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
+version: 1.6.0
+last_updated: "2026-11-19 (Task 122: skipped-fix debt, crash-boundary truth, display/money honesty)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 117/117 unit · 72/72 e2e · cold build green (29 routes) · PostgreSQL 17 live-verified · counts pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -85,8 +85,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 94/94
-npm run test:e2e                                               # 59/59 (live Postgres for the journey)
+npm run test                                                   # 117/117
+npm run test:e2e                                               # 72/72 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -324,6 +324,25 @@ matches ("Go" ⊂ "ERGONOMI").
     settled-for-the-current-query flag, and the e2e proves it by freezing
     the debounce timeout (a polling assertion sleeps right through a
     250ms-wide bug).
+30. **Container-shape validation of persisted state** — `Array.isArray`
+    accepts `[null]`/`[42]`; the validator must check ELEMENTS (the Task-121
+    fix guarded the container only, and the crash class survived it) —
+    Task 122: `isValidCartPayload`/`isValidWishPayload`.
+31. **A route boundary that cannot catch its crash class** — any client
+    component inside the ROOT LAYOUT (CartProvider) crashes through
+    `error.tsx`; root-layout crashes need `global-error.tsx` with its own
+    `<html>/<body>` (Task 122). Related: recovery from module-poisoned state
+    must reload, not `reset()`.
+32. **Ungated display of a server-refusable rule** — the promo preview
+    ignored `minSubtotalCents` and advertised a discount `placeOrder`
+    refuses; every server refusal rule needs its client display gate
+    (`effectivePromo`, Task 122).
+33. **Finite-looking coercions at write boundaries** — `Number(null) === 0`
+    is finite, so a null qty min-clamped to a real qty-1 order; null-check
+    BEFORE the numeric coercion (Task 122 F-8).
+34. **An unbounded array field at a write boundary** — `lines` had no count
+    cap while every scalar had one; a 101-element array became a 101-row
+    insert per request (Task 122 F-7).
 ## 10. Debugging Guide
 
 | Symptom | Root cause | Fix |
@@ -483,6 +502,40 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
     assertion that only checks the settled text. Freeze the state instead:
     patch setTimeout in an init script to hold the page in the pre-settle
     window, assert, then unfreeze and assert the settle path (Task 121).
+25. **Error boundaries are placement-sensitive (Task 122 F-2).**
+    `app/error.tsx` wraps the PAGE subtree only — a client component
+    rendered inside the ROOT LAYOUT (CartProvider) crashes through it onto
+    Next's unbranded default page. Root-layout crashes need
+    `app/global-error.tsx`, which owns its own `<html>/<body>`. And the
+    recovery for module-poisoned state must `window.location.reload()` —
+    `reset()` re-renders against the same poisoned module snapshot and
+    loops forever. Verify BOTH boundary classes with a temporary-throw
+    probe; the dev overlay intercepts real clicks, so click via DOM
+    (`element.click()` through eval).
+26. **A worklog claim is not a fact (Task 122 F-1).** Task 121's stage
+    summary said "19 findings fixed TDD-first" — the true record was 18
+    fixed + 1 disproven + 1 silently skipped (the SGT date fix was planned,
+    listed, and never implemented; its PAD row said "Fixed"). A fix without
+    a pin is a claim: when a finding's fix has no test evidencing it, treat
+    the claim as unverified and re-run the plan's ToDo list against the
+    code. The docs-counts pin guards counts, not fix claims — the gap is
+    closed by checking `rg <symbol> src/` for every named seam in a
+    previous plan before building on it.
+27. **RED e2e runs leave DB residue (Task 122).** A spec whose RED path
+    succeeds in writing (an order placed, a review inserted) leaves that
+    row behind — the GREEN path refuses it. The residue broke an
+    UNSUSPECTING hard-count pin from a prior cycle ("Reviews (2)" — a
+    probe review made it 3). Clean between runs (track inserted ids,
+    delete in `finally`), and when a previously-green count pin fails,
+    check the table for probe rows before touching the spec.
+28. **Display gates must mirror server refusals (Task 122 F-5).**
+    `findPromo` dropped `minSubtotalCents`, so the cart preview kept
+    showing WELCOME10's 10% after item removal while `placeOrder` refused
+    it — display/server divergence on a NEW axis after Task 119 closed the
+    money-math one. Rule: every server-side refusal rule (promo minimums,
+    stock, caps) needs a client-side display gate, or the UI advertises
+    what the API will reject. `effectivePromo(code, subtotalCents)` is the
+    pattern — one seam, both preview sites consume it, unit + e2e pinned.
 
 ## 13. Pitfalls to Avoid
 
@@ -615,5 +668,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (94) |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (59) |
+| Unit suite | `tests/unit/*.test.ts` (117) |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (72) |

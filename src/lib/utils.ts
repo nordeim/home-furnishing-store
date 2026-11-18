@@ -147,6 +147,18 @@ export function campaignEndLabel(now: Date = new Date()): string {
   return campaignEnd(now).toLocaleDateString("en-SG", { day: "numeric", month: "short" });
 }
 
+// Task 122 F-1 (the skipped Task-121 F-10): Singapore is UTC+8 year-round —
+// "tomorrow" for a booking form must be the next SGT calendar day, not the
+// next UTC day (the old `Date.now() + 86_400_000` arithmetic shipped
+// "today" as the minimum between 00:00–07:59 SGT). Pure UTC+8 math — no Intl
+// dependency — so it is unit-pinnable against fixed instants.
+export function sgTomorrowISO(now: Date = new Date()): string {
+  const SGT_OFFSET_MS = 8 * 60 * 60 * 1000;
+  const sgtNowMs = now.getTime() + SGT_OFFSET_MS;
+  const sgtTomorrowMs = sgtNowMs + 86_400_000;
+  return new Date(sgtTomorrowMs).toISOString().slice(0, 10);
+}
+
 // Task 121 F-17: the shop page now server-renders its initial grid — the
 // display sort previously lived ONLY inside the /api/products route, so the
 // SSR path would have duplicated it. One seam, two callers.

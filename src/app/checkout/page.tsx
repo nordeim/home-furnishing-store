@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useCart } from "@/lib/cart-store";
-import { findPromo } from "@/lib/catalog";
+import { effectivePromo } from "@/lib/catalog";
 import { formatSGD, priceTotals } from "@/lib/utils";
 
 type Method = "delivery" | "click-collect" | "express";
@@ -26,9 +26,10 @@ export default function CheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Display totals use the shared findPromo source (single client-side
-  // definition, aligned with the seed); the server re-derives at order time.
-  const promo = promoCode ? findPromo(promoCode) : null;
+  // Display totals use the shared effectivePromo gate (Task 122 F-5: a
+  // below-minimum code must not display a discount the server refuses);
+  // the server re-derives at order time.
+  const promo = effectivePromo(promoCode, subtotalCents);
   const t = priceTotals({ subtotalCents, promo, deliveryMethod: method });
 
   function set(k: keyof typeof form, v: string) {
@@ -149,6 +150,7 @@ export default function CheckoutPage() {
             <div className="flex justify-between"><dt className="text-white/70">Subtotal</dt><dd className="font-bold">{formatSGD(t.subtotalCents)}</dd></div>
             {t.discountCents > 0 && <div className="flex justify-between text-[#8fe388]"><dt>Discount {promoCode && `(${promoCode})`}</dt><dd className="font-bold">−{formatSGD(t.discountCents)}</dd></div>}
             <div className="flex justify-between"><dt className="text-white/70">Delivery</dt><dd className="font-bold">{t.deliveryFeeCents === 0 ? "FREE" : formatSGD(t.deliveryFeeCents)}</dd></div>
+            <div className="flex justify-between text-white/60"><dt>Incl. 9% GST</dt><dd>{formatSGD(t.gstCents)}</dd></div>
             <div className="flex justify-between border-t border-white/15 pt-3 text-[19px] font-black"><dt>Total</dt><dd>{formatSGD(t.totalCents)}</dd></div>
           </dl>
           <button disabled={busy} className="mt-4 w-full rounded-full bg-[#ffdb00] py-4 font-black text-black hover:bg-white disabled:opacity-60 focus-ring">

@@ -92,3 +92,15 @@ describe("next.config.ts keeps the dev hydration guard", () => {
     expect(mod.default?.allowedDevOrigins).toContain("127.0.0.1");
   });
 });
+
+describe("db pool keeps its degrade time bound (Task 122 F-9)", () => {
+  it("pins connectionTimeoutMillis + query_timeout in src/db/index.ts", () => {
+    // "Degrade, Never Fail" only engages when a failing query actually
+    // RETURNS: without these bounds a wedged (not refused) Postgres hangs
+    // every force-dynamic page indefinitely. Source-pin per the scan-guard
+    // precedent (the Pool config is not observable from a node unit test).
+    const src = readRoot(join("src", "db", "index.ts"));
+    expect(src).toMatch(/connectionTimeoutMillis:\s*5_000/);
+    expect(src).toMatch(/query_timeout:\s*8_000/);
+  });
+});

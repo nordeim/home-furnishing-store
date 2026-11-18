@@ -164,23 +164,29 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 94 tests at the pure seams
+npm run test             # Vitest unit — 117 tests at the pure seams
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 59 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 72 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
                          #  validation, wishlist/search fetch-failure states,
                          #  the full bag → promo → checkout → masked
                          #  confirmation → tracking journey (live Postgres),
-                         #  plus the Task-121 pins: per-store click-&-collect
+                         #  plus the Task-121 pins (per-store click-&-collect
                          #  stock, JSON-LD reviewCount honesty, the shop SSR
-                         #  content pair (JS disabled), the search settle
-                         #  discipline, checkout error placement + method-switch
-                         #  slots, stepper floors, and the SearchAction node
+                         #  content pair, the search settle discipline,
+                         #  checkout error placement + method-switch slots,
+                         #  stepper floors, SearchAction) and the Task-122
+                         #  pins: the promo min-spend display gate, checkout
+                         #  payload caps + qty:null drop, reviews
+                         #  refuse-never-truncate, the inventory unique index,
+                         #  the search URL sync, the inspiration pieces-total,
+                         #  the business-stepper floor, the checkout GST line,
+                         #  hero discount attribution, and the SSR sort order
 npm run test:e2e:install # one-time: install the Playwright Chromium build
 ```
 
@@ -238,37 +244,51 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 94 unit + 59 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120/121); counts pinned by tests/unit/docs-counts.test.ts |
+| Test suite | ✅ 117 unit + 72 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120/121/122); counts pinned by tests/unit/docs-counts.test.ts |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
 
-Current cycle (2026-11-19, Task 121): workspace-refresh re-audit (mobile-nav
-taxonomy re-verified clean at 390/1440 — no Tailwind v4 bug) that caught
-**the search page announcing "0 results" during its 250ms debounce window**
-(verdicts now gate on a settled-for-query flag, e2e-pinned with a frozen
-debounce probe), **click-&-collect accepting orders at an out-of-stock store**
-(the island-wide aggregate check vs single-store fulfilment — pickup now
-validates the chosen store's rows), **`/shop` shipping zero product content
-to non-JS crawlers** (now a server component that SSRs the filtered grid;
-the display sort moved to a shared `sortProductList` seam), **a wrong-shape
-localStorage payload crashing every route** (`createLocalStore` gained
-validate predicates; a branded root `error.tsx` bounds future crash classes),
-**the PDP's "412 reviews" contradicting the live list beside it** (JSON-LD
-reviewCount now derives from live rows and the node is omitted at zero), the
-utility strip clipping its only mobile CTA past the viewport while focusable,
-the PDP stepper's dead enabled minus at qty 1, checkout errors rendering
-inside the Payment section, sitemap `lastModified` being permanently "now",
-the planning-tools "tomorrow" being UTC-computed (off-by-one for SGT), and
-the honesty batch (never-sent "confirmation email" copy, "Member prices"
-vs the FAQ, the SearchAction the JSON-LD comment claimed but never shipped,
-the Dec-29–31 campaign-date stale window, the hero's re-hardcoded price
-fallback). One audit finding (PDP→PDP stale review state) was **disproven by
-RED-first execution** — the App Router remounts page subtrees on param
-navigation; the spec stayed as a pin. Suite grew to 94 unit + 59 e2e.
-Details in `worklog.md` and
-`docs/plans/2026-11-19-task121-remediation-plan.md`.
+Current cycle (2026-11-19, Task 122): workspace-refresh re-audit (mobile-nav
+taxonomy re-verified clean at 390/1440 — no Tailwind v4 bug; all baseline
+gates green) that caught **the Task-121 F-10 SGT date fix being claimed but
+never implemented** (`sgTomorrowISO` now exists, unit-pinned — the Task-121
+"19 fixed" stage summary actually read 18 fixed + 1 disproven + 1 silently
+skipped; corrected forward in this cycle's worklog), **the F-4 safety net
+being unable to catch its own crash class** (CartProvider renders inside the
+root layout, above `error.tsx` — a `global-error.tsx` now bounds it, with
+reload-based recovery because module-poisoned state survives `reset()`),
+**shape validation being container-shallow** (`[null]`/`[42]` in
+`nordhem_cart_v1` still crashed or NaN'd every total — element-level
+validators now gate every line), **the cart/checkout promo preview ignoring
+the minimum-spend rule** (WELCOME10 kept showing its 10% on an $89 bag the
+server refuses — the `effectivePromo` gate aligns display with refusal),
+the order page rendering a confirmed order as "Items (0)" during an items
+query outage, `qty: null` coercing to a real qty-1 order, the checkout
+`promoCode`/`lines` payload being unbounded, reviews silently truncating
+(the refuse-never-truncate rule now spans every write boundary), the
+`inventory` table having no unique (product_id, store_slug) constraint, the
+pg pool having no connection/query timeout ("degrade, never fail" now has a
+time bound — browser-verified against a blackholed DB), `campaignEndLabel`
+being frozen at module load, the search page never syncing `?q=` to the URL,
+the inspiration index quoting the editorial budget as the shoppable total,
+the business-stepper dead minus at 0, the checkout summary omitting the GST
+line the cart shows, loosely-attributed hero discount copy, and the shop
+layout's hardcoded counts + stale architecture comment. Suite grew to
+117 unit + 72 e2e. Details in `worklog.md` and
+`docs/plans/2026-11-19-task122-remediation-plan.md`.
+
+Previous cycle (Task 121): client-state robustness (localStorage shape
+validation + branded `error.tsx`), click-&-collect per-store stock honesty,
+`/shop` SSR content (server component + shared `sortProductList` seam),
+search settle discipline (no "0 results" flash), JSON-LD reviewCount
+honesty, utility-strip CTA clipping, PDP stepper floor, checkout error
+placement, sitemap `lastModified`, SearchAction, og:image, SGT date fix
+(planned as F-10 but actually landed in Task 122 — see above), and the
+honesty copy batch. One audit finding (PDP→PDP stale review state) was
+**disproven by RED-first execution** — the App Router remounts page
+subtrees on param navigation; the spec stayed as a pin.
 
 Previous cycle (Task 120): workspace-refresh re-audit that caught
 **the checkout boundary as the leakiest route** (no JSON-parse guard —

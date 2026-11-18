@@ -62,15 +62,23 @@ export const stores = pgTable("stores", {
   imageUrl: text("image_url").notNull().default(""),
 });
 
-export const inventory = pgTable("inventory", {
-  id: serial("id").primaryKey(),
-  productId: integer("product_id")
-    .notNull()
-    .references(() => products.id, { onDelete: "cascade" }),
-  storeSlug: text("store_slug").notNull().default("tampines"),
-  quantity: integer("quantity").notNull().default(0),
-  aisleBin: text("aisle_bin").notNull().default(""),
-});
+// ── Inventory ────────────────────────────────────────────────────────────
+// Task 122 F-12: one row per (product, store) — the unique index gives the
+// seed's onConflictDoNothing an actual conflict target, and the per-store
+// decrement UPDATE can never hit duplicate copies.
+export const inventory = pgTable(
+  "inventory",
+  {
+    id: serial("id").primaryKey(),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    storeSlug: text("store_slug").notNull().default("tampines"),
+    quantity: integer("quantity").notNull().default(0),
+    aisleBin: text("aisle_bin").notNull().default(""),
+  },
+  (t) => [uniqueIndex("inventory_product_store_uq").on(t.productId, t.storeSlug)],
+);
 
 // ── Orders ───────────────────────────────────────────────
 export const orders = pgTable("orders", {

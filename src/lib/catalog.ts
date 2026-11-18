@@ -158,6 +158,26 @@ export function findPromo(code: string): Pick<PromoLike, "kind" | "value"> | nul
   return promo ? { kind: promo.kind, value: promo.value } : null;
 }
 
+/**
+ * Task 122 F-5: the min-spend display gate. findPromo drops
+ * minSubtotalCents, so the cart/checkout preview happily showed WELCOME10's
+ * 10% on an $89 bag that placeOrder() refuses (INVALID_PROMO — minimum
+ * $150). effectivePromo resolves a code ONLY when the given subtotal meets
+ * its minimum: below it, the code is not effective and the preview shows no
+ * discount — display and server refusal can no longer diverge on this axis.
+ * The server re-validation remains the truth at write time (ADR-005).
+ */
+export function effectivePromo(
+  code: string | null,
+  subtotalCents: number,
+): Pick<PromoLike, "kind" | "value"> | null {
+  if (!code) return null;
+  const c = code.trim().toUpperCase();
+  const promo = PROMOS.find((p) => p.code === c);
+  if (!promo) return null;
+  return subtotalCents >= promo.minSubtotalCents ? { kind: promo.kind, value: promo.value } : null;
+}
+
 export function productImage(p: { imageUrls: string[] }, i = 0): string {
   return p.imageUrls[i] ?? p.imageUrls[0] ?? "";
 }

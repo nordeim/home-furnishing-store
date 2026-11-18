@@ -36,7 +36,11 @@ export async function POST(req: Request) {
 
     const productId = Math.floor(Number(body.productId));
     const rating = Math.floor(Number(body.rating));
-    const author = String(body.author ?? "").trim().slice(0, 60);
+    // Task 122 F-11: REFUSE overlong fields, never silently truncate — the
+    // checkout route's Task-120 rule, now applied consistently across write
+    // boundaries. A sliced 3000-char review is the user's words mangled into
+    // a "valid" row; the client maxLengths (60/120/2000) match these caps.
+    const author = String(body.author ?? "").trim();
     // Positive-integer productId: a non-existent or negative id is a client
     // error (422), not an FK-crash 500. The existence check closes the gap the
     // comment always claimed: an unknown-but-positive id used to reach the
@@ -48,8 +52,11 @@ export async function POST(req: Request) {
     if (known.length === 0) {
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "That product does not exist." } }, { status: 422 });
     }
-    const title = String(body.title ?? "").trim().slice(0, 120);
-    const text = String(body.body ?? "").trim().slice(0, 2000);
+    const title = String(body.title ?? "").trim();
+    const text = String(body.body ?? "").trim();
+    if (author.length > 60 || title.length > 120 || text.length > 2000) {
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "One or more fields are too long — keep the name under 60, the headline under 120 and the review under 2000 characters." } }, { status: 422 });
+    }
     const ins = await db.insert(reviews).values({ productId, author, rating, title, body: text, verified: false }).returning();
     return NextResponse.json({ ok: true, data: ins[0] }, { status: 201 });
   } catch (err) {

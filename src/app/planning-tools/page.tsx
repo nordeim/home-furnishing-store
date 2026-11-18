@@ -1,13 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { sgTomorrowISO } from "@/lib/utils";
 
 const STEPS = ["Measure", "Plan in 3D", "Shop the list", "We install"];
 
-// Sessions book from tomorrow onward. Computed at module load (not during
-// render — react-hooks/purity) so it never ships a stale hardcoded date; the
-// value is per-process, which is fine for a demo booking form.
-const MIN_DATE = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+// Sessions book from tomorrow onward — the SGT calendar day after SGT now
+// (Task 122 F-1: the old UTC arithmetic shipped "today" as the minimum
+// between 00:00–07:59 SGT). Computed at module load (not during render —
+// react-hooks/purity); per-process is fine for a demo booking form.
+const MIN_DATE = sgTomorrowISO();
 
 export default function PlanningPage() {
   const [room, setRoom] = useState<"living" | "bedroom" | "kitchen">("living");

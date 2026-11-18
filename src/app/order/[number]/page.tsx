@@ -37,7 +37,12 @@ export default async function OrderPage({ params }: { params: Promise<{ number: 
     if (!(err instanceof URIError)) outage = true;
   }
 
-  if (!order) {
+  // Task 122 F-4: the outage state is authoritative regardless of whether the
+  // order row arrived — if the ITEMS query failed (pool exhaustion, connection
+  // flake), rendering "Tak! Your order is confirmed" above an empty "Items (0)"
+  // list is the most alarming possible read of a just-placed order. The
+  // order-is-safe copy below is the honest answer for both query failures.
+  if (!order || outage) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
         {outage ? (

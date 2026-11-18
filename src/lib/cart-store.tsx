@@ -33,6 +33,33 @@ const CART_KEY = "nordhem_cart_v1";
 const WISH_KEY = "nordhem_wish_v1";
 const PROMO_KEY = "nordhem_promo";
 
+// Task 122 F-3: the Task-121 validators were container-shallow —
+// Array.isArray([null]) is true, so a poisoned cart key of `[null]` still
+// crashed CartProvider's lines.reduce and `[42]` NaN'd every total. The
+// payload validators check ELEMENTS: every line must be a well-formed
+// CartLine (positive integer productId, integer qty 1–99, non-negative
+// integer price, string identity fields — the same contract addLine/setQty
+// enforce on writes). Exported for the unit pins.
+function isValidCartLine(v: unknown): boolean {
+  if (typeof v !== "object" || v === null) return false;
+  const l = v as Record<string, unknown>;
+  return (
+    Number.isInteger(l.productId) && (l.productId as number) > 0 &&
+    Number.isInteger(l.qty) && (l.qty as number) >= 1 && (l.qty as number) <= 99 &&
+    Number.isInteger(l.unitPriceCents) && (l.unitPriceCents as number) >= 0 &&
+    typeof l.slug === "string" && typeof l.name === "string" &&
+    typeof l.sku === "string" && typeof l.imageUrl === "string"
+  );
+}
+
+export function isValidCartPayload(v: unknown): v is CartLine[] {
+  return Array.isArray(v) && v.every(isValidCartLine);
+}
+
+export function isValidWishPayload(v: unknown): v is string[] {
+  return Array.isArray(v) && v.every((s) => typeof s === "string");
+}
+
 // One external store per persisted key. useSyncExternalStore handles the
 // server/client hydration split natively (getServerSnapshot → fallback during
 // SSR/hydration, client snapshot after mount) — the reason this replaced the
@@ -44,8 +71,8 @@ const PROMO_KEY = "nordhem_promo";
 // Task 121 F-4: each store validates the SHAPE of what it parses — a
 // valid-JSON wrong-shape payload (e.g. an object in the cart key) used to
 // reach CartProvider's lines.reduce and crash every route at render.
-const linesStore = createLocalStore<CartLine[]>(CART_KEY, [], Array.isArray);
-const wishStore = createLocalStore<string[]>(WISH_KEY, [], Array.isArray);
+const linesStore = createLocalStore<CartLine[]>(CART_KEY, [], isValidCartPayload);
+const wishStore = createLocalStore<string[]>(WISH_KEY, [], isValidWishPayload);
 const promoStore = createLocalStore<string | null>(PROMO_KEY, null, (v) => v === null || typeof v === "string");
 
 function addLine(line: Omit<CartLine, "qty">, qty = 1) {

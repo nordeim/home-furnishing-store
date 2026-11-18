@@ -36,10 +36,12 @@ export function ShopInner({ initial }: { initial: ShopInitial }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // The server-provided view: exactly these cat/sort (from the URL) with no
-  // client-side keyword/price filters. Whenever the CURRENT view is the
-  // server view, the shipped items are already correct — no fetch needed.
-  const atServerView = cat === initial.cat && sort === initial.sort && q === "" && max === 0;
+  // The server-provided view: the current cat/sort (which ARE initial's —
+  // cat/sort only ever change via a fresh server initial) with no client-side
+  // keyword/price filters. Whenever the CURRENT view is the server view, the
+  // shipped items are already correct — no fetch needed. (Task 122 F-18: the
+  // old guard compared cat === initial.cat — tautological by construction.)
+  const atServerView = q === "" && max === 0;
 
   // Adjust-during-render resync (the sanctioned pattern — no effect-body
   // setState, no render-time ref writes): a client-side navigation (header

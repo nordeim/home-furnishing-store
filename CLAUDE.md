@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-19 (Task 121: client-state robustness, click-&-collect stock honesty, shop SSR content, search settle discipline, SEO completion)
+last_updated: 2026-11-19 (Task 122: skipped-fix debt, crash-boundary truth, display/money honesty)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -127,15 +127,15 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`typecheck:tests` covers the test tree) |
-| `npm run test` | Vitest unit suite (94 tests, pure seams) |
-| `npm run test:e2e` | Playwright e2e (59 tests, production build on :3100) |
+| `npm run test` | Vitest unit suite (117 tests, pure seams) |
+| `npm run test:e2e` | Playwright e2e (72 tests, production build on :3100) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
 **Current state (Task 121):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 94 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 117 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
@@ -149,7 +149,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   with the fs-computed reality — count-lockstep is enforced across all five
   operator docs, not remembered). Node environment with a localStorage shim
   (`tests/unit/setup.ts`); no jsdom, no component rendering.
-- **E2E (Playwright, 59 tests)** against the **production build** (the webServer
+- **E2E (Playwright, 72 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
   hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
@@ -188,6 +188,23 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   route validates `storeSlug` against the three real stores and refuses
   overlong `deliverySlot`; search verdicts gate on a settled-for-query flag;
   `campaignEnd`/`campaignEndLabel` roll the Dec-29–31 stale window.
+- **Task-122 seams:** `sgTomorrowISO()` (UTC+8 arithmetic — the Task-121 F-10
+  fix that was claimed but never landed); `isValidCartPayload`/
+  `isValidWishPayload` (ELEMENT-level validation — container checks let
+  `[null]` through); `global-error.tsx` bounds root-layout crashes
+  (CartProvider is ABOVE `error.tsx`'s boundary) with reload-based recovery
+  (module-poisoned state survives `reset()`); `effectivePromo(code,
+  subtotalCents)` gates the cart/checkout preview on the promo minimum
+  (display and server refusal can no longer diverge); checkout caps
+  `promoCode` (≤32) and `lines` (≤100) and drops `qty: null` lines (never
+  qty-1 coercion); reviews REFUSE overlong fields (the Task-120 rule now
+  spans every write boundary); `inventory` carries a unique
+  (product_id, store_slug) index; the pg pool pins
+  `connectionTimeoutMillis`/`query_timeout` (degrade has a time bound);
+  `campaignEndLabel()` computes per render (module-load froze it for the
+  process lifetime); the search page `replaceState`s `?q=` on submit/chip
+  click; the inspiration index quotes the pieces total (not the editorial
+  budget).
 
 TDD is the default for logic changes: red → green → refactor, one seam at a
 time (`skills/tdd`). Bug fixes require a regression test that fails before the

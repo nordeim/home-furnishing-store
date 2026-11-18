@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex, campaignEnd, campaignEndLabel } from "@/lib/utils";
+import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex, campaignEnd, campaignEndLabel, sgTomorrowISO, sortProductList } from "@/lib/utils";
 
 describe("formatSGD", () => {
   // The currency symbol depends on the node build's ICU data ($ vs S$) — assert
@@ -174,6 +174,37 @@ describe("orderStepIndex + ORDER_STEPS (the shared order-progress ladder)", () =
   });
 });
 
+describe("sgTomorrowISO (Task 122 F-1 — the skipped Task-121 F-10)", () => {
+  // Singapore is UTC+8 year-round (no DST). The planning-tools booking form
+  // promises "sessions book from tomorrow onward" — tomorrow must be the
+  // SGT calendar day after the SGT "now", not the UTC day (the previous
+  // `new Date(Date.now() + 86_400_000).toISOString()` computed UTC and was
+  // off-by-one between 00:00–07:59 SGT).
+  it("UTC-evening instants are already the next SGT day — SGT tomorrow is +1 SGT day", () => {
+    // 2026-11-19T16:00:00Z == 2026-11-20T00:00 SGT. SGT "now" is the 20th,
+    // so the earliest bookable date is the 21st.
+    expect(sgTomorrowISO(new Date("2026-11-19T16:00:00Z"))).toBe("2026-11-21");
+    // 23:30Z == 07:30 SGT same UTC day — still inside the off-by-one window.
+    expect(sgTomorrowISO(new Date("2026-11-19T23:30:00Z"))).toBe("2026-11-21");
+  });
+
+  it("UTC-morning instants: SGT date === UTC date, tomorrow is simply +1 day", () => {
+    // 2026-11-19T02:00:00Z == 10:00 SGT on the 19th → bookable from the 20th.
+    expect(sgTomorrowISO(new Date("2026-11-19T02:00:00Z"))).toBe("2026-11-20");
+  });
+
+  it("rolls across month and year boundaries in SGT time", () => {
+    // 2026-12-31T17:00:00Z == 2027-01-01T01:00 SGT → bookable from 2027-01-02.
+    expect(sgTomorrowISO(new Date("2026-12-31T17:00:00Z"))).toBe("2027-01-02");
+    // 2026-11-30T16:00:00Z == 2026-12-01T00:00 SGT → bookable from the 2nd.
+    expect(sgTomorrowISO(new Date("2026-11-30T16:00:00Z"))).toBe("2026-12-02");
+  });
+
+  it("always returns a plain YYYY-MM-DD string (the <input type=date> min format)", () => {
+    expect(sgTomorrowISO(new Date("2026-11-19T02:00:00Z"))).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
 describe("campaignEnd / campaignEndLabel (Task 121 F-19)", () => {
   it("returns 28 Dec of the current year before the campaign ends", () => {
     expect(campaignEnd(new Date("2026-11-19T12:00:00")).getFullYear()).toBe(2026);
@@ -190,5 +221,46 @@ describe("campaignEnd / campaignEndLabel (Task 121 F-19)", () => {
     expect(campaignEndLabel(new Date("2026-11-19T12:00:00"))).toBe("28 Dec");
     expect(campaignEndLabel(new Date("2026-12-30T12:00:00"))).toBe("28 Dec");
     expect(campaignEndLabel(new Date("2027-02-01T12:00:00"))).toBe("28 Dec");
+  });
+});
+
+// Task 122 F-6: the Task-121 shared sort seam (API + shop SSR) had zero unit
+// pins and no SSR-order assertion — a regression re-sorting only ONE caller
+// passed all 153 tests. These pins cover every documented key plus the
+// unknown-sort passthrough and the no-mutation property.
+describe("sortProductList (the shared display-sort seam — Task 122 F-6)", () => {
+  const rows = [
+    { id: 1, priceCents: 79900, ratingAvg: "4.20", ratingCount: 412, isNew: false },
+    { id: 2, priceCents: 8900, ratingAvg: "4.90", ratingCount: 88, isNew: true },
+    { id: 3, priceCents: 45900, ratingAvg: "3.80", ratingCount: 1200, isNew: false },
+    { id: 4, priceCents: 12900, ratingAvg: "4.90", ratingCount: 12, isNew: true },
+  ];
+
+  it("price-asc / price-desc sort by priceCents", () => {
+    expect(sortProductList(rows, "price-asc").map((r) => r.priceCents)).toEqual([8900, 12900, 45900, 79900]);
+    expect(sortProductList(rows, "price-desc").map((r) => r.priceCents)).toEqual([79900, 45900, 12900, 8900]);
+  });
+
+  it("rating sorts by numeric ratingAvg (string-typed in the seed)", () => {
+    expect(sortProductList(rows, "rating").map((r) => r.id)).toEqual([2, 4, 1, 3]);
+  });
+
+  it("popular sorts by ratingCount", () => {
+    expect(sortProductList(rows, "popular").map((r) => r.id)).toEqual([3, 1, 2, 4]);
+  });
+
+  it("new floats isNew rows first (stable within groups)", () => {
+    expect(sortProductList(rows, "new").map((r) => r.id)).toEqual([2, 4, 1, 3]);
+  });
+
+  it("featured and unknown sort keys pass the list through unchanged", () => {
+    expect(sortProductList(rows, "featured").map((r) => r.id)).toEqual([1, 2, 3, 4]);
+    expect(sortProductList(rows, "bogus-sort").map((r) => r.id)).toEqual([1, 2, 3, 4]);
+  });
+
+  it("never mutates the input list (SSR + API share one array source)", () => {
+    const before = JSON.stringify(rows);
+    sortProductList(rows, "price-asc");
+    expect(JSON.stringify(rows)).toBe(before);
   });
 });

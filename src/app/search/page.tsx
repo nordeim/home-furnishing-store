@@ -34,6 +34,19 @@ function SearchInner() {
   const [retry, setRetry] = useState(0);
 
   const needle = q.trim();
+
+  // Task 122 F-17: the URL is the shareable record of the search — the page
+  // READS ?q= on entry (header search pushes it) but its own form and chips
+  // never WROTE it, so refresh/share lost the query. replaceState (not push)
+  // keeps the history stack clean while making every settled needle
+  // reloadable. Called on explicit actions (submit/chip), not per keystroke.
+  function syncUrl(next: string) {
+    const target = next.trim()
+      ? `/search?q=${encodeURIComponent(next.trim())}`
+      : "/search";
+    window.history.replaceState(null, "", target);
+  }
+
   // The empty-needle case is a render derivation, not a state reset — with no
   // query there is simply nothing to show (and the popular chips render).
   const shown = needle ? items : [];
@@ -64,7 +77,7 @@ function SearchInner() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <h1 className="text-[clamp(1.8rem,4vw,2.6rem)] font-black tracking-tight">Search the range</h1>
-      <form onSubmit={(e) => { e.preventDefault(); setRetry((r) => r + 1); }} role="search" className="mt-4 flex max-w-2xl gap-2">
+      <form onSubmit={(e) => { e.preventDefault(); syncUrl(q); setRetry((r) => r + 1); }} role="search" className="mt-4 flex max-w-2xl gap-2">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Try “oak bookshelf” or “washable sofa”…" aria-label="Search products" autoFocus
           className="flex-1 rounded-full border-2 border-[#111] px-5 py-3 text-[15px] outline-none focus:border-[#0058a3]" />
         <button type="submit" className="shrink-0 rounded-full bg-[#0058a3] px-7 py-3 text-[15px] font-bold text-white hover:bg-[#004382] focus-ring">Search</button>
@@ -74,7 +87,7 @@ function SearchInner() {
           <p className="text-[13px] font-black uppercase tracking-wide text-[#5b5b5b]">Popular right now</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {POPULAR.map((p) => (
-              <button key={p} onClick={() => setQ(p)} className="rounded-full bg-[#f5f3ee] px-4 py-2 text-[14px] font-bold hover:bg-[#ffdb00] focus-ring">{p}</button>
+              <button key={p} onClick={() => { setQ(p); syncUrl(p); }} className="rounded-full bg-[#f5f3ee] px-4 py-2 text-[14px] font-bold hover:bg-[#ffdb00] focus-ring">{p}</button>
             ))}
           </div>
         </div>

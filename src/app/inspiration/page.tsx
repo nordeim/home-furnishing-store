@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getInspirations } from "@/lib/server-data";
+import { getAllProducts, getInspirations } from "@/lib/server-data";
+import type { ProductRow } from "@/lib/server-data";
 import { formatSGD } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,17 @@ export const metadata = {
 
 export default async function InspirationPage() {
   const list = await getInspirations();
+  const all = await getAllProducts();
+  // Task 122 F-16: "Shop this room" must quote the SHIPPABLE total (the sum
+  // of the room's pieces at live prices — the same derivation the detail
+  // page labels "These pieces"), not the editorial planning budget. The
+  // budget is a styling figure; quoting it as the shopping total was the
+  // exact conflation Task 119 F-4 fixed on the detail page.
+  const piecesTotal = (slugs: string[]) =>
+    slugs
+      .map((s) => all.find((p) => p.slug === s))
+      .filter((p): p is ProductRow => !!p)
+      .reduce((a, p) => a + p.priceCents, 0);
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <p className="text-[12px] font-black uppercase tracking-[0.16em] text-[#2e6b34]">Ideas & inspiration</p>
@@ -35,7 +47,7 @@ export default async function InspirationPage() {
               <span className="mt-1 block text-[18px] font-black leading-snug">{r.title}</span>
               <span className="mt-2 block text-[14px] text-[#5b5b5b]">{r.description}</span>
               <span className="mt-3 flex items-center justify-between text-[14px]">
-                <span className="font-black">Shop this room · {formatSGD(r.budgetCents)}</span>
+                <span className="font-black">Shop this room · {formatSGD(piecesTotal(r.productSlugs))}</span>
                 <span className="rounded-full bg-[#ffdb00] px-3 py-1 font-bold">→</span>
               </span>
             </span>

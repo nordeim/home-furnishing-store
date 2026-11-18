@@ -35,6 +35,11 @@ export async function POST(req: Request) {
     const postal = String(body.postal ?? "").trim();
     const address = String(body.address ?? "").trim();
     const rawLines = Array.isArray(body.lines) ? (body.lines as unknown[]) : [];
+    // Task 122 F-7: the bag payload is bounded — a 101-line array must not
+    // become a 101-row insert per request (every other field has always been
+    // capped; lines was the unbounded residue).
+    if (rawLines.length > 100)
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Your bag has too many lines — keep it under 100." } }, { status: 422 });
     // Per-line boundary validation (Task 118 F-17): a crafted non-finite qty or
     // productId must drop out here, not slip past Math.min/max as NaN into a
     // Postgres 500. qty clamps through the shared clampInt seam — the same
@@ -44,8 +49,13 @@ export async function POST(req: Request) {
       .map((l) => {
         const line = (l ?? {}) as Record<string, unknown>;
         const productId = Number(line.productId);
+        // Task 122 F-8: Number(null) === 0 is FINITE, so a null qty used to
+        // min-clamp to 1 and place a quiet single-unit order — null/undefined
+        // must drop the line like every other non-numeric qty.
+        const rawQty = line.qty;
+        const qtyNum = rawQty == null ? Number.NaN : Number(rawQty);
         return Number.isInteger(productId) && productId > 0
-          ? { productId, qty: clampInt(Number(line.qty), 1, 99, Number.NaN) }
+          ? { productId, qty: clampInt(qtyNum, 1, 99, Number.NaN) }
           : null;
       })
       .filter((l): l is { productId: number; qty: number } => l !== null && Number.isInteger(l.qty));
@@ -71,6 +81,12 @@ export async function POST(req: Request) {
     const deliverySlot = String(body.deliverySlot ?? "Standard (3–5 days)");
     if (deliverySlot.length > 80)
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Choose one of the offered time slots." } }, { status: 422 });
+    // Task 122 F-7: promoCode joins the capped fields (the DB would refuse
+    // any unknown code anyway — this refuses oversized payloads at the
+    // boundary before the round-trip).
+    const promoCode = typeof body.promoCode === "string" ? body.promoCode : null;
+    if (promoCode !== null && promoCode.length > 32)
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "One or more fields are too long — keep each under its stated limit." } }, { status: 422 });
 
     const order = await placeOrder({
       email,
@@ -82,7 +98,7 @@ export async function POST(req: Request) {
       deliverySlot,
       storeSlug,
       paymentMethod: ["card", "paynow", "grabpay", "atome"].includes(String(body.paymentMethod)) ? String(body.paymentMethod) : "card",
-      promoCode: typeof body.promoCode === "string" ? body.promoCode : null,
+      promoCode,
       lines,
     });
     // Data minimization (Task 119, matching the track route): the confirmation
