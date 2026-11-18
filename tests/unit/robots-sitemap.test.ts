@@ -60,4 +60,13 @@ describe("sitemap.xml", () => {
   it("uses the canonical origin only", () => {
     expect(urls.every((u) => u.startsWith(SITE))).toBe(true);
   });
+
+  it("carries no lastModified — every entry would report 'now' on every crawl (Task 121 F-9)", () => {
+    // A lastmod that always equals the build/request time is noise that
+    // erodes the signal; stable URLs without a honest mtime source ship no
+    // lastmod at all.
+    for (const entry of sitemap()) {
+      expect(Object.keys(entry), entry.url).toEqual(["url"]);
+    }
+  });
 });

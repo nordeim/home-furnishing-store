@@ -77,4 +77,41 @@ describe("createLocalStore (localStorage-backed external store)", () => {
     s.set(9);
     expect(s.getServerSnapshot()).toBe(0);
   });
+
+  // Task 121 F-4: JSON.parse only rejects INVALID JSON — a valid-JSON payload
+  // of the WRONG SHAPE ({"lines":[]} in an array store, "5" in a string store)
+  // used to become the snapshot and crash consumers mid-render (CartProvider's
+  // lines.reduce) — taking every route down with it, since the provider wraps
+  // the root layout. A validate predicate must degrade those to the fallback.
+  describe("shape validation (Task 121 F-4)", () => {
+    it("a valid-JSON wrong-shape cart payload degrades to the fallback", () => {
+      const k = key();
+      localStorage.setItem(k, JSON.stringify({ lines: [] }));
+      const s = createLocalStore<Array<{ productId: number }>>(k, [], Array.isArray);
+      expect(s.getSnapshot()).toEqual([]);
+    });
+
+    it("a valid-JSON non-string promo payload degrades to the fallback", () => {
+      const k = key();
+      localStorage.setItem(k, JSON.stringify(5));
+      const s = createLocalStore<string | null>(k, null, (v): v is string | null => v === null || typeof v === "string");
+      expect(s.getSnapshot()).toBeNull();
+    });
+
+    it("a shape-valid persisted value still loads (validation is not rejection)", () => {
+      const k = key();
+      localStorage.setItem(k, JSON.stringify([{ productId: 3 }, { productId: 8 }]));
+      const s = createLocalStore<Array<{ productId: number }>>(k, [], Array.isArray);
+      expect(s.getSnapshot()).toEqual([{ productId: 3 }, { productId: 8 }]);
+    });
+
+    it("a validator that throws degrades to the fallback, never crashes the read", () => {
+      const k = key();
+      localStorage.setItem(k, JSON.stringify("anything"));
+      const s = createLocalStore<string>(k, "safe", () => {
+        throw new Error("validator bug");
+      });
+      expect(s.getSnapshot()).toBe("safe");
+    });
+  });
 });

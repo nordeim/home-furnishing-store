@@ -205,6 +205,14 @@ export async function placeOrder(input: CheckoutInput) {
   const { discountCents, deliveryFeeCents, gstCents, totalCents } = totals;
   const num = orderNumber();
 
+  // Task 121 F-2: click-&-collect fulfils from ONE store, so its availability
+  // check must be scoped to THAT store's rows — the island-wide aggregate let
+  // a Jurong pickup pass on Tampines stock while the PDP honestly showed
+  // "Jurong: Out of stock". Delivery keeps the aggregate (any store can ship;
+  // the single-store decrement source remains the documented deferral).
+  const fulfilStore = input.storeSlug || "tampines";
+  const clickCollect = input.deliveryMethod === "click-collect";
+
   return db.transaction(async (tx) => {
     // Lock the touched inventory rows (ordered by id so concurrent carts with
     // overlapping products acquire locks in one deterministic order — no
@@ -213,7 +221,11 @@ export async function placeOrder(input: CheckoutInput) {
     const lockedRows = await tx
       .select({ productId: inventory.productId, quantity: inventory.quantity })
       .from(inventory)
-      .where(inArray(inventory.productId, [...qtyByProduct.keys()]))
+      .where(
+        clickCollect
+          ? and(inArray(inventory.productId, [...qtyByProduct.keys()]), eq(inventory.storeSlug, fulfilStore))
+          : inArray(inventory.productId, [...qtyByProduct.keys()]),
+      )
       .orderBy(inventory.id)
       .for("update");
     const available = new Map<number, number>();
@@ -258,17 +270,18 @@ export async function placeOrder(input: CheckoutInput) {
         qty: l.qty,
       })),
     );
-    // Decrement store inventory (best-effort, single-store source — a
-    // documented deferral; inside the lock no concurrent writer can
-    // interleave between the check above and this commit).
-    try {
-      for (const l of lines) {
-        await tx
-          .update(inventory)
-          .set({ quantity: sql`greatest(0, ${inventory.quantity} - ${l.qty})` })
-          .where(and(eq(inventory.productId, l.product.id), eq(inventory.storeSlug, input.storeSlug || "tampines")));
-      }
-    } catch { /* non-blocking */ }
+    // Decrement store inventory (single-store source — a documented
+    // deferral; inside the lock no concurrent writer can interleave between
+    // the check above and this commit). Task 121 F-8: no swallowing catch —
+    // a failed UPDATE aborts the surrounding transaction anyway, so a silent
+    // catch here would only mask the failure until the COMMIT blows up.
+    // Fail-closed is the honest semantics for a locked-row arithmetic miss.
+    for (const l of lines) {
+      await tx
+        .update(inventory)
+        .set({ quantity: sql`greatest(0, ${inventory.quantity} - ${l.qty})` })
+        .where(and(eq(inventory.productId, l.product.id), eq(inventory.storeSlug, input.storeSlug || "tampines")));
+    }
     return order;
   });
 }

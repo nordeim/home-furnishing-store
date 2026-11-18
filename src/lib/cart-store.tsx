@@ -41,9 +41,12 @@ const PROMO_KEY = "nordhem_promo";
 // Note: `nordhem_promo` was persisted as a raw string before the refactor and
 // is JSON-encoded now — a legacy raw-string value fails the JSON.parse guard
 // in local-store and degrades to null (no promo), it does not carry over.
-const linesStore = createLocalStore<CartLine[]>(CART_KEY, []);
-const wishStore = createLocalStore<string[]>(WISH_KEY, []);
-const promoStore = createLocalStore<string | null>(PROMO_KEY, null);
+// Task 121 F-4: each store validates the SHAPE of what it parses — a
+// valid-JSON wrong-shape payload (e.g. an object in the cart key) used to
+// reach CartProvider's lines.reduce and crash every route at render.
+const linesStore = createLocalStore<CartLine[]>(CART_KEY, [], Array.isArray);
+const wishStore = createLocalStore<string[]>(WISH_KEY, [], Array.isArray);
+const promoStore = createLocalStore<string | null>(PROMO_KEY, null, (v) => v === null || typeof v === "string");
 
 function addLine(line: Omit<CartLine, "qty">, qty = 1) {
   linesStore.set((prev) => {

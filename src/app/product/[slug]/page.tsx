@@ -64,11 +64,20 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     sku: p.sku,
     image: p.imageUrls,
     brand: { "@type": "Brand", name: "NORDHEM" },
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: String(p.ratingAvg),
-      reviewCount: p.ratingCount,
-    },
+    // Task 121 F-6: the count derives from the SAME live review rows the
+    // section renders (the seed column claimed "412" beside a visible list of
+    // 2); with no live reviews the node is omitted entirely — never publish
+    // an aggregateRating the page cannot back. ratingValue keeps the
+    // catalogue average (the documented invented-content stance).
+    ...(reviews.length > 0
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: String(p.ratingAvg),
+            reviewCount: reviews.length,
+          },
+        }
+      : {}),
     offers: {
       "@type": "Offer",
       url: `${SITE}/product/${p.slug}`,
@@ -126,13 +135,17 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           </div>
           <h1 className="mt-2 text-[clamp(1.7rem,3.5vw,2.6rem)] font-black tracking-tight">{p.name}</h1>
           <p className="mt-1 text-[16px] text-[#5b5b5b]">{p.tagline}</p>
-          <p className="mt-2 text-[14px]" aria-label={`Rated ${p.ratingAvg} from ${p.ratingCount} reviews`}>
-            <span className="text-[#e5a000]" aria-hidden="true">
+          {/* Task 121 F-6/F-13: role="img" makes the star display a semantic
+              image (an aria-label on a bare <p> was ignored by AT); the count
+              beside the stars is the catalogue's invented stat, so the link
+              publishes the anchor, not a second, contradictory number. */}
+          <p className="mt-2 text-[14px]">
+            <span className="text-[#e5a000]" role="img" aria-label={`Rated ${p.ratingAvg} out of 5`}>
               {"★".repeat(ratingStars.full)}
               {ratingStars.half && <span className="text-[#e5a000]/40">★</span>}
               {"☆".repeat(ratingStars.empty)}
             </span>{" "}
-            <span className="font-bold">{String(p.ratingAvg)}</span> · <a href="#reviews" className="text-[#0058a3] underline">{p.ratingCount} reviews</a> · SKU {p.sku}
+            <span className="font-bold">{String(p.ratingAvg)}</span> · <a href="#reviews" className="text-[#0058a3] underline">reviews</a> · SKU {p.sku}
           </p>
           <div className="mt-4 flex items-baseline gap-3">
             <p className="text-[34px] font-black tracking-tight">{formatSGD(p.priceCents)}</p>

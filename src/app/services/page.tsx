@@ -15,9 +15,9 @@ export const metadata = {
 };
 
 const CARDS = [
-  { t: "Delivery", price: "from $12 · free over $200", d: "Evening and weekend slots island-wide, including walk-up apartments. Live SMS tracking with a 2-hour window.", points: ["Standard 3–5 days from $12", "Express next-day $29", "Free over $200 (standard)"] },
+  { t: "Delivery", price: "from $12 · free over $200", d: "Evening and weekend slots island-wide, including walk-up apartments. Tracked delivery with a 2-hour window (demo storefront — no live SMS is sent).", points: ["Standard 3–5 days from $12", "Express next-day $29", "Free over $200 (standard)"] },
   { t: "Assembly", price: "from $25 per item", d: "Certified crews assemble, level and anchor — and take every scrap of packaging away for recycling.", points: ["Wardrobes & kitchens our specialty", "Wall-anchoring included", "Re-assembly if you move (members)"] },
-  { t: "Click & Collect", price: "free · ready in 2 hours", d: "Order online, collect at Tampines, Jurong or Alexandra. Drive-through bays — we load, you go.", points: ["SMS when ready", "21-day collection window", "Free trolley & rope loan"] },
+  { t: "Click & Collect", price: "free · ready in 2 hours", d: "Order online, collect at Tampines, Jurong or Alexandra. Drive-through bays — we load, you go.", points: ["Ready-in-2-hours promise", "21-day collection window", "Free trolley & rope loan"] },
   { t: "Home Design Service", price: "from $190 · redeemable", d: "A planner measures (or video-calls), draws 3D views and gives a shoppable list for one room or the whole flat.", points: ["BTO & resale specialists", "Lighting & paint advice", "Fee offsets your purchase"] },
   { t: "Kitchen planning", price: "free 45-min consult", d: "Bring your floor plan; leave with a 20 cm-grid kitchen layout, appliance list and fixed installation quote.", points: ["3D views in-session", "Countertop templating", "HDB permit guidance"] },
   { t: "Returns & Buy-back", price: "365-day returns", d: "Changed your mind within a year? Full refund with proof of purchase. Pre-loved furniture earns buy-back credit.", points: ["Free return for Family members* ", "Spare parts for 10 years", "Re-home via As-Is corners"] },

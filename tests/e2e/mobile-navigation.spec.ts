@@ -79,3 +79,15 @@ test.describe("mobile navigation", () => {
     await expect(page.getByRole("heading", { name: "Search the range" })).toBeVisible();
   });
 });
+
+test("utility strip keeps the Shop offers link fully visible at 390px (Task 121 F-5)", async ({ page }) => {
+  // Task 121 F-5: the strip's truncate clipped the LAST inline content — the
+  // only CTA — past the viewport while it stayed focusable (WCAG 2.4.7).
+  await page.goto("/");
+  const link = page.getByRole("link", { name: "Shop offers" });
+  await expect(link).toBeVisible();
+  const box = await link.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+});

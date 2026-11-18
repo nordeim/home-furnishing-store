@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-18 (Task 120: API-boundary hardening, atomic checkout, SEO blanket completion, a11y floor, docs-truth cycle)
+last_updated: 2026-11-19 (Task 121: client-state robustness, click-&-collect stock honesty, shop SSR content, search settle discipline, SEO completion)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -127,15 +127,15 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`typecheck:tests` covers the test tree) |
-| `npm run test` | Vitest unit suite (86 tests, pure seams) |
-| `npm run test:e2e` | Playwright e2e (43 tests, production build on :3100) |
+| `npm run test` | Vitest unit suite (94 tests, pure seams) |
+| `npm run test:e2e` | Playwright e2e (59 tests, production build on :3100) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
-**Current state (Task 120):** a NORDHEM-native suite is wired into the gates.
+**Current state (Task 121):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 86 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 94 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
@@ -149,7 +149,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   with the fs-computed reality — count-lockstep is enforced across all five
   operator docs, not remembered). Node environment with a localStorage shim
   (`tests/unit/setup.ts`); no jsdom, no component rendering.
-- **E2E (Playwright, 43 tests)** against the **production build** (the webServer
+- **E2E (Playwright, 59 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
   hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
@@ -177,6 +177,17 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   that implement the full APG keyboard pattern (roving tabindex, arrows);
   announcing radio/tab semantics without the keyboard behaviour is worse than
   plain buttons.
+- **Task-121 seams:** `createLocalStore` takes an optional `validate`
+  predicate (wrong-shape persisted JSON degrades to the fallback — a bare
+  `JSON.parse` guard only catches invalid JSON); `/shop` is a server
+  component that ships the initial (cat/sort-filtered) grid in SSR (the
+  client `ShopInner` takes over filtering — no `useSearchParams`, which
+  forces the CSR bailout and an empty SSR shell); `sortProductList` in
+  `utils.ts` is the single display-sort seam (API + shop SSR); click-&-collect
+  availability is scoped to the chosen store's inventory rows; the checkout
+  route validates `storeSlug` against the three real stores and refuses
+  overlong `deliverySlot`; search verdicts gate on a settled-for-query flag;
+  `campaignEnd`/`campaignEndLabel` roll the Dec-29–31 stale window.
 
 TDD is the default for logic changes: red → green → refactor, one seam at a
 time (`skills/tdd`). Bug fixes require a regression test that fails before the

@@ -22,6 +22,12 @@ function SearchInner() {
 
   const [items, setItems] = useState<CardProduct[]>([]);
   const [loading, setLoading] = useState(false);
+  // Task 121 F-1: `loading` starts false and only flips inside the 250ms
+  // debounce callback — on the primary entry path (header search → /search?q=…)
+  // the hydrated page used to render "0 results for …" during that window.
+  // The verdict blocks gate on the search having SETTLED for the CURRENT
+  // needle; a changed needle hides them again until its own search lands.
+  const [settledFor, setSettledFor] = useState<string | null>(null);
   // A failed fetch is an error — distinct from a genuine zero-result query.
   const [error, setError] = useState(false);
   // Bumping this re-runs the search effect (retry button) without changing q.
@@ -46,7 +52,10 @@ function SearchInner() {
       } catch {
         if (!cancelled) setError(true);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setSettledFor(needle);
+        }
       }
     }, 250);
     return () => { cancelled = true; clearTimeout(t); };
@@ -78,13 +87,13 @@ function SearchInner() {
           <button onClick={() => setRetry((n) => n + 1)} className="mt-3 rounded-full bg-[#0058a3] px-6 py-2.5 text-[14px] font-bold text-white hover:bg-[#004382] focus-ring">Try again</button>
         </div>
       )}
-      {!loading && !error && needle && (
+      {!loading && !error && needle && settledFor === needle && (
         <p className="mt-6 text-[15px]" role="status"><strong>{shown.length}</strong> result{shown.length === 1 ? "" : "s"} for “{needle}”</p>
       )}
       <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {shown.map((p) => <ProductCard key={p.id} p={{ ...p, ratingAvg: String(p.ratingAvg) }} />)}
       </div>
-      {!loading && !error && needle && shown.length === 0 && (
+      {!loading && !error && needle && settledFor === needle && shown.length === 0 && (
         <div className="mt-4 rounded-xl bg-[#f5f3ee] p-10 text-center">
           <p className="text-[18px] font-black">No products found for “{needle}”</p>
           <Link href="/shop" className="mt-3 inline-block font-bold text-[#0058a3] underline">Browse everything instead →</Link>

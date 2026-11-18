@@ -783,3 +783,347 @@ test.describe("checkout API boundary (Task 120)", () => {
     }
   });
 });
+
+test.describe("PDP client-side navigation state (Task 121 F-3)", () => {
+  test("related-product navigation resets reviews and BuyBox state to the new product", async ({ page }) => {
+    // SOLBAKKEN carries 2 seeded reviews; its living-room sibling HAVBRIS has none.
+    await page.goto("/product/solbakken-3-seat-sofa");
+    await expect(page.getByRole("heading", { name: "Reviews (2)" })).toBeVisible();
+    await expect(page.getByText("Mei L.").first()).toBeVisible();
+
+    // Dirty the BuyBox state so a stale carry-over is observable.
+    await page.getByRole("button", { name: "Increase quantity" }).click();
+    await expect(page.locator("#qty")).toHaveValue("2");
+
+    // Client-side navigate via the "Pairs well with" grid (same tree position).
+    await page.getByRole("link", { name: "HAVBRIS lounge chair" }).first().click();
+    await expect(page).toHaveURL(/\/product\/havbris-lounge-chair/);
+
+    // The review section must belong to HAVBRIS — the previous product's
+    // reviews must not survive the client-side transition, and the count
+    // must re-derive from the new product's (empty) review list.
+    await expect(page.getByRole("heading", { name: "Reviews (0)" })).toBeVisible();
+    await expect(page.getByText("Mei L.")).toHaveCount(0);
+
+    // The BuyBox stepper must reset with the product, not keep SOLBAKKEN's qty.
+    await expect(page.locator("#qty")).toHaveValue("1");
+  });
+});
+
+test.describe("click-&-collect store stock honesty (Task 121 F-2)", () => {
+  test("pickup at a zeroed store is a 422 LOW_STOCK even when other stores carry stock", async ({ request }) => {
+    // Task 121 F-2: the availability check summed inventory across ALL
+    // stores while fulfilment is single-store — a click-&-collect order at
+    // Jurong passed with Jurong at 0 (Tampines carrying the stock) and the
+    // confirmation then promised pickup at a store the PDP itself showed as
+    // "Out of stock". Quiet product: skagen-media-bench (no other spec
+    // manipulates it).
+    const client = new Client({
+      connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+    });
+    await client.connect();
+    const pidRow = await client.query("select id from products where slug = 'skagen-media-bench'");
+    const pid = pidRow.rows[0].id as number;
+    const orig = await client.query("select store_slug, quantity from inventory where product_id = $1", [pid]);
+    let orderNumber: string | null = null;
+    try {
+      // Jurong empty; the other two stores fully stocked — the aggregate
+      // check sees plenty, the pickup promise cannot be kept.
+      await client.query(
+        "update inventory set quantity = (case when store_slug = 'jurong' then 0 else 5 end) where product_id = $1",
+        [pid]
+      );
+      const base = {
+        email: "cc-probe@nordhem.sg",
+        fullName: "CC Probe",
+        phone: "+65 91234567",
+        address: "Blk 1 Testing Rd #01-01",
+        postal: "089001",
+        deliveryMethod: "click-collect",
+        deliverySlot: "Click & Collect — today 2pm",
+        paymentMethod: "card",
+        lines: [{ productId: pid, qty: 1 }],
+      };
+      const refused = await request.post("/api/checkout", {
+        headers: { "x-forwarded-for": "10.9.122.1" },
+        data: { ...base, storeSlug: "jurong" },
+      });
+      expect(refused.status()).toBe(422);
+      const body = (await refused.json()) as { error?: { code?: string } };
+      expect(body.error?.code).toBe("LOW_STOCK");
+
+      // Positive control: pickup at a stocked store still succeeds.
+      const ok = await request.post("/api/checkout", {
+        headers: { "x-forwarded-for": "10.9.122.2" },
+        data: { ...base, storeSlug: "tampines" },
+      });
+      expect(ok.status()).toBe(201);
+      const okBody = (await ok.json()) as { data?: { orderNumber?: string } };
+      orderNumber = okBody.data?.orderNumber ?? null;
+    } finally {
+      if (orderNumber) {
+        await client.query("delete from order_items where order_id in (select id from orders where order_number = $1)", [orderNumber]);
+        await client.query("delete from orders where order_number = $1", [orderNumber]);
+      }
+      for (const row of orig.rows) {
+        await client.query("update inventory set quantity = $1 where product_id = $2 and store_slug = $3", [
+          row.quantity,
+          pid,
+          row.store_slug,
+        ]);
+      }
+      await client.end();
+    }
+  });
+});
+
+test.describe("PDP review-count honesty (Task 121 F-6)", () => {
+  test("JSON-LD reviewCount matches the live review list; the header link carries no invented count", async ({ page }) => {
+    // Task 121 F-6: the header rendered the seed column ("412 reviews") right
+    // beside a live section rendering "Reviews (2)" — two contradictory
+    // numbers on one page, and the crawler-facing aggregateRating claimed the
+    // unauditable fiction. The structured-data count must derive from the
+    // same live rows the section renders, and the header link must not
+    // publish a count at all.
+    await page.goto("/product/solbakken-3-seat-sofa");
+    const section = await page.getByRole("heading", { name: /^Reviews \(\d+\)$/ }).textContent();
+    const liveCount = Number(section?.match(/Reviews \((\d+)\)/)?.[1] ?? "-1");
+    expect(liveCount).toBeGreaterThan(0);
+
+    const jsonld = await productJsonLd(page);
+    const parsed = JSON.parse(jsonld ?? "null") as {
+      aggregateRating?: { ratingValue?: string; reviewCount?: number };
+    };
+    expect(parsed.aggregateRating?.reviewCount).toBe(liveCount);
+
+    // The header link publishes the anchor target, not a second number.
+    await expect(page.locator('a[href="#reviews"]')).toHaveText("reviews");
+  });
+
+  test("a product with zero live reviews ships no aggregateRating node", async ({ page }) => {
+    // Google's structured-data policy: never publish an aggregateRating you
+    // cannot back with visible reviews. HAVBRIS has no seeded reviews.
+    await page.goto("/product/havbris-lounge-chair");
+    await expect(page.getByRole("heading", { name: "Reviews (0)" })).toBeVisible();
+    const jsonld = await productJsonLd(page);
+    const parsed = JSON.parse(jsonld ?? "null") as { aggregateRating?: unknown };
+    expect(parsed.aggregateRating).toBeUndefined();
+  });
+});
+
+test.describe("checkout storeSlug / deliverySlot boundary (Task 121 F-7)", () => {
+  test("an unknown storeSlug is refused, not persisted as junk copy", async ({ request }) => {
+    const res = await request.post("/api/checkout", {
+      headers: { "x-forwarded-for": "10.9.123.1" },
+      data: {
+        email: "slug-probe@nordhem.sg",
+        fullName: "Slug Probe",
+        phone: "+65 91234567",
+        address: "Blk 1 Testing Rd #01-01",
+        postal: "089001",
+        deliveryMethod: "click-collect",
+        deliverySlot: "Click & Collect — today 2pm",
+        storeSlug: "not-a-real-store",
+        paymentMethod: "card",
+        lines: [{ productId: 1, qty: 1 }],
+      },
+    });
+    expect(res.status()).toBe(422);
+    const body = (await res.json()) as { error?: { code?: string } };
+    expect(body.error?.code).toBe("VALIDATION");
+  });
+
+  test("an overlong deliverySlot is refused, never silently truncated", async ({ request }) => {
+    const res = await request.post("/api/checkout", {
+      headers: { "x-forwarded-for": "10.9.123.2" },
+      data: {
+        email: "slot-probe@nordhem.sg",
+        fullName: "Slot Probe",
+        phone: "+65 91234567",
+        address: "Blk 1 Testing Rd #01-01",
+        postal: "089001",
+        deliveryMethod: "delivery",
+        deliverySlot: "X".repeat(120),
+        storeSlug: "tampines",
+        paymentMethod: "card",
+        lines: [{ productId: 1, qty: 1 }],
+      },
+    });
+    expect(res.status()).toBe(422);
+    const body = (await res.json()) as { error?: { code?: string } };
+    expect(body.error?.code).toBe("VALIDATION");
+  });
+});
+
+test.describe("search settle discipline (Task 121 F-1)", () => {
+  test("no verdict is announced before the search settles", async ({ page }) => {
+    // Task 121 F-1: loading initialized false and only flipped inside the
+    // 250ms debounce callback, so the hydrated page rendered "0 results for
+    // 'sofa'" — assertively wrong — until the debounce fired. The window is
+    // only ~250ms wide, too narrow for a polling assertion: instead FREEZE
+    // the debounce-class timeout for the first phase, which holds the page
+    // in exactly the pre-settle state the flash occupies.
+    await page.addInitScript(() => {
+      (window as unknown as { __freezeDebounce?: boolean }).__freezeDebounce = true;
+      const orig = window.setTimeout.bind(window);
+      window.setTimeout = ((fn: TimerHandler, timeout?: number, ...args: unknown[]) => {
+        const w = window as unknown as { __freezeDebounce?: boolean };
+        if (w.__freezeDebounce && typeof timeout === "number" && timeout >= 200 && timeout <= 300) {
+          // Swallow the debounce: the pre-settle state persists indefinitely.
+          return orig(() => {}, 2_000_000_000);
+        }
+        return orig(fn, timeout, ...args);
+      }) as typeof window.setTimeout;
+    });
+
+    // Phase 1 — frozen debounce: no verdict may render while unsettled.
+    await page.goto("/search?q=sofa");
+    await page.waitForTimeout(900); // hydration + margin: the flash would be showing by now
+    await expect(page.getByText(/^0 results/)).toHaveCount(0);
+    await expect(page.getByText("No products found")).toHaveCount(0);
+
+    // Phase 2 — unfreeze and re-run the search: the settle path still works.
+    await page.evaluate(() => {
+      (window as unknown as { __freezeDebounce?: boolean }).__freezeDebounce = false;
+    });
+    // Two Search buttons exist (header + page form) — the documented
+    // responsive double-DOM trap; scope to the page's own form.
+    await page.locator("#main").getByRole("button", { name: "Search" }).click();
+    await expect(page.getByRole("status")).toHaveText(/\d+ results? for “sofa”/, { timeout: 10_000 });
+  });
+});
+
+test.describe("checkout form error placement (Task 121 F-12)", () => {
+  test("a contact-field error surfaces above the form, not inside the Payment section", async ({ page }) => {
+    await page.goto("/product/solbakken-3-seat-sofa");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await page.goto("/checkout");
+    await page.getByLabel("Full name").fill("Error Probe");
+    await page.getByLabel("Phone").fill("+65 91234567");
+    await page.getByLabel("Postal code").fill("089001");
+    await page.getByPlaceholder("Blk, street, unit number").fill("Blk 1 Testing Rd #01-01");
+    await page.getByLabel("Email").fill("a@b"); // passes browser type=email, fails our EMAIL_RE — our validation must answer
+    await page.getByRole("button", { name: /^Pay / }).click();
+    // Scope to #main: the Next route announcer is a second [role=alert] at
+    // the end of body (the documented Task-120 strict-mode trap).
+    const alert = page.locator("#main").getByRole("alert");
+    await expect(alert).toBeVisible();
+    // The alert must precede the Fulfilment section in DOM order — contact
+    // errors used to render physically inside "3 · Payment". expect.poll
+    // absorbs the brief post-submit rerender window.
+    await expect
+      .poll(async () =>
+        page.evaluate(() => {
+          const main = document.getElementById("main");
+          const alertEl = main?.querySelector('[role="alert"]') ?? null;
+          const fulfil = Array.from(document.querySelectorAll("h2")).find((h) => h.textContent?.includes("Fulfilment")) ?? null;
+          if (!alertEl || !fulfil) return "missing";
+          return (alertEl.compareDocumentPosition(fulfil) & Node.DOCUMENT_POSITION_FOLLOWING) === Node.DOCUMENT_POSITION_FOLLOWING;
+        }),
+      )
+      .toBe(true);
+  });
+});
+
+test.describe("checkout fulfilment method switch (Task 121 F-20 pin)", () => {
+  test("switching to Click & Collect re-derives the slot options", async ({ page }) => {
+    await page.goto("/product/solbakken-3-seat-sofa");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await page.goto("/checkout");
+    const slot = page.getByLabel("Time slot");
+    await expect(slot).toHaveValue("Standard (3–5 days)");
+    await page.getByRole("button", { name: /Click & Collect/ }).click();
+    await expect(page.getByRole("button", { name: /Click & Collect/ })).toHaveAttribute("aria-pressed", "true");
+    // The slot list re-derives from the method and resets to its first option.
+    await expect(slot).toHaveValue("Today 2pm");
+    const options = await slot.locator("option").allTextContents();
+    expect(options).toEqual(["Today 2pm", "Tomorrow 10am"]);
+  });
+});
+
+test.describe("PDP stepper floor (Task 121 F-11)", () => {
+  test("PDP quantity minus is disabled at qty 1 (cart-page parity)", async ({ page }) => {
+    // Task 120 fixed the CART page stepper floor only — the PDP BuyBox kept a
+    // dead enabled control at qty 1.
+    await page.goto("/product/solbakken-3-seat-sofa");
+    const minus = page.getByRole("button", { name: "Decrease quantity" });
+    await expect(minus).toBeDisabled();
+    await page.getByRole("button", { name: "Increase quantity" }).click();
+    await expect(minus).toBeEnabled();
+    await minus.click();
+    await expect(minus).toBeDisabled();
+  });
+});
+
+test.describe("shop loading announcement (Task 121 F-13)", () => {
+  test("the loading skeleton announces via role=status, not a bare aria-label div", async ({ page }) => {
+    await page.route("**/api/products**", async (route) => {
+      await page.waitForTimeout(600);
+      await route.continue();
+    });
+    await page.goto("/shop");
+    // Trigger a client-side refetch (keyword filter) to expose the skeletons.
+    await page.getByLabel("Filter products by keyword").fill("sofa");
+    await expect(page.getByRole("status")).toBeVisible();
+    // Once the delayed response lands, the skeleton region disappears.
+    await expect(page.getByRole("status")).toHaveCount(0);
+    await expect(page.locator("main a[href^='/product/']").first()).toBeVisible();
+  });
+});
+
+test.describe("site JSON-LD search action (Task 121 F-14)", () => {
+  test("the WebSite node carries a SearchAction backed by the search page", async ({ page }) => {
+    await page.goto("/");
+    const has = await page.evaluate(() => {
+      for (const n of Array.from(document.querySelectorAll('script[type="application/ld+json"]'))) {
+        try {
+          const parsed = JSON.parse(n.textContent ?? "") as { "@graph"?: Array<Record<string, unknown>> };
+          const site = parsed["@graph"]?.find((x) => x["@type"] === "WebSite");
+          if (site) {
+            const action = site.potentialAction as { "@type"?: string; target?: string } | undefined;
+            return action?.["@type"] === "SearchAction" && typeof action.target === "string" && action.target.includes("/search?q=");
+          }
+        } catch { /* skip non-JSON nodes */ }
+      }
+      return false;
+    });
+    expect(has).toBe(true);
+  });
+});
+
+test.describe("shop SSR content (Task 121 F-17)", () => {
+  test("the shop grid ships in the HTML — no JavaScript required", async ({ browser }) => {
+    // The shop page was a client-fetch island: its sitemap-indexed URL served
+    // an empty grid to non-JS crawlers and unfurlers.
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    await page.goto("/shop");
+    const cards = page.locator("a[href^='/product/']");
+    await expect(cards.first()).toBeVisible();
+    expect(await cards.count()).toBeGreaterThanOrEqual(20);
+    await context.close();
+  });
+
+  test("a category link ships the filtered grid in SSR too", async ({ browser }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    await page.goto("/shop?cat=bedroom");
+    // The bedroom category carries exactly these 3 products (each card
+    // renders two links — image + name — so count by name, not anchors).
+    for (const name of ["TAMPINES storage bed", "JURONG 3-door wardrobe", "KATONG bedside table"]) {
+      // Two anchors per card (image + name) — first() keeps strict mode happy.
+      await expect(page.getByRole("link", { name }).first()).toBeVisible();
+    }
+    await expect(page.getByRole("link", { name: "SOLBAKKEN 3-seat sofa" })).toHaveCount(0);
+    await context.close();
+  });
+});
+
+test.describe("home social preview (Task 121 F-18)", () => {
+  test("home ships an absolute og:image for link previews", async ({ page }) => {
+    await page.goto("/");
+    const og = page.locator('meta[property="og:image"]');
+    await expect(og).toHaveCount(1);
+    expect(await og.getAttribute("content")).toMatch(/^https:\/\/.+\.(?:jpeg|jpg|png)/);
+  });
+});

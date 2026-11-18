@@ -36,7 +36,7 @@ export function BuyBox({ product, stock }: {
       <div className="flex items-center gap-3">
         <label htmlFor="qty" className="text-[14px] font-bold">Qty</label>
         <div className="flex items-center rounded-full border border-[#ddd]">
-          <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="grid h-10 w-10 place-items-center rounded-full hover:bg-[#f5f3ee] focus-ring" aria-label="Decrease quantity">−</button>
+          <button onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} className="grid h-10 w-10 place-items-center rounded-full hover:bg-[#f5f3ee] focus-ring disabled:opacity-40 disabled:hover:bg-transparent" aria-label="Decrease quantity">−</button>
           <input id="qty" value={qty} onChange={(e) => setQty(Math.min(99, Math.max(1, Math.floor(Number(e.target.value) || 1))))} className="w-10 text-center font-black outline-none focus:ring-2 focus:ring-[#0058a3]/50" inputMode="numeric" />
           <button onClick={() => setQty((q) => Math.min(99, q + 1))} className="grid h-10 w-10 place-items-center rounded-full hover:bg-[#f5f3ee] focus-ring" aria-label="Increase quantity">+</button>
         </div>

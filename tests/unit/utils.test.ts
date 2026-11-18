@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex } from "@/lib/utils";
+import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex, campaignEnd, campaignEndLabel } from "@/lib/utils";
 
 describe("formatSGD", () => {
   // The currency symbol depends on the node build's ICU data ($ vs S$) — assert
@@ -171,5 +171,24 @@ describe("orderStepIndex + ORDER_STEPS (the shared order-progress ladder)", () =
   });
   it("ladder has the four documented steps in order", () => {
     expect(ORDER_STEPS).toEqual(["Confirmed", "Picking", "On the way", "Delivered"]);
+  });
+});
+
+describe("campaignEnd / campaignEndLabel (Task 121 F-19)", () => {
+  it("returns 28 Dec of the current year before the campaign ends", () => {
+    expect(campaignEnd(new Date("2026-11-19T12:00:00")).getFullYear()).toBe(2026);
+    expect(campaignEnd(new Date("2026-12-27T12:00:00")).getFullYear()).toBe(2026);
+  });
+
+  it("rolls to next year inside the Dec 29–31 stale window", () => {
+    expect(campaignEnd(new Date("2026-12-29T00:00:00")).getFullYear()).toBe(2027);
+    expect(campaignEnd(new Date("2026-12-31T23:00:00")).getFullYear()).toBe(2027);
+    expect(campaignEnd(new Date("2027-01-05T00:00:00")).getFullYear()).toBe(2027);
+  });
+
+  it("renders the en-SG label for any now (the visible text never goes stale)", () => {
+    expect(campaignEndLabel(new Date("2026-11-19T12:00:00"))).toBe("28 Dec");
+    expect(campaignEndLabel(new Date("2026-12-30T12:00:00"))).toBe("28 Dec");
+    expect(campaignEndLabel(new Date("2027-02-01T12:00:00"))).toBe("28 Dec");
   });
 });

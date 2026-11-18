@@ -22,15 +22,21 @@ ORM + PostgreSQL.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
-| `npm run test` | Vitest unit suite (86 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
-| `npm run test:e2e` | Playwright e2e (43 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
+| `npm run test` | Vitest unit suite (94 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
+| `npm run test:e2e` | Playwright e2e (59 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
-The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117/118/119):
+The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–121):
 `tests/unit` (9 files) + `tests/e2e` (mobile-navigation + storefront specs
 incl. the fetch-failure resilience pair, the API rate-limit pins, PDP badge
 dedupe, cart promo persistence, JSON-LD live-inventory + LOW_STOCK commerce
-honesty, and the SEO metadata blanket). The predecessor's 73-unit/15-e2e dead
+honesty, the SEO metadata blanket, and the Task-121 pins: local-store shape
+validation, campaign-date roll, sitemap no-lastModified, PDP→PDP navigation
+state, per-store click-&-collect stock, JSON-LD reviewCount honesty, the
+storeSlug/deliverySlot boundary, the search settle discipline, the shop SSR
+content pair (javaScriptEnabled: false), the utility-strip visibility floor,
+the PDP stepper floor, the checkout error placement, the SearchAction node,
+and the checkout method-switch slot re-derivation). The predecessor's 73-unit/15-e2e dead
 tree was retired with it — do not resurrect ely-beauty specs; pin new ones to
 this `src/`.
 
@@ -127,8 +133,8 @@ When adding tests, pin them to this `src/` — never resurrect ely-beauty specs.
 rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db" npm run build
 npm run typecheck
 npm run lint          # 0 errors expected (the 7-error lint debt was fixed in Task 114)
-npm run test          # 86/86 unit
-npm run test:e2e      # 43/43 e2e (needs a live Postgres for the checkout journey)
+npm run test          # 94/94 unit
+npm run test:e2e      # 59/59 e2e (needs a live Postgres for the checkout journey)
 ```
 
 There is no hosted CI; the local gate is the only gate.

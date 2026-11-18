@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 1.4.0
-last_updated: "2026-11-18 (Task 120: API-boundary hardening, atomic checkout, SEO blanket completion, a11y floor, docs-truth cycle)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 86/86 unit · 43/43 e2e · cold build green (29 routes) · PostgreSQL 17 live-verified · counts pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
+version: 1.5.0
+last_updated: "2026-11-19 (Task 121: client-state robustness, click-&-collect stock honesty, shop SSR content, search settle discipline, SEO completion)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 94/94 unit · 59/59 e2e · cold build green (29 routes) · PostgreSQL 17 live-verified · counts pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -11,7 +11,8 @@ project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 86/86 un
 > How to use: this is the distilled engineering memory of the NORDHEM codebase
 > after the Task 114 remediation, the Task 117 honesty/hardening cycle, the
 > Task 118 dev-hydration/lineage-drift cycle, the Task 119 server-truth/SEO
-> blanket cycle, and the Task 120 API-boundary/atomic-checkout/docs-truth cycle. `AGENTS.md` is the quick operator
+> blanket cycle, the Task 120 API-boundary/atomic-checkout/docs-truth cycle,
+> and the Task 121 client-state/commerce-honesty/SSR-content cycle. `AGENTS.md` is the quick operator
 > reference, the PAD is the full blueprint, and this skill is the
 > pattern/lesson layer an agent needs before touching the code. When code and
 > this document disagree, **the code wins** — then fix this document in the
@@ -84,8 +85,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 86/86
-npm run test:e2e                                               # 43/43 (live Postgres for the journey)
+npm run test                                                   # 94/94
+npm run test:e2e                                               # 59/59 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -303,6 +304,26 @@ matches ("Go" ⊂ "ERGONOMI").
     without a parse guard becomes the leakiest (Task 120: checkout 500'd
     with the raw parse error AND echoed driver errors from the generic
     catch). Parse-guard → 400 fixed copy; 500s ship fixed copy only.
+26. **`JSON.parse` success ≠ shape success** — a valid-JSON wrong-shape
+    payload in a localStorage key sailed past the corrupt-data guard and
+    crashed CartProvider's `lines.reduce` at render, taking every route down
+    (Task 121): every `createLocalStore` now carries a validate predicate;
+    a root `error.tsx` bounds whatever the next unknown crash class is.
+27. **Aggregate stock checks for single-store promises** — click-&-collect
+    at Jurong passed on Tampines stock while the PDP printed "Jurong: Out of
+    stock" (Task 121): scope the availability check to the fulfilment
+    source; the aggregate is only honest for delivery.
+28. **`useSearchParams` in a client page = empty SSR** — the hook forces the
+    CSR bailout, so the component renders only its Suspense fallback in
+    SSR; worse, streamed Suspense content lands in a `<div hidden>` that
+    only JS reveals — a no-JS crawler sees nothing either way (Task 121):
+    read the params in the server component and pass them down.
+29. **A verdict rendered before the data settles** — the search page
+    initialized `loading: false`, so the hydrated page announced "0 results"
+    during the 250ms debounce window (Task 121): verdict blocks gate on a
+    settled-for-the-current-query flag, and the e2e proves it by freezing
+    the debounce timeout (a polling assertion sleeps right through a
+    250ms-wide bug).
 ## 10. Debugging Guide
 
 | Symptom | Root cause | Fix |
@@ -439,6 +460,29 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
     "members-only workshops" that don't exist. Route descriptions must be
     verified against the surface's computed math, the same way visible copy
     is — the e2e blanket now pins the earn-rate agreement.
+21. **Run the RED before believing the finding.** The Task-121 audit flagged
+    PDP→PDP stale review state as Medium with a plausible mechanism (same
+    tree position, useState persistence) — the RED spec passed immediately:
+    the App Router remounts the page subtree on dynamic-param navigation.
+    The spec stayed as a pin; the "fix" (keys) would have been dead code.
+    Theory is a hypothesis until the failing test exists.
+22. **The `[m` display-layer trap produces convincing fake corruption.**
+    Tool output this session showed `const ethod, setMethod]` — a missing
+    `[m` — in a file that typechecked, built and passed 43 e2e tests.
+    Byte-level verification (char codes via python) proved the file intact;
+    the display layer eats `[m` sequences in Bash output. ALWAYS verify
+    "impossible corruption" at the byte level before fixing it.
+23. **A swallowed catch inside a transaction is a lie.** The decrement's
+    `try/catch { /* non-blocking */ }` promised best-effort semantics, but a
+    failed UPDATE aborts the surrounding Postgres transaction — the COMMIT
+    then fails and the whole order 500s. Either remove the catch (fail
+    closed, honestly) or use a SAVEPOINT; never write a comment the
+    transaction semantics cannot deliver (Task 121).
+24. **Playwright's toHaveText can sleep through a flash.** A wrong-state
+    flash that lasts ~250ms (hydration → debounce) passes a polling
+    assertion that only checks the settled text. Freeze the state instead:
+    patch setTimeout in an init script to hold the page in the pre-settle
+    window, assert, then unfreeze and assert the settle path (Task 121).
 
 ## 13. Pitfalls to Avoid
 
@@ -571,5 +615,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (86) |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (43) |
+| Unit suite | `tests/unit/*.test.ts` (94) |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (59) |

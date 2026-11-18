@@ -63,7 +63,7 @@ export default async function OrderPage({ params }: { params: Promise<{ number: 
       <div className="rounded-2xl bg-[#e8f3e9] p-8 text-center">
         <p className="text-[44px]" aria-hidden="true">✓</p>
         <h1 className="text-[clamp(1.6rem,4vw,2.4rem)] font-black">Tak! Your order is confirmed</h1>
-        <p className="mt-2">Order <strong>{order.orderNumber}</strong> · confirmation sent to <strong>{maskEmail(order.email)}</strong></p>
+        <p className="mt-2">Order <strong>{order.orderNumber}</strong> · <span>order summary for <strong>{maskEmail(order.email)}</strong></span></p>
         {/* Public by order number — street address and postal stay off this
             page; the full detail lives behind the email match on /track-order. */}
         <p className="mt-1 text-[14px] text-[#2e6b34]">{order.deliveryMethod === "click-collect" ? `Ready for pickup at NORDHEM ${storeName(order.storeSlug)} · ${order.deliverySlot}` : `Arriving ${order.deliverySlot}`}</p>

@@ -17,7 +17,9 @@ const TOP_LINKS = [
 
 // Persisted store picker (nordhem_store) as an external store — the same
 // useSyncExternalStore pattern as the cart (see cart-store.tsx for why).
-const storePick = createLocalStore<string>("nordhem_store", "Tampines");
+// Task 121 F-4: the parsed shape is validated (a wrong-shape payload in the
+// key degrades to the "Tampines" fallback instead of poisoning the header).
+const storePick = createLocalStore<string>("nordhem_store", "Tampines", (v) => typeof v === "string");
 
 export function Header() {
   const { count, wishlist } = useCart();
@@ -62,11 +64,15 @@ export function Header() {
       {/* utility strip */}
       <div className="bg-[#111] text-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-1.5 text-[12px] sm:px-6">
-          <p className="truncate">
+          {/* Task 121 F-5: the truncate used to swallow the LAST inline
+              content — the strip's only CTA — past the mobile viewport while
+              it stayed focusable (WCAG 2.4.7). The message truncates; the
+              link is a shrink-0 sibling that can never clip. */}
+          <p className="min-w-0 truncate">
             <span className="mr-2 inline-block rounded-sm bg-[#ffdb00] px-1.5 py-0.5 font-bold text-black">NEW</span>
             Festive market is on — up to 24% off dining & decor
-            <Link href="/offers" className="ml-2 underline underline-offset-2">Shop offers</Link>
           </p>
+          <Link href="/offers" className="shrink-0 underline underline-offset-2 focus-ring rounded">Shop offers</Link>
           <nav className="hidden items-center gap-4 md:flex" aria-label="Utility">
             {TOP_LINKS.map((l) => (
               <Link key={l.href} href={l.href} className="text-white/85 hover:text-white hover:underline">

@@ -164,18 +164,23 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 86 tests at the pure seams
+npm run test             # Vitest unit — 94 tests at the pure seams
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 43 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 59 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
                          #  validation, wishlist/search fetch-failure states,
-                         #  and the full bag → promo → checkout → masked
-                         #  confirmation → tracking journey (live Postgres)
+                         #  the full bag → promo → checkout → masked
+                         #  confirmation → tracking journey (live Postgres),
+                         #  plus the Task-121 pins: per-store click-&-collect
+                         #  stock, JSON-LD reviewCount honesty, the shop SSR
+                         #  content pair (JS disabled), the search settle
+                         #  discipline, checkout error placement + method-switch
+                         #  slots, stepper floors, and the SearchAction node
 npm run test:e2e:install # one-time: install the Playwright Chromium build
 ```
 
@@ -189,7 +194,7 @@ NORDHEM behaviour. TDD is the default for logic changes.
 |----------|--------|------|-------------|
 | `/api/products` | GET | public | Filter (`q`, `cat`, `max`) and sort (`featured`, `popular`, `price-asc/desc`, `rating`, `new`) the catalogue |
 | `/api/promotions/validate` | POST | public | `{ code, subtotalCents }` → promo or `INVALID_PROMO` with min-spend message |
-| `/api/checkout` | POST | public | ⚠️ Places an order (demo, no charge). Validates email/phone/postal/address with length caps, parse-guards malformed JSON (400), rate-limits 20/min/IP (Retry-After), **re-derives all money server-side via `priceTotals()`**, validates qty against live inventory **atomically** (one transaction with row locks — a concurrent last-unit pair gets exactly one 201 + one 422 `LOW_STOCK`), returns `{ orderNumber }` only |
+| `/api/checkout` | POST | public | ⚠️ Places an order (demo, no charge). Validates email/phone/postal/address with length caps, `storeSlug` against the three real stores, and `deliverySlot` ≤ 80 (refuse, never truncate); parse-guards malformed JSON (400); rate-limits 20/min/IP (Retry-After); **re-derives all money server-side via `priceTotals()`**; validates qty against live inventory **atomically** (one transaction with row locks — a concurrent last-unit pair gets exactly one 201 + one 422 `LOW_STOCK`); click-&-collect checks the chosen store's rows only; returns `{ orderNumber }` only |
 | `/api/orders/track` | POST | public | `{ orderNumber, email }` → order + items (email must match) |
 | `/api/reviews` | GET/POST | public | List by `productId` / publish a review (rating 1–5, name ≥ 2 chars) |
 | `/api/health` | GET | public | `{ ok: true }` iff the database answers `select 1` |
@@ -233,13 +238,39 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 86 unit + 43 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120); counts pinned by tests/unit/docs-counts.test.ts |
+| Test suite | ✅ 94 unit + 59 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120/121); counts pinned by tests/unit/docs-counts.test.ts |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
 
-Current cycle (2026-11-18, Task 120): workspace-refresh re-audit that caught
+Current cycle (2026-11-19, Task 121): workspace-refresh re-audit (mobile-nav
+taxonomy re-verified clean at 390/1440 — no Tailwind v4 bug) that caught
+**the search page announcing "0 results" during its 250ms debounce window**
+(verdicts now gate on a settled-for-query flag, e2e-pinned with a frozen
+debounce probe), **click-&-collect accepting orders at an out-of-stock store**
+(the island-wide aggregate check vs single-store fulfilment — pickup now
+validates the chosen store's rows), **`/shop` shipping zero product content
+to non-JS crawlers** (now a server component that SSRs the filtered grid;
+the display sort moved to a shared `sortProductList` seam), **a wrong-shape
+localStorage payload crashing every route** (`createLocalStore` gained
+validate predicates; a branded root `error.tsx` bounds future crash classes),
+**the PDP's "412 reviews" contradicting the live list beside it** (JSON-LD
+reviewCount now derives from live rows and the node is omitted at zero), the
+utility strip clipping its only mobile CTA past the viewport while focusable,
+the PDP stepper's dead enabled minus at qty 1, checkout errors rendering
+inside the Payment section, sitemap `lastModified` being permanently "now",
+the planning-tools "tomorrow" being UTC-computed (off-by-one for SGT), and
+the honesty batch (never-sent "confirmation email" copy, "Member prices"
+vs the FAQ, the SearchAction the JSON-LD comment claimed but never shipped,
+the Dec-29–31 campaign-date stale window, the hero's re-hardcoded price
+fallback). One audit finding (PDP→PDP stale review state) was **disproven by
+RED-first execution** — the App Router remounts page subtrees on param
+navigation; the spec stayed as a pin. Suite grew to 94 unit + 59 e2e.
+Details in `worklog.md` and
+`docs/plans/2026-11-19-task121-remediation-plan.md`.
+
+Previous cycle (Task 120): workspace-refresh re-audit that caught
 **the checkout boundary as the leakiest route** (no JSON-parse guard —
 malformed bodies 500'd with the raw parse error in the envelope; the 500 path
 echoed internal driver errors to unauthenticated callers; email/name/address

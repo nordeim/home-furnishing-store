@@ -59,6 +59,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "One or more fields are too long — keep each under its stated limit." } }, { status: 422 });
     if (rawLines.length === 0 || lines.length === 0) return NextResponse.json({ ok: false, error: { code: "EMPTY_BAG", message: "Your bag is empty." } }, { status: 422 });
 
+    // Task 121 F-7: storeSlug is validated against the three real stores (the
+    // order/track pages render it as copy via storeName — a crafted slug
+    // persisted verbatim was junk data in customer-facing text), and
+    // deliverySlot is refused overlong like every other field — the Task-120
+    // "refuse, never truncate" rule now has no slice() exceptions.
+    const STORE_SLUGS = ["tampines", "jurong", "alexandra"];
+    const storeSlug = String(body.storeSlug ?? "tampines");
+    if (!STORE_SLUGS.includes(storeSlug))
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Choose one of our three stores." } }, { status: 422 });
+    const deliverySlot = String(body.deliverySlot ?? "Standard (3–5 days)");
+    if (deliverySlot.length > 80)
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Choose one of the offered time slots." } }, { status: 422 });
+
     const order = await placeOrder({
       email,
       fullName,
@@ -66,8 +79,8 @@ export async function POST(req: Request) {
       address,
       postal,
       deliveryMethod: ["delivery", "click-collect", "express"].includes(String(body.deliveryMethod)) ? String(body.deliveryMethod) : "delivery",
-      deliverySlot: String(body.deliverySlot ?? "Standard (3–5 days)").slice(0, 80),
-      storeSlug: String(body.storeSlug ?? "tampines").slice(0, 40),
+      deliverySlot,
+      storeSlug,
       paymentMethod: ["card", "paynow", "grabpay", "atome"].includes(String(body.paymentMethod)) ? String(body.paymentMethod) : "card",
       promoCode: typeof body.promoCode === "string" ? body.promoCode : null,
       lines,

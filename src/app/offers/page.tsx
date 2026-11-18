@@ -3,6 +3,7 @@ import { getAllProducts } from "@/lib/server-data";
 import { formatSGD } from "@/lib/utils";
 import { ProductCard } from "@/components/ProductCard";
 import { PROMOS } from "@/lib/catalog";
+import { campaignEndLabel } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -21,7 +22,7 @@ export const metadata = {
 
 // Computed at module load — the banner previously hard-coded "Ends 28 Dec"
 // and silently went stale after the date (Task 119 F-21).
-const CAMPAIGN_END = new Date(new Date().getFullYear(), 11, 28).toLocaleDateString("en-SG", { day: "numeric", month: "short" });
+const CAMPAIGN_END = campaignEndLabel();
 
 export default async function OffersPage() {
   const all = await getAllProducts();

@@ -30,6 +30,13 @@ const siteJsonLd = {
       "@type": "WebSite",
       name: "NORDHEM Singapore",
       url: "https://nordhem.sg/",
+      // Task 121 F-14: the comment claimed a "catalogue search pointer" that
+      // the node never carried — the search page backs this action for real.
+      potentialAction: {
+        "@type": "SearchAction",
+        target: "https://nordhem.sg/search?q={search_term_string}",
+        "query-input": "required name=search_term_string",
+      },
     },
   ],
 };

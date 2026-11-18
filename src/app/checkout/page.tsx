@@ -76,6 +76,10 @@ export default function CheckoutPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       <h1 className="text-[clamp(1.8rem,4vw,2.6rem)] font-black tracking-tight">Checkout</h1>
+      {/* Task 121 F-12: the alert is the form's shared error surface — a
+          contact-field failure used to render physically inside "3 · Payment",
+          far from the offending inputs. It now precedes every section. */}
+      {error && <p className="mt-4 rounded-xl bg-[#fff0f0] p-3 text-[14px] font-bold text-[#a00008]" role="alert">{error}</p>}
       <form onSubmit={submit} className="mt-6 grid gap-8 lg:grid-cols-[1fr_380px]">
         <div className="space-y-6">
           <section className="rounded-2xl p-6 ring-1 ring-[#ece8df]" aria-labelledby="contact-h">
@@ -131,7 +135,6 @@ export default function CheckoutPage() {
                 <label className="text-[13px] font-bold">CVC<input inputMode="numeric" placeholder="123" maxLength={4} className={input} /></label>
               </div>
             )}
-            {error && <p className="mt-4 rounded-xl bg-[#fff0f0] p-3 text-[14px] font-bold text-[#a00008]" role="alert">{error}</p>}
           </section>
         </div>
 

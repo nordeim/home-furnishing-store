@@ -1,16 +1,17 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getAllProducts, getInspirations } from "@/lib/server-data";
+import { campaignEndLabel } from "@/lib/utils";
 import { CATEGORIES, STORES } from "@/lib/catalog";
 import { formatSGD } from "@/lib/utils";
 import { ProductCard } from "@/components/ProductCard";
 
 export const dynamic = "force-dynamic";
 
-// The campaign banner's end date is computed at module load, not a hardcoded
-// string that silently goes stale after 28 Dec (Task 119 F-21; module-level
-// constant — the react-hooks/purity-safe pattern from Task 117).
-const CAMPAIGN_END = new Date(new Date().getFullYear(), 11, 28).toLocaleDateString("en-SG", { day: "numeric", month: "short" });
+// The campaign banner's end date is computed, not hardcoded (Task 119 F-21) —
+// and rolls forward inside the Dec 29–31 window instead of advertising a
+// already-past date (Task 121 F-19; the pure seam is unit-pinned in utils).
+const CAMPAIGN_END = campaignEndLabel();
 // Hero price derives from the loaded catalogue (Task 119 F-13): the hero card
 // previously hard-coded 79900 — a catalogue edit would have made the hero
 // contradict the PDP it links to.
@@ -32,6 +33,9 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "NORDHEM Singapore",
     url: "https://nordhem.sg/",
+    // Task 121 F-18: products always shipped og:image; the most-shared page
+    // on the site shipped none. The hero's licensed Pexels frame.
+    images: [{ url: "https://images.pexels.com/photos/7546218/pexels-photo-7546218.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200" }],
   },
 };
 
@@ -84,7 +88,11 @@ export default async function HomePage() {
               <img src="https://images.pexels.com/photos/3773579/pexels-photo-3773579.png?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200" alt="" className="h-12 w-12 rounded-lg object-cover" />
               <span>
                 <span className="block text-[13px] font-bold">MAKAN extendable table</span>
-                <span className="block text-[13px] text-[#0058a3] font-bold">{formatSGD(all.find((p) => p.slug === HERO_SLUG)?.priceCents ?? 79900)} · Shop now →</span>
+                {/* Task 121 F-18: the fallback re-hardcoded the exact magic
+                    number the Task-119 fix removed — if the hero product ever
+                    leaves the catalogue the card links without a price rather
+                    than quoting one the PDP would contradict. */}
+                <span className="block text-[13px] text-[#0058a3] font-bold">{all.find((p) => p.slug === HERO_SLUG) ? `${formatSGD(all.find((p) => p.slug === HERO_SLUG)!.priceCents)} · ` : ""}Shop now →</span>
               </span>
             </Link>
           </div>

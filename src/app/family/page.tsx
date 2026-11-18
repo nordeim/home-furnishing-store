@@ -50,7 +50,7 @@ export default function FamilyPage() {
         </div>
       </div>
       <div className="mt-8 flex gap-3">
-        <Link href="/offers" className="rounded-full bg-[#111] px-6 py-3 text-[14px] font-bold text-white">Member prices this week</Link>
+        <Link href="/offers" className="rounded-full bg-[#111] px-6 py-3 text-[14px] font-bold text-white">This week&apos;s offers</Link>
         <Link href="/food" className="rounded-full border px-6 py-3 text-[14px] font-bold">Free coffee, you say?</Link>
       </div>
       <p className="mt-3 text-[12px] text-[#5b5b5b]">*One item up to $80 assembly value. Points expire after 24 months.</p>

@@ -43,7 +43,7 @@ export default function TrackOrderPage() {
     <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
       <p className="text-[12px] font-black uppercase tracking-[0.16em] text-[#0058a3]">Self-service</p>
       <h1 className="mt-1 text-[clamp(1.8rem,4vw,2.6rem)] font-black tracking-tight">Track your order</h1>
-      <p className="mt-2 text-[#5b5b5b]">Enter the order number from your confirmation email (e.g. NH-20261118-XXXXXX).</p>
+      <p className="mt-2 text-[#5b5b5b]">Enter your order number (e.g. NH-20261118-XXXXXX) and the email you used at checkout — the demo storefront sends no emails.</p>
 
       <form onSubmit={lookup} className="mt-6 space-y-3 rounded-2xl bg-[#f5f3ee] p-6">
         <label className="block text-[13px] font-bold">Order number<input value={num} onChange={(e) => setNum(e.target.value)} required placeholder="NH-…" className={input} autoComplete="off" /></label>

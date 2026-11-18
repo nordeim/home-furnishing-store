@@ -134,3 +134,38 @@ export function visibleBadges(
   }
   return out;
 }
+
+// Task 121 F-19: the campaign banner's end label was computed as "28 Dec of
+// the current year" — inside the Dec 29–31 window the banner advertised an
+// already-past end date. Pure functions so the roll is unit-pinnable.
+export function campaignEnd(now: Date = new Date()): Date {
+  const thisYear = new Date(now.getFullYear(), 11, 28);
+  return thisYear.getTime() < now.getTime() ? new Date(now.getFullYear() + 1, 11, 28) : thisYear;
+}
+
+export function campaignEndLabel(now: Date = new Date()): string {
+  return campaignEnd(now).toLocaleDateString("en-SG", { day: "numeric", month: "short" });
+}
+
+// Task 121 F-17: the shop page now server-renders its initial grid — the
+// display sort previously lived ONLY inside the /api/products route, so the
+// SSR path would have duplicated it. One seam, two callers.
+export type ProductSortKey =
+  | "featured"
+  | "popular"
+  | "price-asc"
+  | "price-desc"
+  | "rating"
+  | "new";
+
+export function sortProductList<
+  T extends { priceCents: number; ratingAvg: string | number; ratingCount: number; isNew: boolean },
+>(list: T[], sort: string): T[] {
+  const sorted = [...list];
+  if (sort === "price-asc") sorted.sort((a, b) => a.priceCents - b.priceCents);
+  else if (sort === "price-desc") sorted.sort((a, b) => b.priceCents - a.priceCents);
+  else if (sort === "rating") sorted.sort((a, b) => parseFloat(String(b.ratingAvg)) - parseFloat(String(a.ratingAvg)));
+  else if (sort === "popular") sorted.sort((a, b) => b.ratingCount - a.ratingCount);
+  else if (sort === "new") sorted.sort((a, b) => Number(b.isNew) - Number(a.isNew));
+  return sorted;
+}

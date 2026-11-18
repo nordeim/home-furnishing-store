@@ -9,7 +9,11 @@
  *
  * Contract (pinned by tests/unit/local-store.test.ts):
  * - `getSnapshot()` — current value; parses persisted JSON, falls back to the
- *   initial value on corrupt/missing data. Never throws.
+ *   initial value on corrupt/missing data or on a payload of the wrong SHAPE
+ *   (Task 121 F-4: `JSON.parse` only rejects invalid JSON — a valid-JSON
+ *   `{"lines":[]}` in an array store used to become the snapshot and crash
+ *   CartProvider's `lines.reduce` mid-render, taking every route down).
+ *   Never throws.
  * - `getServerSnapshot()` — always the fallback (SSR truth; no localStorage
  *   on the server).
  * - `subscribe(cb)` — cb(value) on every set(); returns an unsubscribe fn.
@@ -38,7 +42,11 @@ function safeStorage(): Storage | null {
   }
 }
 
-export function createLocalStore<T>(key: string, fallback: T): LocalStore<T> {
+export function createLocalStore<T>(
+  key: string,
+  fallback: T,
+  validate?: (value: unknown) => boolean,
+): LocalStore<T> {
   let value: T = fallback;
   const listeners = new Set<Listener<T>>();
 
@@ -46,7 +54,13 @@ export function createLocalStore<T>(key: string, fallback: T): LocalStore<T> {
   if (storage) {
     try {
       const raw = storage.getItem(key);
-      if (raw != null) value = JSON.parse(raw) as T;
+      if (raw != null) {
+        const parsed: unknown = JSON.parse(raw);
+        // Wrong-shape valid JSON is as unusable as corrupt JSON — a validator
+        // (or a validator bug) degrades to the fallback instead of poisoning
+        // the snapshot that every consumer renders from.
+        if (!validate || validate(parsed)) value = parsed as T;
+      }
     } catch {
       // Corrupt or unreadable payload — degrade to the fallback.
     }
