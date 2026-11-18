@@ -137,7 +137,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <div className="mt-4 flex items-baseline gap-3">
             <p className="text-[34px] font-black tracking-tight">{formatSGD(p.priceCents)}</p>
             {p.compareAtCents && p.compareAtCents > p.priceCents && (
-              <p className="text-[17px] text-[#8a8a8a] line-through">{formatSGD(p.compareAtCents)}</p>
+              <p className="text-[17px] text-[#5b5b5b] line-through">{formatSGD(p.compareAtCents)}</p>
             )}
           </div>
           <p className="text-[13px] text-[#5b5b5b]">Price includes 9% GST · or 3 interest-free payments from {formatSGD(Math.floor(p.priceCents / 3))}</p>

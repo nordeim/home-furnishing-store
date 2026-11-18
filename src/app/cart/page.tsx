@@ -87,13 +87,13 @@ export default function CartPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <Link href={`/product/${l.slug}`} className="font-bold hover:text-[#0058a3] hover:underline">{l.name}</Link>
-                    <p className="text-[13px] text-[#8a8a8a]">{l.sku}</p>
+                    <p className="text-[13px] text-[#5b5b5b]">{l.sku}</p>
                   </div>
-                  <button onClick={() => remove(l.productId)} className="rounded-full p-2 text-[#8a8a8a] hover:bg-[#f5f3ee] hover:text-black focus-ring" aria-label={`Remove ${l.name}`}>✕</button>
+                  <button onClick={() => remove(l.productId)} className="rounded-full p-2 text-[#5b5b5b] hover:bg-[#f5f3ee] hover:text-black focus-ring" aria-label={`Remove ${l.name}`}>✕</button>
                 </div>
                 <div className="mt-auto flex items-center justify-between pt-2">
                   <div className="flex items-center rounded-full border border-[#ddd]">
-                    <button onClick={() => setQty(l.productId, l.qty - 1)} className="grid h-9 w-9 place-items-center rounded-full hover:bg-[#f5f3ee] focus-ring" aria-label={`Decrease quantity of ${l.name}`}>−</button>
+                    <button onClick={() => setQty(l.productId, l.qty - 1)} disabled={l.qty <= 1} className="grid h-9 w-9 place-items-center rounded-full hover:bg-[#f5f3ee] focus-ring disabled:cursor-not-allowed disabled:opacity-40" aria-label={`Decrease quantity of ${l.name}`}>−</button>
                     <span className="w-8 text-center font-black" aria-live="polite">{l.qty}</span>
                     <button onClick={() => setQty(l.productId, l.qty + 1)} className="grid h-9 w-9 place-items-center rounded-full hover:bg-[#f5f3ee] focus-ring" aria-label={`Increase quantity of ${l.name}`}>+</button>
                   </div>
@@ -113,7 +113,7 @@ export default function CartPage() {
               <button onClick={removePromo} className="rounded-full border border-[#ddd] px-4 py-2.5 text-[14px] font-bold text-[#5b5b5b] hover:bg-[#f5f3ee] hover:text-black focus-ring" aria-label={`Remove code ${promoCode}`}>Remove</button>
             )}
           </div>
-          {promoMsg && <p className={`mt-2 text-[13px] font-bold ${promoMsg.ok ? "text-[#2e6b34]" : "text-[#cc0008]"}`} role="status">{promoMsg.text}</p>}
+          {promoMsg && <p className={`mt-2 text-[13px] font-bold ${promoMsg.ok ? "text-[#2e6b34]" : "text-[#cc0008]"}`} role={promoMsg.ok ? "status" : "alert"}>{promoMsg.text}</p>}
           <dl className="mt-4 space-y-2 text-[14px]">
             <div className="flex justify-between"><dt>Subtotal</dt><dd className="font-bold">{formatSGD(t.subtotalCents)}</dd></div>
             {t.discountCents > 0 && <div className="flex justify-between text-[#2e6b34]"><dt>Discount</dt><dd className="font-bold">−{formatSGD(t.discountCents)}</dd></div>}
@@ -123,7 +123,7 @@ export default function CartPage() {
           </dl>
           <Link href="/checkout" className="mt-4 block rounded-full bg-[#0058a3] py-3.5 text-center font-black text-white hover:bg-[#004382] focus-ring">Go to checkout →</Link>
           <Link href="/shop" className="mt-2 block text-center text-[14px] font-bold text-[#0058a3] hover:underline">Continue shopping</Link>
-          <p className="mt-3 text-[12px] text-[#8a8a8a]">Free delivery over $200 · 365-day returns · Secure checkout</p>
+          <p className="mt-3 text-[12px] text-[#5b5b5b]">Free delivery over $200 · 365-day returns · Secure checkout</p>
         </aside>
       </div>
     </div>

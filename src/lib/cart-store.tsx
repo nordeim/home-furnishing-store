@@ -39,7 +39,8 @@ const PROMO_KEY = "nordhem_promo";
 // old mount-effect + setState hydration, which the React Compiler-era
 // `react-hooks/set-state-in-effect` rule flags.
 // Note: `nordhem_promo` was persisted as a raw string before the refactor and
-// is JSON-encoded now — a returning visitor re-applies their promo once.
+// is JSON-encoded now — a legacy raw-string value fails the JSON.parse guard
+// in local-store and degrades to null (no promo), it does not carry over.
 const linesStore = createLocalStore<CartLine[]>(CART_KEY, []);
 const wishStore = createLocalStore<string[]>(WISH_KEY, []);
 const promoStore = createLocalStore<string | null>(PROMO_KEY, null);

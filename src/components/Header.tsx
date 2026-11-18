@@ -101,7 +101,7 @@ export function Header() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search sofas, beds, bookshelves, pendant lights…"
-            className="w-full rounded-full bg-[#f5f3ee] py-3 pl-11 pr-24 text-[15px] outline-none placeholder:text-[#8a8a8a] focus:bg-white focus:ring-2 focus:ring-[#0058a3]"
+            className="w-full rounded-full bg-[#f5f3ee] py-3 pl-11 pr-24 text-[15px] outline-none placeholder:text-[#5b5b5b] focus:bg-white focus:ring-2 focus:ring-[#0058a3]"
             aria-label="Search products"
           />
           <button type="submit" className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full bg-[#0058a3] px-4 py-1.5 text-sm font-bold text-white hover:bg-[#004382] focus-ring">
@@ -123,13 +123,13 @@ export function Header() {
               ))}
             </select>
           </div>
-          <Link href="/wishlist" className="relative rounded-full p-2.5 hover:bg-[#f5f3ee] focus-ring" aria-label={`Wishlist, ${wishlist.length} items`}>
+          <Link href="/wishlist" className="relative rounded-full p-2.5 hover:bg-[#f5f3ee] focus-ring" aria-label={`Wishlist, ${wishlist.length} item${wishlist.length === 1 ? "" : "s"}`}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 20.5C7 16.5 3.5 13.3 3.5 9.6 3.5 7 5.5 5 8 5c1.6 0 3.1.8 4 2.1C12.9 5.8 14.4 5 16 5c2.5 0 4.5 2 4.5 4.6 0 3.7-3.5 6.9-8.5 10.9Z" strokeLinejoin="round" /></svg>
             {wishlist.length > 0 && (
               <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-[#0058a3] px-1 text-[11px] font-bold text-white">{wishlist.length}</span>
             )}
           </Link>
-          <Link href="/cart" className="relative rounded-full p-2.5 hover:bg-[#f5f3ee] focus-ring" aria-label={`Shopping bag, ${count} items`}>
+          <Link href="/cart" className="relative rounded-full p-2.5 hover:bg-[#f5f3ee] focus-ring" aria-label={`Shopping bag, ${count} item${count === 1 ? "" : "s"}`}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M6 8h15l-1.5 12h-12L6 8Z" strokeLinejoin="round" /><path d="M9 10V6a3 3 0 0 1 6 0v4" strokeLinecap="round" /></svg>
             {count > 0 && (
               <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-[#ffdb00] px-1 text-[11px] font-bold text-black">{count}</span>
@@ -148,7 +148,7 @@ export function Header() {
             className="w-full rounded-full bg-[#f5f3ee] py-2.5 pl-4 pr-16 text-[14px] outline-none focus:bg-white focus:ring-2 focus:ring-[#0058a3]"
             aria-label="Search products"
           />
-          <button type="submit" className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-[#0058a3] px-3 py-1 text-[13px] font-bold text-white">Go</button>
+          <button type="submit" className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-[#0058a3] px-3 py-1 text-[13px] font-bold text-white focus-ring">Go</button>
         </form>
       </div>
 

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { db } from "@/db";
 import { orderItems, orders } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { formatSGD } from "@/lib/utils";
+import { ORDER_STEPS, formatSGD, orderStepIndex } from "@/lib/utils";
 import { maskEmail } from "@/lib/mask";
 import { storeName } from "@/lib/catalog";
 
@@ -17,12 +17,11 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const STEPS = ["Confirmed", "Picking", "On the way", "Delivered"];
-
 export default async function OrderPage({ params }: { params: Promise<{ number: string }> }) {
   const { number } = await params;
   let order = null;
   let items: typeof orderItems.$inferSelect[] = [];
+  let outage = false;
   try {
     // Malformed percent-encoding (e.g. /order/%ZZ) throws URIError — decode
     // inside the guard so it lands in the friendly not-found state, not the
@@ -31,19 +30,33 @@ export default async function OrderPage({ params }: { params: Promise<{ number: 
     const rows = await db.select().from(orders).where(eq(orders.orderNumber, decoded)).limit(1);
     order = rows[0] ?? null;
     if (order) items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id));
-  } catch { /* show friendly state below */ }
+  } catch (err) {
+    // Task 120 F-14: a URIError is a malformed number (not-found below);
+    // anything else means the DB itself could not answer — telling the
+    // shopper their just-placed order "can't be found" would be a lie.
+    if (!(err instanceof URIError)) outage = true;
+  }
 
   if (!order) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
-        <h1 className="text-[26px] font-black">We can&apos;t find that order</h1>
-        <p className="mt-2 text-[#5b5b5b]">Check the order number, or look it up with your email on the tracking page.</p>
+        {outage ? (
+          <>
+            <h1 className="text-[26px] font-black">We can&apos;t check orders right now</h1>
+            <p className="mt-2 text-[#5b5b5b]">Your order is safe — the order service is not responding. Please try again in a moment.</p>
+          </>
+        ) : (
+          <>
+            <h1 className="text-[26px] font-black">We can&apos;t find that order</h1>
+            <p className="mt-2 text-[#5b5b5b]">Check the order number, or look it up with your email on the tracking page.</p>
+          </>
+        )}
         <Link href="/track-order" className="mt-6 inline-block rounded-full bg-[#0058a3] px-7 py-3 font-bold text-white">Track your order</Link>
       </div>
     );
   }
 
-  const stepIdx = order.status === "delivered" ? 3 : order.status === "shipped" ? 2 : order.status === "picking" ? 1 : 0;
+  const stepIdx = orderStepIndex(order.status);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
@@ -57,8 +70,8 @@ export default async function OrderPage({ params }: { params: Promise<{ number: 
       </div>
 
       <ol className="mt-6 grid grid-cols-4 gap-2" aria-label="Order progress">
-        {STEPS.map((s, i) => (
-          <li key={s} className={`rounded-xl p-3 text-center text-[13px] font-bold ${i <= stepIdx ? "bg-[#111] text-white" : "bg-[#f5f3ee] text-[#8a8a8a]"}`}>
+        {ORDER_STEPS.map((s, i) => (
+          <li key={s} className={`rounded-xl p-3 text-center text-[13px] font-bold ${i <= stepIdx ? "bg-[#111] text-white" : "bg-[#f5f3ee] text-[#5b5b5b]"}`}>
             <span className="block text-[18px]">{i < stepIdx ? "✓" : i === stepIdx ? "●" : "○"}</span>{s}
           </li>
         ))}
@@ -71,7 +84,7 @@ export default async function OrderPage({ params }: { params: Promise<{ number: 
             <li key={i.id} className="flex items-center gap-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={i.imageUrl} alt="" className="h-14 w-14 rounded-lg object-cover" />
-              <span className="flex-1 text-[14px]"><strong>{i.name}</strong> <span className="text-[#8a8a8a]">× {i.qty}</span></span>
+              <span className="flex-1 text-[14px]"><strong>{i.name}</strong> <span className="text-[#5b5b5b]">× {i.qty}</span></span>
               <span className="font-bold">{formatSGD(i.unitPriceCents * i.qty)}</span>
             </li>
           ))}

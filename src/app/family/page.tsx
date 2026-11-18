@@ -33,7 +33,7 @@ export default function FamilyPage() {
           ) : (
             <form onSubmit={(e) => { e.preventDefault(); setJoined(true); }} className="mt-6 flex max-w-md gap-2">
               <label htmlFor="fam-email" className="sr-only">Email</label>
-              <input id="fam-email" type="email" required placeholder="you@email.com" className="flex-1 rounded-full px-5 py-3 text-black outline-none" />
+              <input id="fam-email" type="email" required placeholder="you@email.com" className="flex-1 rounded-full px-5 py-3 text-black outline-none focus:ring-2 focus:ring-white/80" />
               <button className="rounded-full bg-[#ffdb00] px-6 py-3 font-black text-black hover:bg-white focus-ring">Join free</button>
             </form>
           )}
@@ -53,7 +53,7 @@ export default function FamilyPage() {
         <Link href="/offers" className="rounded-full bg-[#111] px-6 py-3 text-[14px] font-bold text-white">Member prices this week</Link>
         <Link href="/food" className="rounded-full border px-6 py-3 text-[14px] font-bold">Free coffee, you say?</Link>
       </div>
-      <p className="mt-3 text-[12px] text-[#8a8a8a]">*One item up to $80 assembly value. Points expire after 24 months.</p>
+      <p className="mt-3 text-[12px] text-[#5b5b5b]">*One item up to $80 assembly value. Points expire after 24 months.</p>
     </div>
   );
 }

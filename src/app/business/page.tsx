@@ -62,7 +62,7 @@ export default function BusinessPage() {
             </div>
           ) : (
             <form onSubmit={(e) => { e.preventDefault(); if (email.includes("@")) setSent(true); }} className="mt-4 space-y-2">
-              <label className="block text-[13px] font-bold">Work email<input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ops@company.sg" className="mt-1 w-full rounded-xl px-4 py-3 text-black outline-none" /></label>
+              <label className="block text-[13px] font-bold">Work email<input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ops@company.sg" className="mt-1 w-full rounded-xl px-4 py-3 text-black outline-none focus:ring-2 focus:ring-white/80" /></label>
               <button className="w-full rounded-full bg-[#ffdb00] py-3.5 font-black text-black hover:bg-white focus-ring">Request formal quote</button>
             </form>
           )}

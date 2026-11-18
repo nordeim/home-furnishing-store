@@ -1,7 +1,19 @@
 import Link from "next/link";
 import { formatSGD } from "@/lib/utils";
 
-export const metadata = { title: "Restaurant & Bistro" };
+export const metadata = {
+  title: "Restaurant & Bistro",
+  description:
+    "Swedish-inspired restaurant and bistro at every NORDHEM store — meatballs, salmon and plant balls, with free coffee for Family members on weekdays.",
+  alternates: { canonical: "/food" },
+  openGraph: {
+    title: "Restaurant & Bistro · NORDHEM Singapore",
+    description: "Swedish-inspired restaurant and bistro at every NORDHEM store.",
+    type: "website",
+    siteName: "NORDHEM Singapore",
+    url: "https://nordhem.sg/food",
+  },
+};
 
 const MAINS = [
   { n: "Swedish meatballs, 12 pcs", d: "Mash, cream sauce, lingonberry", c: 1290 },

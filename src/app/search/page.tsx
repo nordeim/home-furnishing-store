@@ -62,7 +62,7 @@ function SearchInner() {
       </form>
       {!needle && (
         <div className="mt-6">
-          <p className="text-[13px] font-black uppercase tracking-wide text-[#8a8a8a]">Popular right now</p>
+          <p className="text-[13px] font-black uppercase tracking-wide text-[#5b5b5b]">Popular right now</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {POPULAR.map((p) => (
               <button key={p} onClick={() => setQ(p)} className="rounded-full bg-[#f5f3ee] px-4 py-2 text-[14px] font-bold hover:bg-[#ffdb00] focus-ring">{p}</button>

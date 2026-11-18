@@ -51,10 +51,10 @@ export function ReviewSection({ productId, initial }: { productId: number; initi
           {list.length === 0 && <li className="rounded-xl bg-[#f5f3ee] p-6 text-[#5b5b5b]">No reviews yet — be the first to share how it fits your home.</li>}
           {list.map((r) => (
             <li key={r.id} className="rounded-xl p-5 ring-1 ring-[#ece8df]">
-              <p className="text-[#e5a000]" aria-label={`${r.rating} out of 5 stars`}><span aria-hidden="true">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span></p>
+              <p className="text-[#e5a000]" role="img" aria-label={`${r.rating} out of 5 stars`}><span aria-hidden="true">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span></p>
               {r.title && <p className="mt-1 font-bold">{r.title}</p>}
               <p className="mt-1 text-[14px] text-[#444]">{r.body}</p>
-              <p className="mt-2 text-[13px] text-[#8a8a8a]">{r.author} {r.verified && <span className="ml-1 rounded-full bg-[#e8f3e9] px-2 py-0.5 font-bold text-[#2e6b34]">Verified buyer</span>}</p>
+              <p className="mt-2 text-[13px] text-[#5b5b5b]">{r.author} {r.verified && <span className="ml-1 rounded-full bg-[#e8f3e9] px-2 py-0.5 font-bold text-[#2e6b34]">Verified buyer</span>}</p>
             </li>
           ))}
         </ul>

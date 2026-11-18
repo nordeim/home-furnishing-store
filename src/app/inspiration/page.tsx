@@ -4,7 +4,19 @@ import { formatSGD } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Room inspiration & ideas" };
+export const metadata = {
+  title: "Room inspiration & ideas",
+  description:
+    "Real Singapore homes — BTOs, condos and rentals styled with the NORDHEM range. Open any home and shop its exact pieces at live catalogue prices.",
+  alternates: { canonical: "/inspiration" },
+  openGraph: {
+    title: "Room inspiration & ideas · NORDHEM Singapore",
+    description: "Real Singapore homes — BTOs, condos and rentals styled with the NORDHEM range.",
+    type: "website",
+    siteName: "NORDHEM Singapore",
+    url: "https://nordhem.sg/inspiration",
+  },
+};
 
 export default async function InspirationPage() {
   const list = await getInspirations();
@@ -12,7 +24,7 @@ export default async function InspirationPage() {
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <p className="text-[12px] font-black uppercase tracking-[0.16em] text-[#2e6b34]">Ideas & inspiration</p>
       <h1 className="mt-1 text-[clamp(1.8rem,4vw,2.8rem)] font-black tracking-tight">Real Singapore homes, shoppable rooms</h1>
-      <p className="mt-2 max-w-2xl text-[#5b5b5b]">BTOs, condos and rentals styled with the NORDHEM range. Open any home to shop the exact pieces with live prices and stock.</p>
+      <p className="mt-2 max-w-2xl text-[#5b5b5b]">BTOs, condos and rentals styled with the NORDHEM range. Open any home to shop its exact pieces at live catalogue prices.</p>
       <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
         {list.map((r) => (
           <Link key={r.slug} href={`/inspiration/${r.slug}`} className="group overflow-hidden rounded-2xl bg-white ring-1 ring-[#ece8df] hover:shadow-xl focus-ring">

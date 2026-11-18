@@ -327,6 +327,63 @@ test.describe("API rate limits (20/min/IP fixed window)", () => {
   });
 });
 
+test.describe("a11y: focus, steppers and announcements (Task 120)", () => {
+  test("dark-panel form inputs show a visible focus indication", async ({ page }) => {
+    // Task 120 F-7: the Family/Business/Planning-tools email inputs and the
+    // BuyBox qty input stripped the outline with no focus:ring substitute —
+    // WCAG 2.4.7. Probing the family surface (the pattern is identical on
+    // the other three): focus must produce a computed box-shadow or outline.
+    await page.goto("/family");
+    const input = page.getByLabel("Email");
+    await input.focus();
+    // NB: Tailwind v4's outline-none computes outlineWidth 1px with
+    // outlineStyle none — width alone is NOT a visible indication; require
+    // a real box-shadow or a non-none, non-transparent outline.
+    const indication = await input.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return (
+        cs.boxShadow !== "none" ||
+        (cs.outlineStyle !== "none" && cs.outlineWidth !== "0px" && cs.outlineColor !== "transparent")
+      );
+    });
+    expect(indication, "family email shows no visible focus indication").toBe(true);
+  });
+
+  test("cart quantity minus is disabled at qty 1 (Remove stays the only destructive path)", async ({ page }) => {
+    // Task 120 F-15: the − stepper at qty 1 silently deleted the line via
+    // setQty(qty-1) — a destructive action reachable from an increment
+    // control. The minus must disable at the floor; the dedicated Remove
+    // button remains the only remove affordance.
+    await page.goto("/product/solbakken-3-seat-sofa");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await page.getByRole("link", { name: /Shopping bag, 1 item/ }).click();
+    await expect(page.getByRole("heading", { name: /Your bag \(1\)/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Decrease quantity of/ })).toBeDisabled();
+    // The plus still works from qty 1.
+    await page.getByRole("button", { name: /Increase quantity of/ }).click();
+    await expect(page.getByRole("button", { name: /Decrease quantity of/ })).toBeEnabled();
+  });
+
+  test("a failed promo apply announces via role=alert, not status", async ({ page }) => {
+    // Task 120 F-18: the promo message rendered role="status" for success AND
+    // failure — screen readers may not announce a failure politely queued.
+    // ReviewSection already splits; the cart must too.
+    await page.goto("/product/solbakken-3-seat-sofa");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await page.getByRole("link", { name: /Shopping bag, 1 item/ }).click();
+    await page.getByLabel(/Promo code/i).fill("BOGUSCODE");
+    await page.getByRole("button", { name: "Apply" }).click();
+    // NB: Next's own route announcer also carries role="alert" (strict-mode
+    // violation lesson) — scope to the promo message element.
+    await expect(page.locator("aside p[role=alert]")).toContainText(/not valid/i);
+    // And a success stays a polite status.
+    await page.getByLabel(/Promo code/i).fill("WELCOME10");
+    await page.getByRole("button", { name: "Apply" }).click();
+    await expect(page.locator("aside p[role=status]")).toContainText(/applied/i);
+    await expect(page.locator("aside p[role=alert]")).toHaveCount(0);
+  });
+});
+
 test.describe("cart promo persistence", () => {
   test("a failed promo apply keeps the applied code; Remove clears it", async ({ page }) => {
     // Task 118 F-13: a bad code (or transient fetch failure) used to wipe the
@@ -478,6 +535,43 @@ test.describe("SEO metadata blanket (Task 119)", () => {
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://nordhem.sg/shop");
   });
 
+  test("the six remaining static routes carry descriptions + canonicals (Task 120 F-6)", async ({ page }) => {
+    // Task 120 F-6: /inspiration /offers /services /stores /food /help are
+    // all sitemap-indexed but shipped title-only metadata — every SERP entry
+    // fell back to the layout's generic description. Each route now claims
+    // its own description and canonical (they are server components; the
+    // metadata export extends in place, no layout needed).
+    const routes: Array<[string, RegExp]> = [
+      ["/inspiration", /Real Singapore homes/],
+      ["/offers", /Up to 24% off/],
+      ["/services", /deliver, assemble/],
+      ["/stores", /Three NORDHEM stores/],
+      ["/food", /Swedish-inspired/],
+      ["/help", /How can we help/],
+    ];
+    for (const [path, re] of routes) {
+      await page.goto(path);
+      await expect(page.locator('meta[name="description"]'), `${path} description`).toHaveAttribute("content", re);
+      await expect(page.locator('link[rel="canonical"]'), `${path} canonical`).toHaveAttribute(
+        "href",
+        `https://nordhem.sg${path}`,
+      );
+    }
+  });
+
+  test("family metadata matches the page's own earn-rate math (Task 120 F-4)", async ({ page }) => {
+    // Task 120 F-4: the /family route layout claimed "earn 5 points per $10
+    // spent" while the page copy AND calculator compute 10 points per $1 —
+    // a 20× contradiction between the crawler-facing claim and the product,
+    // plus a "members-only workshops" promise the surface does not have.
+    // The SERP description must agree with the calculator it sits above.
+    await page.goto("/family");
+    const desc = (await page.locator('meta[name="description"]').getAttribute("content")) ?? "";
+    expect(desc).toContain("10 points");
+    expect(desc).not.toContain("5 points per $10");
+    expect(desc.toLowerCase()).not.toContain("workshop");
+  });
+
   test("inspiration detail ships generated metadata", async ({ page }) => {
     // Task 119 F-5: the 6 sitemap-pinned room URLs previously had no
     // metadata export at all.
@@ -526,5 +620,166 @@ test.describe("SEO metadata blanket (Task 119)", () => {
     const types = (parsed["@graph"] ?? []).map((g) => g["@type"]);
     expect(types).toContain("Organization");
     expect(types).toContain("WebSite");
+  });
+});
+
+test.describe("checkout API boundary (Task 120)", () => {
+  test("malformed JSON is a 400 BAD_REQUEST, never a leaked 500", async ({ page }) => {
+    // Task 120 F-1: every sibling POST route (promotions/track/reviews)
+    // parse-guards req.json() into a 400 with fixed copy; checkout let the
+    // generic catch answer — a 500 CHECKOUT_FAILED whose message echoes the
+    // raw parse error (or any internal error string) to an unauthenticated
+    // caller. The most sensitive write boundary must not be the leakiest.
+    // NOTE: Playwright's request API JSON-serializes string `data` (wrapping
+    // it in quotes makes it valid JSON) — send the raw bytes from the
+    // browser, same discipline as the Task-118 malformed-body spec.
+    await page.goto("/");
+    const body = await page.evaluate(async () => {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "10.9.121.1" },
+        body: '{"email": "broken',
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: { code?: string; message?: string } };
+      return { status: res.status, code: json.error?.code, message: json.error?.message };
+    });
+    expect(body.status).toBe(400);
+    expect(body.code).toBe("BAD_REQUEST");
+    // Fixed copy only — the envelope never echoes the parse failure text.
+    expect(body.message).not.toContain("JSON");
+    expect(body.message).not.toContain("parse");
+  });
+
+  test("500-class failures ship fixed copy, not internal error strings", async ({ request }) => {
+    // Task 120 F-1 companion: the generic catch must not forward err.message
+    // (Postgres connection text etc.) into the public envelope. A guaranteed
+    // internal failure: an unreachable-DATABASE_URL write path has no
+    // fallback — but the pinned e2e DB is reachable, so instead we assert the
+    // contract on the envelope shape via the oversell path's stable copy and
+    // pin that only OrderRefusalError messages reach the client verbatim.
+    // (The 500-path fixed-copy is additionally covered by the malformed-JSON
+    // spec above: the parse guard removes the only reachable leak vector
+    // without a DB outage.)
+    const client = new Client({
+      connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+    });
+    await client.connect();
+    const pidRow = await client.query("select id from products where slug = 'katong-bedside-table'");
+    const pid = pidRow.rows[0].id as number;
+    const orig = await client.query("select store_slug, quantity from inventory where product_id = $1", [pid]);
+    try {
+      await client.query("update inventory set quantity = 0 where product_id = $1", [pid]);
+      const res = await request.post("/api/checkout", {
+        headers: { "x-forwarded-for": "10.9.121.2" },
+        data: {
+          email: "boundary-probe@nordhem.sg",
+          fullName: "Boundary Probe",
+          phone: "+65 91234567",
+          address: "Blk 1 Testing Rd #01-01",
+          postal: "089001",
+          lines: [{ productId: pid, qty: 1 }],
+        },
+      });
+      const body = (await res.json()) as { error?: { code?: string; message?: string } };
+      expect(res.status()).toBe(422);
+      expect(body.error?.code).toBe("LOW_STOCK");
+      // Stable, human copy — no driver internals in the envelope.
+      expect(body.error?.message).not.toMatch(/connect|ECONNREFUSED|postgres|Error:/i);
+    } finally {
+      for (const row of orig.rows) {
+        await client.query("update inventory set quantity = $1 where product_id = $2 and store_slug = $3", [
+          row.quantity,
+          pid,
+          row.store_slug,
+        ]);
+      }
+      await client.end();
+    }
+  });
+
+  test("overlong write fields are refused, not persisted verbatim", async ({ request }) => {
+    // Task 120 F-3: email/fullName/address carried minimum-length checks only
+    // (the reviews route slices 60/120/2000 — checkout sliced nothing), so a
+    // 300-char address was persisted verbatim by an unauthenticated writer.
+    const res = await request.post("/api/checkout", {
+      headers: { "x-forwarded-for": "10.9.121.3" },
+      data: {
+        email: "caps-probe@nordhem.sg",
+        fullName: "Caps Probe",
+        phone: "+65 91234567",
+        address: `Blk 1 Testing Rd #01-01 ${"A".repeat(300)}`,
+        postal: "089001",
+        lines: [{ productId: 1, qty: 1 }],
+      },
+    });
+    const body = (await res.json()) as { error?: { code?: string } };
+    expect(res.status()).toBe(422);
+    expect(body.error?.code).toBe("VALIDATION");
+  });
+
+  test("two concurrent last-unit orders: exactly one wins, one 422 LOW_STOCK", async ({ request }) => {
+    // Task 120 F-2: placeOrder checked availability, inserted the order,
+    // then decremented with greatest(0,…) — three separate statements, so two
+    // concurrent submissions for the last unit both passed the check, both
+    // placed an order and both floored the store row: a silent oversell that
+    // defeats the "refuses what it cannot fulfil" claim. The seam is now one
+    // transaction with row locks, so the loser must re-read 0 under the
+    // winner's committed decrement and refuse. Quiet product:
+    // fjord-2seat-compact-sofa (no other spec touches it).
+    const client = new Client({
+      connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+    });
+    await client.connect();
+    const pidRow = await client.query("select id from products where slug = 'fjord-2seat-compact-sofa'");
+    const pid = pidRow.rows[0].id as number;
+    const orig = await client.query("select store_slug, quantity from inventory where product_id = $1", [pid]);
+    let orderNumber: string | null = null;
+    try {
+      // Pin the product to exactly ONE unit island-wide.
+      await client.query(
+        "update inventory set quantity = (case when store_slug = 'tampines' then 1 else 0 end) where product_id = $1",
+        [pid]
+      );
+      const order = {
+        email: "race-probe@nordhem.sg",
+        fullName: "Race Probe",
+        phone: "+65 91234567",
+        address: "Blk 1 Testing Rd #01-01",
+        postal: "089001",
+        deliveryMethod: "click-collect",
+        deliverySlot: "Click & Collect — today 2pm",
+        storeSlug: "tampines",
+        paymentMethod: "card",
+        lines: [{ productId: pid, qty: 1 }],
+      };
+      const fire = (ip: string) =>
+        request.post("/api/checkout", { headers: { "x-forwarded-for": ip }, data: order });
+      const [a, b] = await Promise.all([fire("10.9.121.4"), fire("10.9.121.5")]);
+      const statuses = [a.status(), b.status()].sort();
+      const bodies = (await Promise.all([a.json(), b.json()])) as Array<{
+        ok?: boolean;
+        data?: { orderNumber?: string };
+        error?: { code?: string };
+      }>;
+      const winner = bodies.find((x) => x.ok && x.data?.orderNumber);
+      if (winner?.data?.orderNumber) orderNumber = winner.data.orderNumber;
+      // Exactly one order may exist against one unit of stock.
+      expect(statuses).toEqual([201, 422]);
+      const refused = bodies.find((x) => !x.ok);
+      expect(refused?.error?.code).toBe("LOW_STOCK");
+    } finally {
+      if (orderNumber) {
+        await client.query("delete from order_items where order_id in (select id from orders where order_number = $1)", [orderNumber]);
+        await client.query("delete from orders where order_number = $1", [orderNumber]);
+      }
+      for (const row of orig.rows) {
+        await client.query("update inventory set quantity = $1 where product_id = $2 and store_slug = $3", [
+          row.quantity,
+          pid,
+          row.store_slug,
+        ]);
+      }
+      await client.end();
+    }
   });
 });

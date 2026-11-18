@@ -62,6 +62,19 @@ export function priceTotals(input: TotalsInput): Totals {
   };
 }
 
+export const ORDER_STEPS = ["Confirmed", "Picking", "On the way", "Delivered"] as const;
+
+/** Status→step on the ORDER_STEPS ladder; unknown statuses floor at
+ * "Confirmed" (the honest default for freshly placed orders). One shared
+ * truth for the order page and tracking page (Task 120 F-16 — the two
+ * hand-rolled copies had already diverged in formatting). */
+export function orderStepIndex(status: string): number {
+  if (status === "delivered") return 3;
+  if (status === "shipped") return 2;
+  if (status === "picking") return 1;
+  return 0;
+}
+
 export function orderNumber(): string {
   const d = new Date();
   const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;

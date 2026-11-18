@@ -1,6 +1,18 @@
 import Link from "next/link";
 
-export const metadata = { title: "Services — delivery, assembly & planning" };
+export const metadata = {
+  title: "Services — delivery, assembly & planning",
+  description:
+    "We deliver, assemble, plan — you relax. Delivery from $12 island-wide, assembly from $25, free Click & Collect in 2 hours and a home design service from $190.",
+  alternates: { canonical: "/services" },
+  openGraph: {
+    title: "Services — delivery, assembly & planning · NORDHEM Singapore",
+    description: "We deliver, assemble, plan — you relax. Island-wide delivery, assembly and home design services.",
+    type: "website",
+    siteName: "NORDHEM Singapore",
+    url: "https://nordhem.sg/services",
+  },
+};
 
 const CARDS = [
   { t: "Delivery", price: "from $12 · free over $200", d: "Evening and weekend slots island-wide, including walk-up apartments. Live SMS tracking with a 2-hour window.", points: ["Standard 3–5 days from $12", "Express next-day $29", "Free over $200 (standard)"] },
@@ -32,7 +44,7 @@ export default function ServicesPage() {
         <Link href="/planning-tools" className="rounded-full bg-[#0058a3] px-7 py-3 font-bold text-white">Book a planning session</Link>
         <Link href="/track-order" className="rounded-full border px-7 py-3 font-bold">Track a delivery</Link>
       </div>
-      <p className="mt-4 text-[12px] text-[#8a8a8a]">*Family-member free returns apply to unopened flat-packs within 365 days; opened items via As-Is assessment.</p>
+      <p className="mt-4 text-[12px] text-[#5b5b5b]">*Family-member free returns apply to unopened flat-packs within 365 days; opened items via As-Is assessment.</p>
     </div>
   );
 }

@@ -13,9 +13,11 @@ import { expect, test } from "vitest";
  * - Every test here is a LITERAL `test(...)` declaration — no loops generating
  *   tests, because this file's own fs-countable surface is part of the truth
  *   it pins (a loop would undercount itself).
- * - Scope: AGENTS/README/CLAUDE/SKILL (the four live operator docs). The PAD's
- *   historical verification ledgers intentionally keep their era's counts
- *   (history rule) — only its live §7 claims are swept manually.
+ * - Scope: AGENTS/README/CLAUDE/SKILL/PAD (the five live operator docs).
+ *   The PAD's historical verification ledgers intentionally keep their
+ *   era's counts (history rule); its LIVE-TENSE sites are pinned below —
+ *   Task 120 closed the blind spot that let the PAD rot while the other
+ *   four docs stayed truthful.
  */
 
 const unitDir = "tests/unit";
@@ -94,4 +96,45 @@ test("SKILL.md Appendix B unit count === fs reality", () => {
 });
 test("SKILL.md Appendix B e2e count === fs reality", () => {
   expect(claimed("home-furnishing-store_SKILL.md", /storefront\.spec\.ts`? \((\d+)\)/)).toBe(e2eCount);
+});
+
+test("PAD §1.2 tech-table counts === fs reality", () => {
+  // Live-tense: "… N unit + N e2e, all green (§7)". The historical ledgers
+  // ("Suite grew to …", "as of Task 118") keep their era counts — the
+  // ", all green" tense marker targets only the live claim.
+  const m = readFileSync("Project_Architecture_Document.md", "utf8").match(/ (\d+) unit \+ (\d+) e2e, all green/);
+  expect(m, "PAD §1.2 live claim not found").not.toBeNull();
+  expect(Number(m?.[1])).toBe(unitCount);
+  expect(Number(m?.[2])).toBe(e2eCount);
+});
+
+test("PAD §7.4 gate commands === fs reality", () => {
+  const doc = readFileSync("Project_Architecture_Document.md", "utf8");
+  const unit = doc.match(/npm run test\s+# (\d+)\/(\d+) unit/);
+  const e2e = doc.match(/npm run test:e2e\s+# (\d+)\/(\d+) e2e/);
+  expect(unit, "PAD §7.4 unit gate claim not found").not.toBeNull();
+  expect(e2e, "PAD §7.4 e2e gate claim not found").not.toBeNull();
+  expect(Number(unit?.[1])).toBe(unitCount);
+  expect(Number(unit?.[2])).toBe(unitCount);
+  expect(Number(e2e?.[1])).toBe(e2eCount);
+  expect(Number(e2e?.[2])).toBe(e2eCount);
+});
+
+test("PAD §9.2 command-table counts === fs reality", () => {
+  const m = readFileSync("Project_Architecture_Document.md", "utf8").match(/Vitest unit \((\d+)\) \/ Playwright e2e \((\d+)/);
+  expect(m, "PAD §9.2 command-table claim not found").not.toBeNull();
+  expect(Number(m?.[1])).toBe(unitCount);
+  expect(Number(m?.[2])).toBe(e2eCount);
+});
+
+test("PAD §11 key-files test counts === fs reality", () => {
+  const doc = readFileSync("Project_Architecture_Document.md", "utf8");
+  const unit = doc.match(/\| (\d+) files \| (\d+) unit tests/);
+  const e2e = doc.match(/\| (\d+) specs \| (\d+) Playwright tests/);
+  expect(unit, "PAD §11 unit row not found").not.toBeNull();
+  expect(e2e, "PAD §11 e2e row not found").not.toBeNull();
+  expect(Number(unit?.[1])).toBe(unitFiles.length);
+  expect(Number(unit?.[2])).toBe(unitCount);
+  expect(Number(e2e?.[1])).toBe(e2eFiles.length);
+  expect(Number(e2e?.[2])).toBe(e2eCount);
 });

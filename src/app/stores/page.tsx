@@ -1,7 +1,19 @@
 import Link from "next/link";
 import { STORES } from "@/lib/catalog";
 
-export const metadata = { title: "Our stores" };
+export const metadata = {
+  title: "Our stores",
+  description:
+    "Three NORDHEM stores on one island — Tampines, Jurong and Alexandra, each with a restaurant, Småland play corner and As-Is bargain level.",
+  alternates: { canonical: "/stores" },
+  openGraph: {
+    title: "Our stores · NORDHEM Singapore",
+    description: "Three NORDHEM stores on one island — Tampines, Jurong and Alexandra.",
+    type: "website",
+    siteName: "NORDHEM Singapore",
+    url: "https://nordhem.sg/stores",
+  },
+};
 
 export default function StoresPage() {
   return (
@@ -30,7 +42,7 @@ export default function StoresPage() {
       </div>
       <div className="mt-8 rounded-2xl bg-[#0058a3] p-8 text-white">
         <h2 className="text-[20px] font-black">Getting here is half the fun</h2>
-        <p className="mt-1 text-white/80">Free shuttle weekends from Tampines, Boon Lay & Woodlands interchanges · Free parking for Family members · Nearest MRT listed on each store card above.</p>
+        <p className="mt-1 text-white/80">Free shuttle weekends from Tampines, Boon Lay & Woodlands interchanges · Free parking for Family members · Opening hours and phone on each store card above.</p>
         <Link href="/food" className="mt-4 inline-block rounded-full bg-[#ffdb00] px-6 py-3 text-[14px] font-black text-black">See the restaurant menu →</Link>
       </div>
     </div>

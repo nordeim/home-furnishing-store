@@ -56,7 +56,7 @@ charge") with real authentication explicitly deferred.
 | Language | TypeScript (strict) | 5.9.3 | Type safety, `@/*` path alias |
 | Styling | Tailwind CSS (CSS-first `@theme`) | 4.1.17 | Literal-hex tokens, no config file |
 | ORM | Drizzle ORM | 0.45.2 | Schema in `src/db/schema.ts` |
-| Database | PostgreSQL (node-postgres) | pg 8.20.0 | 11 tables, pooled client |
+| Database | PostgreSQL (node-postgres) | pg 8.20.0 | 9 tables, pooled client |
 | Lint | ESLint (flat config) | 9.39.4 | `eslint-config-next/core-web-vitals` |
 | Imagery | Pexels CDN | — | Licensed, attributed in code comments |
 
@@ -93,7 +93,7 @@ Troubleshooting).
 │   └── 📄 layout.tsx · robots.ts · sitemap.ts
 ├── 📂 src/components/        # Header, Footer, ProductCard, BuyBox, ReviewSection
 ├── 📂 src/lib/               # server-data (DB+fallbacks), catalog (static seed), cart-store, utils
-├── 📂 src/db/                # schema.ts (11 tables) + index.ts (pooled Drizzle client)
+├── 📂 src/db/                # schema.ts (9 tables) + index.ts (pooled Drizzle client)
 ├── 📂 docs/                  # implementation-plan, reference-investigation, plans, screenshots, SSH push runbook
 ├── 📂 skills/                # vendored agent skills (excluded from gates)
 ├── 📂 tests/                 # NORDHEM-native suite: unit (Vitest) + e2e (Playwright)
@@ -164,12 +164,12 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 79 tests at the pure seams
+npm run test             # Vitest unit — 86 tests at the pure seams
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 34 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 43 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
@@ -189,7 +189,7 @@ NORDHEM behaviour. TDD is the default for logic changes.
 |----------|--------|------|-------------|
 | `/api/products` | GET | public | Filter (`q`, `cat`, `max`) and sort (`featured`, `popular`, `price-asc/desc`, `rating`, `new`) the catalogue |
 | `/api/promotions/validate` | POST | public | `{ code, subtotalCents }` → promo or `INVALID_PROMO` with min-spend message |
-| `/api/checkout` | POST | public | ⚠️ Places an order (demo, no charge). Validates email/phone/postal/address, rate-limits 20/min/IP (Retry-After), **re-derives all money server-side via `priceTotals()`**, validates qty against live inventory (422 `LOW_STOCK`), returns `{ orderNumber }` only |
+| `/api/checkout` | POST | public | ⚠️ Places an order (demo, no charge). Validates email/phone/postal/address with length caps, parse-guards malformed JSON (400), rate-limits 20/min/IP (Retry-After), **re-derives all money server-side via `priceTotals()`**, validates qty against live inventory **atomically** (one transaction with row locks — a concurrent last-unit pair gets exactly one 201 + one 422 `LOW_STOCK`), returns `{ orderNumber }` only |
 | `/api/orders/track` | POST | public | `{ orderNumber, email }` → order + items (email must match) |
 | `/api/reviews` | GET/POST | public | List by `productId` / publish a review (rating 1–5, name ≥ 2 chars) |
 | `/api/health` | GET | public | `{ ok: true }` iff the database answers `select 1` |
@@ -230,36 +230,42 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 |-------|--------|-------|
 | Reference investigation (IKEA SG, public routes) | ✅ Done | `docs/reference-investigation.md` |
 | Implementation plan + decision record | ✅ Done | `docs/implementation-plan.md` |
-| Storefront build (20 routes, 6 APIs, 11 tables) | ✅ Done | built from the `ely-beauty` template lineage |
+| Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 79 unit + 34 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119); counts pinned by tests/unit/docs-counts.test.ts |
+| Test suite | ✅ 86 unit + 43 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120); counts pinned by tests/unit/docs-counts.test.ts |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
 
-Current cycle (2026-11-18, Task 119): workspace-refresh re-audit that caught
-**the SEO metadata blanket gap** (6 of 12 sitemap-indexed static routes plus
-all 6 inspiration URLs shipped the generic layout title — client pages now
-carry route-layout metadata, inspiration details generateMetadata, home
-claims its own title; the order page gained noindex and the root layout a
-site-level Organization/WebSite JSON-LD), **server-truth drift**
-(`placeOrder` hand-rolled the delivery/GST math instead of calling
-`priceTotals()` and had already diverged on the net===0 edge; JSON-LD
-availability derived from the never-decremented `stockTotal` seed instead of
-live inventory; overselling floored inventory at 0 instead of refusing with
-422 `LOW_STOCK`), the **docs-count rot** class (SKILL.md's Appendix B said
-50 unit / 23 e2e against a 58/27 reality — counts are now fs-computed and
-enforced by `tests/unit/docs-counts.test.ts`, the neo-crm mechanism), a
-**shared rate-limit seam** (the four per-route Map limiters never evicted
-expired keys — one `createRateLimiter` factory now owns the window, Retry-After
-and the purge), **ARIA honesty** (widget roles without the keyboard pattern →
-plain `aria-pressed` toggle groups on five surfaces), and the honesty batch
-(member-prices/200+-icons/ESG-stat copy, the silent Family join form, the
-hardcoded hero price and campaign dates, the inspiration budget contradiction,
-raw store slugs in order copy). Details in `worklog.md` and
-`docs/plans/2026-11-18-task119-remediation-plan.md`. Prior cycles: Task 114
+Current cycle (2026-11-18, Task 120): workspace-refresh re-audit that caught
+**the checkout boundary as the leakiest route** (no JSON-parse guard —
+malformed bodies 500'd with the raw parse error in the envelope; the 500 path
+echoed internal driver errors to unauthenticated callers; email/name/address
+carried minimum-length checks only, so a 300-char address persisted verbatim —
+all fixed with a parse-guard 400, refuse-at-cap 422s and fixed-copy 500s),
+**a real TOCTOU oversell** (the Task-119 availability check, order insert and
+decrement were three separate statements — two concurrent last-unit orders
+both placed and both floored inventory; demonstrated RED at the function
+level, now one `db.transaction()` with `SELECT … FOR UPDATE` row locks and an
+e2e pin: exactly one 201 + one 422 `LOW_STOCK`), **the half-finished SEO
+blanket** (six sitemap-indexed routes still shipped title-only metadata; the
+`/family` description claimed a 20×-lower earn rate than the page's own
+calculator plus nonexistent workshops), **the docs-counts pin's PAD blind
+spot** (the PAD's own live-tense sites had rotted to 50/23, 58/27 and
+5-files/58 — the pin now covers all five operator docs), an **a11y floor**
+(focus rings on the four outline-stripped inputs, alert-role promo errors,
+qty-1 minus guard, `role="img"` stars), the **dead `carts`/`cart_items`
+schema retirement** (9 live tables — the localStorage cart is the documented
+architecture), the **self-healing seed** (a partial first seed previously
+left inventory empty forever), and the honesty batch (fabricated MRT
+pointer, "audited yearly" self-contradiction, inspiration stock overclaim).
+Details in `worklog.md` and
+`docs/plans/2026-11-18-task120-remediation-plan.md`. The previous cycle was
+Task 119 (SEO metadata blanket, server-truth consolidation via `priceTotals()`,
+ARIA honesty, the rate-limit factory, the docs-counts pin itself).
+Prior cycles: Task 114
 (remediation: test harness, lint debt, a11y, SEO, PII, rootless PostgreSQL 17
 + live-DB verification), Task 115 (DEPLOYMENT.md rewrite), Task 117 (honesty
 + API-boundary cycle), Task 118 (dev-hydration `allowedDevOrigins` fix,

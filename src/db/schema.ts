@@ -72,27 +72,6 @@ export const inventory = pgTable("inventory", {
   aisleBin: text("aisle_bin").notNull().default(""),
 });
 
-// ── Cart (cookie-identified, server truth for money) ─────
-export const carts = pgTable("carts", {
-  id: serial("id").primaryKey(),
-  token: text("token").notNull().unique(),
-  promoCode: text("promo_code"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
-
-export const cartItems = pgTable("cart_items", {
-  id: serial("id").primaryKey(),
-  cartId: integer("cart_id")
-    .notNull()
-    .references(() => carts.id, { onDelete: "cascade" }),
-  productId: integer("product_id")
-    .notNull()
-    .references(() => products.id, { onDelete: "cascade" }),
-  qty: integer("qty").notNull().default(1),
-  addedAt: timestamp("added_at").notNull().defaultNow(),
-});
-
 // ── Orders ───────────────────────────────────────────────
 export const orders = pgTable("orders", {
   id: serial("id").primaryKey(),
@@ -168,8 +147,6 @@ export const promotions = pgTable("promotions", {
 export type Category = typeof categories.$inferSelect;
 export type Product = typeof products.$inferSelect;
 export type Store = typeof stores.$inferSelect;
-export type Cart = typeof carts.$inferSelect;
-export type CartItem = typeof cartItems.$inferSelect;
 export type Order = typeof orders.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;
 export type Review = typeof reviews.$inferSelect;

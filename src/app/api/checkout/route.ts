@@ -15,11 +15,24 @@ export async function POST(req: Request) {
     if (limiter.throttled(ip)) {
       return NextResponse.json({ ok: false, error: { code: "RATE_LIMIT", message: "Too many attempts. Please wait a minute." } }, { status: 429, headers: { "Retry-After": String(limiter.retryAfterSec(ip)) } });
     }
-    const body = (await req.json()) as Record<string, unknown>;
-    const email = String(body.email ?? "");
+    // Parse guard (Task 120 F-1): every sibling POST route parse-guards its
+    // body; a malformed payload is a client fault → 400 with fixed copy, not
+    // a 500 whose envelope echoes the parse failure text.
+    let body: Record<string, unknown>;
+    try {
+      body = (await req.json()) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ ok: false, error: { code: "BAD_REQUEST", message: "Please send a valid request body." } }, { status: 400 });
+    }
+    // Field caps (Task 120 F-3): minimum-length checks alone left email,
+    // fullName and address unbounded — unauthenticated writes persisted
+    // verbatim. Order fields are REFUSED, never silently truncated (a
+    // truncated delivery address is a broken order, and truncation must
+    // never transform invalid input into a valid one at a write boundary).
+    const email = String(body.email ?? "").trim();
     const fullName = String(body.fullName ?? "").trim();
-    const phone = String(body.phone ?? "");
-    const postal = String(body.postal ?? "");
+    const phone = String(body.phone ?? "").trim();
+    const postal = String(body.postal ?? "").trim();
     const address = String(body.address ?? "").trim();
     const rawLines = Array.isArray(body.lines) ? (body.lines as unknown[]) : [];
     // Per-line boundary validation (Task 118 F-17): a crafted non-finite qty or
@@ -42,6 +55,8 @@ export async function POST(req: Request) {
     if (!isValidPhone(phone)) return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Enter a valid phone number." } }, { status: 422 });
     if (!isValidPostal(postal)) return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Postal code must be 6 digits." } }, { status: 422 });
     if (address.length < 6) return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Enter your block, street and unit number." } }, { status: 422 });
+    if (email.length > 254 || fullName.length > 80 || phone.length > 20 || address.length > 200)
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "One or more fields are too long — keep each under its stated limit." } }, { status: 422 });
     if (rawLines.length === 0 || lines.length === 0) return NextResponse.json({ ok: false, error: { code: "EMPTY_BAG", message: "Your bag is empty." } }, { status: 422 });
 
     const order = await placeOrder({
@@ -56,7 +71,6 @@ export async function POST(req: Request) {
       paymentMethod: ["card", "paynow", "grabpay", "atome"].includes(String(body.paymentMethod)) ? String(body.paymentMethod) : "card",
       promoCode: typeof body.promoCode === "string" ? body.promoCode : null,
       lines,
-      totals: { subtotalCents: 0, discountCents: 0, deliveryFeeCents: 0, gstCents: 0, totalCents: 0 },
     });
     // Data minimization (Task 119, matching the track route): the confirmation
     // page needs only the order number — the full inserted row (email, phone,
@@ -68,9 +82,10 @@ export async function POST(req: Request) {
     if (err instanceof OrderRefusalError) {
       return NextResponse.json({ ok: false, error: { code: err.code, message: err.message } }, { status: 422 });
     }
-    const message = err instanceof Error ? err.message : "Checkout failed.";
+    // Fixed copy only (Task 120 F-1): the raw err.message (parse text, driver
+    // connection strings) never reaches the public envelope — the detail
+    // stays in the server log.
     console.error("[api/checkout]", err);
-    const status = /promo|bag|minimum|valid/i.test(message) ? 422 : 500;
-    return NextResponse.json({ ok: false, error: { code: "CHECKOUT_FAILED", message } }, { status });
+    return NextResponse.json({ ok: false, error: { code: "CHECKOUT_FAILED", message: "Checkout failed on our side — please try again in a moment." } }, { status: 500 });
   }
 }

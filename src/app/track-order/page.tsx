@@ -1,20 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { formatSGD } from "@/lib/utils";
+import { ORDER_STEPS, formatSGD, orderStepIndex } from "@/lib/utils";
 import { storeName } from "@/lib/catalog";
 
 interface Found {
   order: { orderNumber: string; fullName: string; status: string; deliveryMethod: string; deliverySlot: string; storeSlug: string; totalCents: number };
   items: Array<{ id: number; name: string; qty: number; unitPriceCents: number; imageUrl: string }>;
-}
-
-const STEPS = ["Confirmed", "Picking", "On the way", "Delivered"];
-function stepOf(status: string) {
-  if (status === "delivered") return 3;
-  if (status === "shipped") return 2;
-  if (status === "picking") return 1;
-  return 0;
 }
 
 export default function TrackOrderPage() {
@@ -64,8 +56,8 @@ export default function TrackOrderPage() {
         <div className="mt-6 rounded-2xl p-6 ring-1 ring-[#ece8df]" aria-live="polite">
           <p className="text-[13px] text-[#5b5b5b]">Order {found.order.orderNumber} · {found.order.fullName}</p>
           <ol className="mt-3 grid grid-cols-4 gap-2" aria-label="Delivery progress">
-            {STEPS.map((s, i) => (
-              <li key={s} className={`rounded-xl p-2 text-center text-[12px] font-bold ${i <= stepOf(found.order.status) ? "bg-[#111] text-white" : "bg-[#f5f3ee] text-[#8a8a8a]"}`}>{s}</li>
+            {ORDER_STEPS.map((s, i) => (
+              <li key={s} className={`rounded-xl p-2 text-center text-[12px] font-bold ${i <= orderStepIndex(found.order.status) ? "bg-[#111] text-white" : "bg-[#f5f3ee] text-[#5b5b5b]"}`}>{s}</li>
             ))}
           </ol>
           <p className="mt-3 text-[14px]">{found.order.deliveryMethod === "click-collect" ? `Pickup at NORDHEM ${storeName(found.order.storeSlug)}` : "Home delivery"} · {found.order.deliverySlot}</p>

@@ -25,7 +25,7 @@ export function Rating({ avg, count }: { avg: string | number; count: number }) 
   // inline Math.round used to show 5 full stars while the aria-label said 4.5.
   const s = stars(v);
   return (
-    <span className="inline-flex items-center gap-1 text-[13px] text-[#5b5b5b]" aria-label={`Rated ${v} out of 5 from ${count} reviews`}>
+    <span className="inline-flex items-center gap-1 text-[13px] text-[#5b5b5b]" role="img" aria-label={`Rated ${v} out of 5 from ${count} reviews`}>
       <span className="tracking-tight text-[#e5a000]" aria-hidden="true">
         {"★".repeat(s.full)}
         {s.half && <span className="text-[#e5a000]/40">★</span>}
@@ -82,7 +82,7 @@ export function ProductCard({ p }: { p: CardProduct }) {
           <div>
             <p className="text-[19px] font-black tracking-tight">{formatSGD(p.priceCents)}</p>
             {p.compareAtCents && p.compareAtCents > p.priceCents && (
-              <p className="text-[13px] text-[#8a8a8a] line-through">{formatSGD(p.compareAtCents)}</p>
+              <p className="text-[13px] text-[#5b5b5b] line-through">{formatSGD(p.compareAtCents)}</p>
             )}
           </div>
           <button

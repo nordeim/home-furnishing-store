@@ -1,16 +1,17 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 1.3.0
-last_updated: "2026-11-18 (Task 119: server-truth consolidation, SEO metadata blanket, ARIA honesty, rate-limit seam, docs-counts pin)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 79/79 unit · 34/34 e2e · cold build green (29 routes) · PostgreSQL 17.12 live-verified · counts pinned by tests/unit/docs-counts.test.ts"
+version: 1.4.0
+last_updated: "2026-11-18 (Task 120: API-boundary hardening, atomic checkout, SEO blanket completion, a11y floor, docs-truth cycle)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 86/86 unit · 43/43 e2e · cold build green (29 routes) · PostgreSQL 17 live-verified · counts pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
 
 > How to use: this is the distilled engineering memory of the NORDHEM codebase
-> after the Task 114 remediation, the Task 117 honesty/hardening cycle, and the
-> Task 118 dev-hydration/lineage-drift cycle. `AGENTS.md` is the quick operator
+> after the Task 114 remediation, the Task 117 honesty/hardening cycle, the
+> Task 118 dev-hydration/lineage-drift cycle, the Task 119 server-truth/SEO
+> blanket cycle, and the Task 120 API-boundary/atomic-checkout/docs-truth cycle. `AGENTS.md` is the quick operator
 > reference, the PAD is the full blueprint, and this skill is the
 > pattern/lesson layer an agent needs before touching the code. When code and
 > this document disagree, **the code wins** — then fix this document in the
@@ -65,7 +66,7 @@ per command when in doubt.
 git clone https://github.com/nordeim/home-furnishing-store.git && cd home-furnishing-store
 npm install
 cp .env.example .env            # set DATABASE_URL (any Postgres; unreachable = static fallback)
-npx drizzle-kit push            # 11 tables; seeding happens automatically on first read
+npx drizzle-kit push            # 9 tables; seeding happens automatically on first read
 npm run dev                     # http://localhost:3000 (or 127.0.0.1:3000 — allowedDevOrigins covers it)
 ```
 
@@ -83,8 +84,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 79/79
-npm run test:e2e                                               # 34/34 (live Postgres for the journey)
+npm run test                                                   # 86/86
+npm run test:e2e                                               # 43/43 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -122,7 +123,7 @@ Three layers, one golden rule — **every DB touch funnels through
 page importing `@/db` directly is an architecture violation):
 
 ```
-Layer 0  src/db        schema.ts (11 tables) + index.ts (pooled client, globalThis singleton)
+Layer 0  src/db        schema.ts (9 tables) + index.ts (pooled client, globalThis singleton)
 Layer 1  src/lib       server-data.ts · catalog.ts · cart-store.tsx · local-store.ts · utils.ts · mask.ts
 Layer 2  src/components Header · Footer · ProductCard · BuyBox · ReviewSection (all "use client" except Footer)
 Layer 3  src/app       20 page routes + 6 API handlers (all force-dynamic where data-driven)
@@ -188,7 +189,7 @@ implements the Family programme's printed rule ($5 per 1,000 pts) and
 literals against the computed card chips. Schema highlights (`src/db/schema.ts`): money is `integer` cents;
 `rating_avg` is `numeric(3,2)` (arrives as string over JSON — cards accept
 `string | number`); `order_items` is a denormalized snapshot (orders survive
-catalogue edits); 11 tables total. Inventory is seeded 3 rows/product
+catalogue edits); 9 tables total. Inventory is seeded 3 rows/product
 (tampines/jurong/alexandra) with `A12-B04`-style aisle bins; decrement on
 checkout is best-effort, non-blocking.
 
@@ -290,6 +291,18 @@ matches ("Go" ⊂ "ERGONOMI").
     `tests/unit/docs-counts.test.ts` fs-computes them and fails the run on
     drift, so the same-commit sweep is enforced, not remembered.
 
+23. **Truncating order-boundary fields** — slice() caps are for display
+    fields; order fields (address/email/name) must be refused at caps
+    (Task 120): a truncated delivery address is a broken order, and
+    truncation can launder invalid input into valid.
+24. **Check-then-write without a lock** — any validate→insert→mutate
+    sequence at a write boundary is a TOCTOU window (Task 120): wrap it in
+    one transaction with row locks, or the "refuses what it cannot fulfil"
+    claim is timing-dependent fiction.
+25. **An unguarded `req.json()` at the busiest route** — the one POST route
+    without a parse guard becomes the leakiest (Task 120: checkout 500'd
+    with the raw parse error AND echoed driver errors from the generic
+    catch). Parse-guard → 400 fixed copy; 500s ship fixed copy only.
 ## 10. Debugging Guide
 
 | Symptom | Root cause | Fix |
@@ -313,6 +326,10 @@ matches ("Go" ⊂ "ERGONOMI").
 | A green gate contradicts "obvious" file corruption (e.g. `{SLOTS[m…` looks eaten) | The sandbox display layer mangles `[m` sequences in tool OUTPUT — the file bytes are fine (re-confirmed Task 119; Edit-tool arguments can genuinely lose them though) | Verify with `od -c` / `awk NR==n` / a tsc run before rewriting anything |
 | Edit/MultiEdit writes land mangled | The Edit-tool argument path ate `[[d`/`[m` sequences in this sandbox (Task 119) | Do bracket-heavy source edits via a python heredoc through Bash with exact-string asserts, then gate with tsc |
 | e2e spec needs DB manipulation (zero inventory, cleanup) | The spec runs in Node with repo deps — `import { Client } from "pg"` and the pinned URL (`E2E_DATABASE_URL ?? postgresql://postgres:postgres@127.0.0.1:5432/app_db`) | Manipulate in-test, restore in `finally`; pick products no other spec touches (grep the spec tree for slugs first) |
+| DB probe fails `SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string` | The ambient shell exports a sibling repo's `DATABASE_URL=file:…` (SQLite URL) — it shadows the repo `.env` at module load AND in ad-hoc pg Clients (AGENTS gotcha #10, re-hit Task 120) | Pin the URL per command: `DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db" <cmd>`; never read bare `process.env.DATABASE_URL` in probes |
+| Concurrency e2e passes though the TOCTOU bug is present | A cold pg pool's lazy connection handshake serializes the second concurrent caller behind connection setup — the race window never opens (Task 120) | For deterministic function-level REDs, pre-warm two pool connections before firing the pair; the HTTP-level pair still pins the contract post-fix |
+| Computed focus check passes with no visible focus | Tailwind v4's `outline-none` computes `outlineWidth: 1px` with `outlineStyle: none` — width alone is not an indication (Task 120) | Assert `boxShadow !== 'none'` OR (`outlineStyle !== 'none'` AND width>0 AND color≠transparent) |
+| Raw-body POST spec receives 4xx instead of the parse guard's 400 | Playwright's request API JSON-serializes string `data` (quoting makes it valid JSON) — the server never sees malformed bytes | Send raw bodies via `page.evaluate(() => fetch(…, { body: '…' }))` — the repo's documented discipline |
 
 ## 11. Pre-Ship Checklist
 
@@ -395,6 +412,33 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
     AND its inverse appeared: the Edit-tool path genuinely ate bracket
     sequences from new_str, corrupting the file. od/tsc before trusting
     either direction.
+
+17. **A pin that doesn't cover a doc doesn't pin it.** The Task-119
+    docs-counts pin covered AGENTS/README/CLAUDE/SKILL — and the PAD rotted
+    one file over (live-tense 50/23, 58/27, 5-files/58 sites). Task 120
+    extended the pin to the fifth doc. When you build a self-truthing
+    mechanism, enumerate EVERY surface it must guard, then add a test that
+    fails when a covered claim site moves.
+18. **Refuse, don't truncate, at order write boundaries.** Silently
+    slicing a 300-char address to 200 creates a delivery-breaking order AND
+    can transform invalid input into valid (a truncated string could pass a
+    length check it should have failed). Caps on customer-facing order data
+    return 422 with field copy; slicing is for cheap display fields
+    (reviews).
+19. **A check that isn't atomic isn't a check.** The Task-119 LOW_STOCK
+    validation read availability, inserted the order, then decremented —
+    three statements, one window: two concurrent last-unit orders both
+    passed. The function-level RED needed a pre-warmed pool (a cold pool's
+    lazy handshake serializes the second caller and masks the race). The fix
+    is one `db.transaction()` with `SELECT … FOR UPDATE` (ordered by id for
+    deterministic lock acquisition). Sibling lesson: Playwright's request API
+    JSON-wraps string `data` — raw-body probes go through the browser's
+    fetch.
+20. **Metadata is product copy.** The /family description claimed a 20×-lower
+    earn rate than the page's own calculator printed beside it, plus
+    "members-only workshops" that don't exist. Route descriptions must be
+    verified against the surface's computed math, the same way visible copy
+    is — the e2e blanket now pins the earn-rate agreement.
 
 ## 13. Pitfalls to Avoid
 
@@ -517,7 +561,7 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | Commands & gotchas | `AGENTS.md` |
 | Architecture detail | `Project_Architecture_Document.md` |
 | Decision record | `docs/implementation-plan.md` |
-| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` · `docs/plans/2026-11-18-task117-remediation-plan.md` · `docs/plans/2026-11-18-task118-remediation-plan.md` · `docs/plans/2026-11-18-task119-remediation-plan.md` |
+| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` · `docs/plans/2026-11-18-task117-remediation-plan.md` · `docs/plans/2026-11-18-task118-remediation-plan.md` · `docs/plans/2026-11-18-task119-remediation-plan.md` · `docs/plans/2026-11-18-task120-remediation-plan.md` |
 | Screenshots | `docs/screenshots/01…21-*.png` |
 | SSH push runbook | `docs/how-to-git-push-using-ssh-wrapper_SKILL.md` |
 | Working history | `worklog.md` (Tasks 113+ NORDHEM; the 1–112 predecessor lineage was operator-trimmed) |
@@ -527,5 +571,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (79) |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (34) |
+| Unit suite | `tests/unit/*.test.ts` (86) |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (43) |

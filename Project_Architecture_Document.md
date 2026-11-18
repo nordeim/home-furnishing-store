@@ -1,4 +1,4 @@
-# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.4.0
+# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.5.0
 
 **Classification:** Internal Engineering Reference
 **Status:** DEFINITIVE, PRODUCTION-LOCKED BLUEPRINT
@@ -7,6 +7,52 @@
 **Audience:** Senior Engineers, Tech Leads, DevOps, and Onboarding Engineers (human and AI)
 **Rule:** Every architectural decision in this document traces to a specific rationale.
 Nothing is here "because it's popular."
+
+#### Revision Block — v1.5.0 (Task 120 — API-boundary hardening, atomic checkout, SEO blanket completion, a11y floor, docs-truth cycle)
+
+- `[CA]` **Checkout boundary hardened**: `req.json()` is parse-guarded into a
+  400 `BAD_REQUEST` envelope with fixed copy (the only route without one), and
+  the 500 path ships fixed copy — the raw `err.message` (parse text, driver
+  connection strings) never reaches an unauthenticated caller. Order fields
+  are REFUSED at length caps (email 254 / name 80 / phone 20 / address 200)
+  rather than silently truncated: a truncated delivery address is a broken
+  order. e2e-pinned (malformed-JSON 400, cap 422, fixed-copy 422).
+- `[CA]` **placeOrder is now atomic**: the availability check, the order/item
+  inserts and the inventory decrement run in ONE `db.transaction()` over
+  `SELECT … FOR UPDATE` row locks (ordered by id). The Task-119
+  check-then-decrement gap was a real TOCTOU — two concurrent last-unit
+  orders both passed the check and both floored the store row. Demonstrated
+  RED at the function level (pre-warmed pool: 2 fulfilled / 0 refused), now
+  exactly one 201 + one 422 `LOW_STOCK`; e2e-pinned with a quiet product
+  pinned to one unit. The vestigial client `totals` field was retired with it.
+- `[SYN]` **SEO blanket completed**: the six remaining sitemap-indexed routes
+  that shipped title-only metadata (inspiration, offers, services, stores,
+  food, help) now carry description + canonical + OG; the `/family` metadata
+  earn-rate was corrected to the page's own calculator (it claimed 5 pts/$10
+  against a 10 pts/$1 reality — a 20× crawler-facing contradiction — plus
+  "members-only workshops" that do not exist). e2e-pinned.
+- `[CA]` **a11y floor**: the four `outline-none`-without-replacement form
+  inputs (family/business/planning-tools emails + dates, BuyBox qty) gained
+  visible focus rings; the cart promo error announces via `role="alert"`
+  (success stays `status`); the cart minus disables at qty 1 (Remove stays the
+  only destructive path); star displays are `role="img"`. e2e-pinned.
+- `[SYN]` **Docs-truth cycle**: the docs-counts pin now covers the PAD (its
+  blind spot — the rot class lived one file over: §1.2 said 50/23, §7.4
+  58/27, §9.2 50/23, §11 5 files/58); the stale inline-limiter Pattern 4,
+  §6.2 and the §6.4 threat row were rewritten to the factory seam; the dead
+  `carts`/`cart_items` schema was retired (9 live tables — the localStorage
+  cart is the documented architecture); the seed self-heals a partial first
+  seed (inventory rebuild, reviews stay first-time-only); the order page
+  splits outage from not-found; the status ladder is one `orderStepIndex`
+  seam (unit-pinned); `#8a8a8a` captions moved to the AA-passing muted token.
+- `[CA]` **Honesty batch**: the fabricated "Nearest MRT listed on each store
+  card" pointer, the "audited yearly" stat contradicting its own illustrative
+  disclaimer, and the inspiration "live prices and stock" overclaim were
+  reworded to what the surfaces actually show.
+- `[CA]` Gates: lint 0/0 · typechecks clean · **86 unit / 43 e2e** · cold
+  build green (29 routes). Versioning note: the v1.2/v1.3 numbers were
+  consumed by the Task-118/119 SKILL.md version sequence — this block resumes
+  the PAD's own line at v1.5.0 to stay ahead of SKILL v1.4.0.
 
 #### Revision Block — v1.4.0 (Task 119 — server-truth consolidation, SEO metadata blanket, ARIA honesty, rate-limit seam, docs-counts pin)
 
@@ -171,7 +217,7 @@ non-app artifacts remain in the tree (§10).
 | DB driver | `pg` (node-postgres) | 8.20.0 | Pooled connections, `drizzle-orm/node-postgres` adapter |
 | Database | PostgreSQL | 15+ recommended | Relational catalogue/orders; `drizzle-kit push` for schema |
 | Lint | ESLint flat config + `eslint-config-next/core-web-vitals` | 9.39.4 | One linter, Next-aware rules |
-| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Task 117) — 50 unit + 23 e2e, all green (§7) |
+| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–120) — 86 unit + 43 e2e, all green (§7) |
 | Imagery | Pexels CDN | — | Licensed stock, zero local pipeline (ADR-007) |
 
 ### 1.3 Architecture Decision Records (ADRs)
@@ -307,7 +353,7 @@ flowchart TB
         PAGES --> CTX
     end
     subgraph Data
-        DB[(PostgreSQL<br/>11 tables · pooled pg)]
+        DB[(PostgreSQL<br/>9 tables · pooled pg)]
         SEED[ensureSeed<br/>idempotent, single-flight]
         FALLBACK[Static catalogue<br/>src/lib/catalog.ts]
     end
@@ -335,7 +381,7 @@ constraint is the Postgres pool (`globalThis`-cached Pool singleton in dev).
 ### 3.1 The Layer Model
 
 ```
-Layer 0: src/db        — schema.ts (11 tables, Drizzle pg-core) + index.ts
+Layer 0: src/db        — schema.ts (9 tables, Drizzle pg-core) + index.ts
                           (pooled client, globalThis-singleton in dev).
                           Rule: no business logic here; types flow up via $inferSelect.
 Layer 1: src/lib       — server-data.ts (all DB reads/writes + fallbacks + pricing
@@ -390,7 +436,7 @@ home-furnishing-store/
 │   │   └── utils.ts              ← 98 lines: formatSGD, priceTotals, clampInt, validators,
 │   │                               orderNumber (NH-YYYYMMDD-XXXXXX), stars, cn
 │   └── db/
-│       ├── schema.ts             ← 178 lines: 11 tables + exported row types
+│       ├── schema.ts             ← 178 lines: 9 tables + exported row types
 │       └── index.ts              ← 25 lines: pooled Drizzle client, DATABASE_URL guard
 ├── docs/                          ← implementation-plan, reference-investigation, SSH push
 │                                   runbook + wrapper, session/prompt archives, build zips
@@ -480,9 +526,16 @@ choose *what* to buy, not *what it costs*. Inventory decrement is best-effort
 **Pattern 4 — The API envelope + write-boundary validation (`api/checkout/route.ts`)**
 
 ```typescript
-// Fixed-window rate limiter, in-process (single deployable, no store needed).
-const rate = new Map<string, { n: number; reset: number }>();
-function throttled(ip: string): boolean { /* 20 req / 60s / ip, sliding window reset */ }
+// One shared fixed-window limiter factory (src/lib/rate-limit.ts, Task 119):
+// 20 req / 60s / IP, Retry-After on 429, opportunistic expired-key purge.
+const limiter = createRateLimiter({ limit: 20, windowMs: 60_000 });
+if (limiter.throttled(ip)) return NextResponse.json({ ... }, { status: 429, headers: { "Retry-After": ... } });
+
+// Task 120: a malformed body is a client fault (400 fixed copy — never a
+// leaked 500); order fields are refused at length caps, never truncated.
+let body;
+try { body = await req.json(); } catch { return ... 400 BAD_REQUEST ... }
+if (address.length < 6 || address.length > 200) return ... 422 VALIDATION ...
 
 // Every failure returns the same shape; no bare throws to the client.
 if (!isValidEmail(email))
@@ -517,16 +570,14 @@ the conditional branch — see `shop/`, `search/`, Header route-close).
 
 ## 4. Data Architecture
 
-### 4.1 Database Schema (11 tables)
+### 4.1 Database Schema (9 tables)
 
 ```mermaid
 erDiagram
     categories ||..|| products : "category_slug (logical)"
     products ||--o{ inventory : "id = product_id (cascade)"
     products ||--o{ reviews : "id = product_id (cascade)"
-    products ||--o{ cart_items : "id = product_id (cascade)"
     products ||--o{ order_items : "id = product_id (denormalized)"
-    carts ||--o{ cart_items : "id = cart_id (cascade)"
     orders ||--o{ order_items : "id = order_id (cascade)"
     inspirations }o--o{ products : "product_slugs[] (logical)"
 ```
@@ -537,17 +588,18 @@ erDiagram
 | `products` | slug, sku (unique), priceCents, compareAtCents?, ratingAvg numeric(3,2), colors[], imageUrls[], badges[], isNew, isBestseller, stockTotal | 24 rows seeded; `uniqueIndex` on slug |
 | `stores` | slug (unique), name, address, hours, phone | 3 SG stores |
 | `inventory` | product_id → products, store_slug, quantity, aisle_bin (`A12-B04`) | 3 rows/product |
-| `carts` | token (unique), promo_code? | cookie-token server cart (API parity) |
-| `cart_items` | cart_id, product_id, qty, addedAt | cascade on both parents |
 | `orders` | order_number (unique), email, address/postal, delivery_method/slot, store_slug, payment_method, subtotal/discount/delivery/gst/total cents, status | money snapshot |
 | `order_items` | order_id, product_id, name, sku, imageUrl, unitPriceCents, qty | **denormalized snapshot** — order survives catalogue edits |
 | `reviews` | product_id, author, rating (1–5), title, body, verified | seeded + user-written |
 | `inspirations` | slug (unique), room, sqm, budgetCents, productSlugs[] | 6 shoppable rooms |
 | `promotions` | code (unique), kind (`percent`/`fixed`), value, minSubtotalCents, active | 3 codes |
 
-**Note:** `docs/implementation-plan.md` says "10 tables" — the actual count is
-**11** (`carts`/`cart_items` were likely counted as one). Corrected forward
-here; the plan remains the historical record.
+**Note:** `docs/implementation-plan.md` says "10 tables" — the count was
+corrected forward twice: the Task-114 audit made it 11 (the plan's "10"
+likely skipped a table), and Task 120 retired the never-written
+`carts`/`cart_items` dead schema (the cart is the documented localStorage
+external store) leaving **9** live tables. The plan remains the historical
+record.
 
 ### 4.2 Data Models
 
@@ -628,12 +680,14 @@ the animation and `scroll-behavior: smooth`.
 | Parameterized queries only | Drizzle query builder throughout — no string-built SQL |
 | No secrets in repo | `.gitignore` rejects `.env`, `*.key`, `ssh-key.txt`; `.env.example` documents the single non-secret variable; pushes use the out-of-repo key wrapper |
 | Fail-closed on order access | Tracking requires order number **and** matching email (case-insensitive) |
-| Input bounding | `slice()` caps on review fields (60/120/2000), delivery slot (80), store slug (40) |
+| Input bounding | review fields `slice()`-capped (60/120/2000); checkout order fields REFUSED at length caps (email 254, name 80, phone 20, address 200 — truncation would break delivery); delivery slot (80), store slug (40); every POST route parse-guards `req.json()` → 400 |
 
 ### 6.2 Security Utilities
 
-`src/lib/utils.ts` (validators, clamp), the `throttled()` limiter in the
-checkout route, and `src/db/index.ts`'s fail-fast `DATABASE_URL` guard.
+`src/lib/utils.ts` (validators, clamp), the shared `createRateLimiter`
+factory in `src/lib/rate-limit.ts` (Task 119 — one instance per write
+route, fixed window 20/min/IP, Retry-After, expired-key purge), and
+`src/db/index.ts`'s fail-fast `DATABASE_URL` guard.
 
 ### 6.3 Authentication & Authorization
 
@@ -651,18 +705,18 @@ auth is a design event, not a patch.
 | XSS via review fields | React escapes by default; no `dangerouslySetInnerHTML` anywhere in `src/` |
 | SQL injection | Drizzle parameterization |
 | Secret leakage | No secrets exist in the app surface; the push path keeps keys outside the repo (wrapper runbook) |
-| Missing-rate-limit on reviews/tracking | Accepted demo gap; add limiters when the test suite lands |
+| Missing-rate-limit on reviews/tracking | Fixed (Tasks 117/118) — all four POST routes run the shared factory (20/min/IP) |
 
 ---
 
 ## 7. Testing Strategy
 
-### 7.1 Test Distribution — Current State (Task 119: NORDHEM-native)
+### 7.1 Test Distribution — Current State (Task 120: NORDHEM-native)
 
 | Category | Files | Status | Location |
 |----------|-------|--------|----------|
-| Unit (Vitest) | 9 files, 79 tests | ✅ Green — pure seams: `utils` money/validators + `familyVoucherCents` + `visibleBadges`, `catalog` invariants + `findPromo` + `storeName`, `local-store` external-store contract, `mask`, robots/sitemap SEO policy, env/compose/config + scan-guard lineage pins, `rate-limit` factory (Task 119), **docs-counts pin** (Task 119 — fails the run on any stale live-tense count claim in AGENTS/README/CLAUDE/SKILL) | `tests/unit/` |
-| E2E (Playwright) | 2 specs, 34 tests | ✅ Green — production build on `:3100`, pinned `DATABASE_URL`: mobile-navigation project (390×844), desktop storefront/commerce journeys (incl. the live-DB checkout round-trip), API boundary validation (422/400), wishlist/search fetch-failure resilience, JSON-LD live-inventory + LOW_STOCK 422 (Task 119, via direct pinned-DB manipulation with restore), and the SEO metadata blanket (Task 119) | `tests/e2e/` |
+| Unit (Vitest) | 9 files, 86 tests | ✅ Green — pure seams: `utils` money/validators + `familyVoucherCents` + `visibleBadges`, `catalog` invariants + `findPromo` + `storeName`, `local-store` external-store contract, `mask`, robots/sitemap SEO policy, env/compose/config + scan-guard lineage pins, `rate-limit` factory (Task 119), the `orderStepIndex` ladder seam (Task 120), **docs-counts pin** (Task 119; Task 120 extended it to the PAD — fails the run on any stale live-tense count claim in AGENTS/README/CLAUDE/SKILL/PAD) | `tests/unit/` |
+| E2E (Playwright) | 2 specs, 43 tests | ✅ Green — production build on `:3100`, pinned `DATABASE_URL`: mobile-navigation project (390×844), desktop storefront/commerce journeys (incl. the live-DB checkout round-trip), API boundary validation (422/400), wishlist/search fetch-failure resilience, JSON-LD live-inventory + LOW_STOCK 422 (Task 119, via direct pinned-DB manipulation with restore), the SEO metadata blanket (Task 119; Task 120 completed it for the six title-only routes and pinned the /family earn-rate), the checkout boundary set (Task 120: malformed-JSON 400, field-cap 422, concurrent last-unit oversell → exactly one 201/one 422 LOW_STOCK), and the a11y pins (focus indication, stepper floor, alert role) | `tests/e2e/` |
 | Type coverage | `tsconfig.tests.json` | ✅ `npm run typecheck:tests` (node + vitest/globals types) | repo root |
 
 The predecessor's 73-unit/15-e2e tree (ely-beauty imports, undeclared
@@ -694,8 +748,8 @@ the code, never to hit a number.
 rm -rf .next && DATABASE_URL=… npm run build   # cold build (cache can mask the scan-guard failure)
 npm run typecheck && npm run typecheck:tests  # app scope + test tree
 npm run lint                                   # 0 errors / 0 warnings
-npm run test                                   # 58/58 unit
-npm run test:e2e                               # 27/27 e2e (live Postgres for the journey)
+npm run test                                   # 86/86 unit
+npm run test:e2e                               # 43/43 e2e (live Postgres for the journey)
 # runtime smoke of touched routes against `npm run start`
 ```
 
@@ -748,7 +802,7 @@ the wrapper default still points at the predecessor repo).
 git clone https://github.com/nordeim/home-furnishing-store.git && cd home-furnishing-store
 npm install
 cp .env.example .env              # set DATABASE_URL (any Postgres; unreachable = static fallback)
-npx drizzle-kit push              # 11 tables; seeding is automatic on first read
+npx drizzle-kit push              # 9 tables; seeding is automatic on first read
 npm run dev                       # http://localhost:3000
 ```
 
@@ -759,7 +813,7 @@ npm run dev                       # http://localhost:3000
 | `npm run dev` / `build` / `start` | root | Dev / cold production build / serve |
 | `npm run lint` | root | ESLint (flat; `skills/` ignored) |
 | `npm run typecheck` / `typecheck:tests` | root | App-scope / test-tree `tsc --noEmit` |
-| `npm run test` / `test:e2e` | root | Vitest unit (50) / Playwright e2e (23, production build on :3100) |
+| `npm run test` / `test:e2e` | root | Vitest unit (86) / Playwright e2e (43, production build on :3100) |
 | `npx drizzle-kit push` | root | Apply `src/db/schema.ts` |
 | `python3 docs/ssh_git_wrapper_v3.py --key-file K --remote git@github.com:nordeim/home-furnishing-store.git` | repo | Verified SSH push to main (see the runbook) |
 
@@ -831,6 +885,16 @@ Clone over HTTPS; push over SSH through the wrapper with the mandatory
 | ~~MEDIUM~~ | `/order/[number]` (PII surface) had no page-level `noindex` — robots.txt disallow alone cannot prevent URL-only indexing of externally-linked pages | PII page indexed by URL | **Fixed (Task 119)** — `robots: { index: false }` page metadata (robots.txt policy unchanged) |
 | ~~MEDIUM~~ | Inspiration listing vs detail budget contradiction ("Room budget" label on two different numbers: $9,800 vs $2,047) | Same-term contradiction on one funnel | **Fixed (Task 119)** — both figures shown, honestly labelled |
 | ~~LOW~~ | Checkout API echoed the full inserted order row (email/phone/address) where the page needs only the order number; BuyBox's confirmation timer raced and leaked on unmount; cart steppers shared one aria-label; search page had no submit control; checkout slots didn't adapt to the fulfilment method; hardcoded hero price + "ends 28 Dec" dates; raw store slugs in order copy; sustainability ESG stats lacked demo framing; dead `getOrCreateCart`/`getCartLines`, Rating `dark` prop, dead track fields; PDP breadcrumb showed the category slug | Minimization/a11y/quality batch | **Fixed (Task 119)** — see the remediation plan for the per-item file:line evidence |
+| ~~HIGH~~ | Checkout POST had no JSON-parse guard (malformed bodies fell to the generic catch → 500 with the raw parse error in the envelope) and the 500 path echoed internal `err.message` (driver connection text) to unauthenticated callers | Envelope-class inconsistency + info disclosure at the most sensitive write boundary | **Fixed (Task 120)** — parse-guard 400 `BAD_REQUEST` fixed copy; 500 path fixed copy (detail stays in the server log); e2e-pinned |
+| ~~HIGH~~ | placeOrder check-then-decrement was not atomic (TOCTOU): two concurrent last-unit orders both passed the availability check, both placed, both floored inventory with `greatest(0,·)` | Silent oversell defeating the "refuses what it cannot fulfil" honesty claim | **Fixed (Task 120)** — one `db.transaction()` with `SELECT … FOR UPDATE` row locks (ordered by id); loser re-reads 0 and gets 422 `LOW_STOCK`; function-level RED evidence + e2e pin |
+| ~~MEDIUM~~ | Unbounded unauthenticated writes: email/fullName/address had minimum-length checks only (a 300-char address persisted verbatim) | Storage abuse vector; inconsistent with the reviews route's slicing standard | **Fixed (Task 120)** — length caps with 422 (refuse, never truncate — a truncated delivery address is a broken order); e2e-pinned |
+| ~~MEDIUM~~ | `/family` metadata earn-rate contradicted the page's own calculator 20× (5 pts/$10 vs 10 pts/$1) and promised "members-only workshops" that do not exist | Crawlers indexed a claim the product's own math disproves | **Fixed (Task 120)** — metadata corrected to the calculator rule; workshops claim dropped; e2e-pinned |
+| ~~MEDIUM~~ | Six sitemap-indexed routes (inspiration, offers, services, stores, food, help) shipped title-only metadata — every SERP entry fell back to the layout's generic description | The Task-119 blanket was half-done | **Fixed (Task 120)** — description + canonical + OG on all six; e2e-pinned |
+| ~~MEDIUM~~ | Four form inputs stripped focus with no replacement (family/business/planning-tools emails + dates, BuyBox qty) — `outline-none` with no `focus:` substitute | WCAG 2.4.7: keyboard users could not see focus | **Fixed (Task 120)** — visible focus rings; e2e-pinned via computed-style assertion |
+| ~~MEDIUM~~ | PAD live-tense count rot (§1.2 50/23, §7.4 58/27, §9.2 50/23, §11 5 files/58) while the docs-counts pin covered only AGENTS/README/CLAUDE/SKILL; PAD Pattern 4 + §6.2 still documented the retired inline `throttled()` limiter and §6.4 a stale "accepted gap" threat row; AGENTS.md gotcha #4 pointed at the retired route-local limiter | The pin's own blind spot — the rot class lived one file over | **Fixed (Task 120)** — pin extended to the PAD (4 live-tense claim sites); stale sections rewritten to the factory seam; counts swept 86/43/9 files |
+| ~~MEDIUM~~ | Fabricated "Nearest MRT listed on each store card above" (cards show no MRT); sustainability "audited yearly" stat contradicting its own illustrative disclaimer two lines above; inspiration "live prices and stock" overclaim | Honesty batch | **Fixed (Task 120)** — reworded to what each surface actually shows |
+| ~~LOW~~ | Dead `carts`/`cart_items` schema (zero references in `src/`; the localStorage cart is the documented architecture) with a comment claiming a cookie-identified server cart; vestigial client `totals` field on CheckoutInput; partial-seed lockout (a first-seed crash between inserts left inventory empty forever — every checkout refused "Only 0 left"); order page conflated DB outage with not-found; cart minus-at-qty-1 silently deleted the line; status ladder duplicated in two pages; cart promo errors announced as `role="status"`; star displays put `aria-label` on non-semantic containers; `#8a8a8a` small text ≈3.2–3.5:1; header "N items" grammar + Go button focus ring | Dead-code/a11y/quality batch | **Fixed (Task 120)** — schema retired (9 tables, `drizzle-kit push` verified); seed self-heals (inventory rebuild, reviews first-time-only — manually verified against the live DB); outage split from not-found; `orderStepIndex` seam unit-pinned; minus disabled at 1; `role="alert"`; `role="img"`; muted-token contrast sweep (6.1–6.8:1); header polish |
+
 | LOW | Read-only API GETs (`/api/products`, GET `/api/reviews`, `/api/health`) are unthrottled and uncached | Demo-scope accepted risk (a limiter on the catalogue GET would contaminate the e2e suite's shared "local" bucket) | Open — documented (register row; POST surfaces are limited) |
 | LOW | `placeOrder` decrements delivery orders from the `storeSlug || "tampines"` store only | Delivery orders drain one store's Click & Collect stock (best-effort demo decrement) | Open — documented (redistributing decrements is feature work) |
 | LOW | Wishlist fetches the full catalogue (`/api/products`) then filters client-side | Fine at the 24-product demo scale; a `?slugs=` param would be the fix at real scale | Open — documented |
@@ -838,7 +902,7 @@ Clone over HTTPS; push over SSH through the wrapper with the mandatory
 
 **Verification ledger (2026-11-18, Task 114 remediation cycle):** rootless
 PostgreSQL 17.12 installed (scram TCP + trust socket, `app_db` created) —
-*Verified*; `drizzle-kit push` → 11 tables — *Verified*; first-read seed
+*Verified*; `drizzle-kit push` → 9 tables — *Verified*; first-read seed
 (24/8/72/5/3/6/3 rows) — *Verified*; checkout round-trip in Postgres
 (`NH-20261118-2NRWZD`: 259800 − 25980 WELCOME10, free delivery, GST 19306,
 total 233820; tracking 200 on match / 404 on mismatch) — *Verified*; mobile
@@ -885,8 +949,8 @@ re-verified in-browser on the dead-DB path ($1,200/yr → $60 vouchers) —
 | `src/app/product/[slug]/page.tsx` | ~122 | PDP: metadata, gallery, stock/aisle, reviews, related |
 | `src/app/api/checkout/route.ts` | ~62 | Validation, rate limit, `placeOrder` delegation, envelope |
 | `src/components/Header.tsx` | ~180 | Utility strip, search, store picker (external store), category nav, mobile drawer (Escape-close) |
-| `tests/unit/` | 5 files | 58 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges, catalog, local-store, mask, robots/sitemap, env/compose/config + scan-guard pins) |
-| `tests/e2e/` | 2 specs | 23 Playwright tests: mobile-navigation (390×844), storefront/commerce journeys, API boundary validation, fetch-failure resilience |
+| `tests/unit/` | 9 files | 86 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges, catalog, local-store, mask, robots/sitemap, env/compose/config + scan-guard pins) |
+| `tests/e2e/` | 2 specs | 43 Playwright tests: mobile-navigation (390×844), storefront/commerce journeys, API boundary validation, fetch-failure resilience |
 | `src/components/ProductCard.tsx` | ~92 | Card + `Rating`; wishlist/add-to-bag affordances |
 | `docs/implementation-plan.md` | 42 | Stack decision record, deviations ledger, acceptance criteria |
 | `docs/reference-investigation.md` | 45 | Reference-site evidence (Verified/Reasoned/Assumed/Unknown) |

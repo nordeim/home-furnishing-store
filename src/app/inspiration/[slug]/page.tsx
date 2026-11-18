@@ -56,7 +56,7 @@ export default async function InspirationDetail({ params }: { params: Promise<{ 
               the editorial planning figure; the pieces total is the sum of the
               listed products (they used to share one contradictory label). */}
             {[["Floor area", `${room.sqm} sqm`], ["Room budget", formatSGD(room.budgetCents)], ["These pieces", formatSGD(total)], ["Pieces", String(pieces.length)]].map(([k, v]) => (
-              <div key={k} className="rounded-xl bg-[#f5f3ee] p-3"><dt className="text-[12px] text-[#8a8a8a]">{k}</dt><dd className="font-black">{v}</dd></div>
+              <div key={k} className="rounded-xl bg-[#f5f3ee] p-3"><dt className="text-[12px] text-[#5b5b5b]">{k}</dt><dd className="font-black">{v}</dd></div>
             ))}
           </dl>
           <div className="mt-5 flex gap-3">

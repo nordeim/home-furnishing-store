@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges } from "@/lib/utils";
+import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex } from "@/lib/utils";
 
 describe("formatSGD", () => {
   // The currency symbol depends on the node build's ICU data ($ vs S$) — assert
@@ -152,5 +152,24 @@ describe("visibleBadges (dedupe catalogue badge literals against computed chips)
   });
   it("dedupes repeated literals within the badge list itself", () => {
     expect(visibleBadges(["Bestseller", "Bestseller"], { isNew: false, discountPercent: 0 })).toEqual(["Bestseller"]);
+  });
+});
+
+describe("orderStepIndex + ORDER_STEPS (the shared order-progress ladder)", () => {
+  // Task 120 F-16: track-order and the order page each hand-rolled a copy of
+  // the status→step mapping; the seam keeps one truth. Unknown/na statuses
+  // floor at "Confirmed" (the documented default for freshly placed orders).
+  it("maps each documented status to its ladder step", () => {
+    expect(orderStepIndex("confirmed")).toBe(0);
+    expect(orderStepIndex("picking")).toBe(1);
+    expect(orderStepIndex("shipped")).toBe(2);
+    expect(orderStepIndex("delivered")).toBe(3);
+  });
+  it("floors unknown statuses at step 0 (honest default)", () => {
+    expect(orderStepIndex("unknown-status")).toBe(0);
+    expect(orderStepIndex("")).toBe(0);
+  });
+  it("ladder has the four documented steps in order", () => {
+    expect(ORDER_STEPS).toEqual(["Confirmed", "Picking", "On the way", "Delivered"]);
   });
 });

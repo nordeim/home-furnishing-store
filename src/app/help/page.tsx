@@ -1,6 +1,18 @@
 import Link from "next/link";
 
-export const metadata = { title: "Help & contact" };
+export const metadata = {
+  title: "Help & contact",
+  description:
+    "How can we help? Answers on delivery fees, returns, promo codes and order tracking — plus phone and email contact for NORDHEM Singapore.",
+  alternates: { canonical: "/help" },
+  openGraph: {
+    title: "Help & contact · NORDHEM Singapore",
+    description: "How can we help? Delivery, returns, promo codes and tracking answers, plus phone and email contact.",
+    type: "website",
+    siteName: "NORDHEM Singapore",
+    url: "https://nordhem.sg/help",
+  },
+};
 
 const FAQS = [
   { q: "How much is delivery?", a: "Standard delivery (3–5 days) from $12, free over $200. Express next-day is $29. Click & Collect is always free and ready in about 2 hours." },

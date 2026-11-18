@@ -17,8 +17,8 @@ static-catalogue fallback.
 
 - One Next.js 16 App Router app: 20 page routes + 6 API route handlers under
   `src/app/` (the current build compiles 29 routes).
-- One PostgreSQL database: 11 tables defined in `src/db/schema.ts`
-  (categories, products, stores, inventory, carts, cart_items, orders,
+- One PostgreSQL database: 9 tables defined in `src/db/schema.ts`
+  (categories, products, stores, inventory, orders,
   order_items, reviews, inspirations, promotions).
 - No external services: no Redis, no queues, no object storage. Product
   imagery is hot-linked from the Pexels CDN through plain `<img>` tags —
@@ -196,7 +196,7 @@ single source of truth `src/db/schema.ts`:
 npx drizzle-kit push
 ```
 
-On a fresh database this creates all 11 tables; on an existing one it
+On a fresh database this creates all 9 tables; on an existing one it
 applies the diff (drizzle-kit asks for confirmation on data-loss
 operations). Seeding is automatic afterwards (§6) — no schema or seed
 command is wired into `npm run` scripts by design.
@@ -233,7 +233,7 @@ Consequences for operators:
   `"$PGBIN/psql"` or a system psql):
   ```bash
   PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -d app_db \
-    -c 'TRUNCATE order_items, orders, cart_items, carts, reviews, inventory,
+    -c 'TRUNCATE order_items, orders, reviews, inventory,
         products, categories, stores, inspirations, promotions
         RESTART IDENTITY CASCADE;'
   ```

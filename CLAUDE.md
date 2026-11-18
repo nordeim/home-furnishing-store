@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-18 (Task 119: server-truth consolidation, SEO metadata blanket, ARIA honesty, rate-limit seam, docs-counts pin)
+last_updated: 2026-11-18 (Task 120: API-boundary hardening, atomic checkout, SEO blanket completion, a11y floor, docs-truth cycle)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -110,7 +110,7 @@ git clone https://github.com/nordeim/home-furnishing-store.git
 cd home-furnishing-store
 npm install
 cp .env.example .env          # set DATABASE_URL to your Postgres
-npx drizzle-kit push          # create the 11 tables (seed happens on first read)
+npx drizzle-kit push          # create the 9 tables (seed happens on first read)
 npm run dev                   # http://localhost:3000
 ```
 
@@ -127,15 +127,15 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`typecheck:tests` covers the test tree) |
-| `npm run test` | Vitest unit suite (79 tests, pure seams) |
-| `npm run test:e2e` | Playwright e2e (34 tests, production build on :3100) |
+| `npm run test` | Vitest unit suite (86 tests, pure seams) |
+| `npm run test:e2e` | Playwright e2e (43 tests, production build on :3100) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
-**Current state (Task 119):** a NORDHEM-native suite is wired into the gates.
+**Current state (Task 120):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 79 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 86 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
@@ -143,12 +143,13 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   single-variable, docker-compose postgres-only, `allowedDevOrigins` — the
   Task 118 lineage-drift pins), the shared fixed-window `createRateLimiter`
   factory (window math, Retry-After, expired-key purge — Task 119), the
-  `storeName` label seam, and the docs-counts pin (`tests/unit/docs-counts.test.ts`
-  fails the run when any live-tense test-count claim in AGENTS/README/CLAUDE/SKILL
-  disagrees with the fs-computed reality — count-lockstep is now enforced, not
-  remembered). Node environment with a localStorage shim (`tests/unit/setup.ts`);
-  no jsdom, no component rendering.
-- **E2E (Playwright, 34 tests)** against the **production build** (the webServer
+  `storeName` label seam, the `orderStepIndex` ladder seam (Task 120), and the
+  docs-counts pin (`tests/unit/docs-counts.test.ts` fails the run when any
+  live-tense test-count claim in AGENTS/README/CLAUDE/SKILL/**PAD** disagrees
+  with the fs-computed reality — count-lockstep is enforced across all five
+  operator docs, not remembered). Node environment with a localStorage shim
+  (`tests/unit/setup.ts`); no jsdom, no component rendering.
+- **E2E (Playwright, 43 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
   hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
@@ -163,7 +164,12 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   restores them), the LOW_STOCK 422 on overselling, and the SEO metadata
   blanket (titles/canonicals for the sitemap-indexed client pages via their
   route layouts, the order-page noindex, and the site-level Organization/
-  WebSite JSON-LD).
+  WebSite JSON-LD). Task-120 additions: the checkout boundary set
+  (malformed-JSON 400 with fixed copy, overlong-field 422, and the concurrent
+  last-unit pair — exactly one 201 + one 422 LOW_STOCK against a
+  function-level-demonstrated TOCTOU), the completed metadata blanket for the
+  six title-only routes + the /family earn-rate truth spec, and the a11y pins
+  (computed focus indication, qty-1 minus disabled, failed promo → alert role).
 - The predecessor's 73-unit/15-e2e dead tree (ely-beauty imports) was retired;
   `tsconfig.tests.json` + `typecheck:tests` now cover the NORDHEM test tree.
 - **ARIA stance (Task 119):** toggle-button groups use `role="group"` +
@@ -251,9 +257,8 @@ pooled client). No services, no workers, no external APIs (imagery is Pexels CDN
 
 ### Database / Data Layer
 
-Drizzle ORM over `node-postgres`; 11 tables (`categories`, `products`, `stores`,
-`inventory`, `carts`, `cart_items`, `orders`, `order_items`, `reviews`,
-`inspirations`, `promotions`); types exported as `typeof table.$inferSelect`.
+Drizzle ORM over `node-postgres`; 9 tables (`categories`, `products`, `stores`,
+`inventory`, `orders`, `order_items`, `reviews`, `inspirations`, `promotions`); types exported as `typeof table.$inferSelect`.
 `drizzle.config.json` pins the local dev URL
 (`postgresql://postgres:postgres@127.0.0.1:5432/app_db`) — update it when your
 database moves. Idempotent seed on first read (`ensureSeed()`); `onConflictDoNothing`

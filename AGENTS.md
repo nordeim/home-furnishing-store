@@ -22,9 +22,9 @@ ORM + PostgreSQL.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
-| `npm run test` | Vitest unit suite (79 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins) |
-| `npm run test:e2e` | Playwright e2e (34 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
-| `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (11 tables) |
+| `npm run test` | Vitest unit suite (86 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
+| `npm run test:e2e` | Playwright e2e (43 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
+| `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
 The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117/118/119):
 `tests/unit` (9 files) + `tests/e2e` (mobile-navigation + storefront specs
@@ -61,8 +61,9 @@ docs in the same commit as any test change (count-lockstep, no exceptions).
 4. **API envelope everywhere.** Every route returns
    `{ ok: true, data } | { ok: false, error: { code, message } }`. Match it in any new
    route. Validate at every write boundary (email/phone/postal regex, rating 1–5,
-   qty clamped 1–99); checkout has an in-process fixed-window rate limit
-   (`throttled()` in `src/app/api/checkout/route.ts`).
+   qty clamped 1–99, field-length caps, JSON parse-guards) and rate-limit
+   via the shared fixed-window factory (`createRateLimiter` in
+   `src/lib/rate-limit.ts` — Task 119; one instance per route, 20/min/IP).
 5. **Tailwind v4 is CSS-first.** There is no `tailwind.config.js`. Design tokens are
    literal hex in the `@theme` block of `src/app/globals.css`
    (`--color-brand: #0058a3`, `--color-accent: #ffdb00`, …). Arbitrary values in
@@ -126,8 +127,8 @@ When adding tests, pin them to this `src/` — never resurrect ely-beauty specs.
 rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db" npm run build
 npm run typecheck
 npm run lint          # 0 errors expected (the 7-error lint debt was fixed in Task 114)
-npm run test          # 79/79 unit
-npm run test:e2e      # 34/34 e2e (needs a live Postgres for the checkout journey)
+npm run test          # 86/86 unit
+npm run test:e2e      # 43/43 e2e (needs a live Postgres for the checkout journey)
 ```
 
 There is no hosted CI; the local gate is the only gate.

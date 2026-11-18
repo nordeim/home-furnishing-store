@@ -65,8 +65,8 @@ export default function PlanningPage() {
             </div>
           ) : (
             <form onSubmit={(e) => { e.preventDefault(); if (date) setBooked(true); }} className="mt-4 space-y-3">
-              <label className="block text-[13px] font-bold">Preferred date<input required type="date" value={date} onChange={(e) => setDate(e.target.value)} min={MIN_DATE} className="mt-1 w-full rounded-xl px-4 py-3 text-black outline-none" /></label>
-              <label className="block text-[13px] font-bold">Email<input required type="email" placeholder="you@email.com" className="mt-1 w-full rounded-xl px-4 py-3 text-black outline-none" /></label>
+              <label className="block text-[13px] font-bold">Preferred date<input required type="date" value={date} onChange={(e) => setDate(e.target.value)} min={MIN_DATE} className="mt-1 w-full rounded-xl px-4 py-3 text-black outline-none focus:ring-2 focus:ring-white/80" /></label>
+              <label className="block text-[13px] font-bold">Email<input required type="email" placeholder="you@email.com" className="mt-1 w-full rounded-xl px-4 py-3 text-black outline-none focus:ring-2 focus:ring-white/80" /></label>
               <button className="w-full rounded-full bg-[#ffdb00] py-3.5 font-black text-black hover:bg-white focus-ring">Request session</button>
             </form>
           )}

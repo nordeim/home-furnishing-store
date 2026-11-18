@@ -37,7 +37,7 @@ export function BuyBox({ product, stock }: {
         <label htmlFor="qty" className="text-[14px] font-bold">Qty</label>
         <div className="flex items-center rounded-full border border-[#ddd]">
           <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="grid h-10 w-10 place-items-center rounded-full hover:bg-[#f5f3ee] focus-ring" aria-label="Decrease quantity">−</button>
-          <input id="qty" value={qty} onChange={(e) => setQty(Math.min(99, Math.max(1, Math.floor(Number(e.target.value) || 1))))} className="w-10 text-center font-black outline-none" inputMode="numeric" />
+          <input id="qty" value={qty} onChange={(e) => setQty(Math.min(99, Math.max(1, Math.floor(Number(e.target.value) || 1))))} className="w-10 text-center font-black outline-none focus:ring-2 focus:ring-[#0058a3]/50" inputMode="numeric" />
           <button onClick={() => setQty((q) => Math.min(99, q + 1))} className="grid h-10 w-10 place-items-center rounded-full hover:bg-[#f5f3ee] focus-ring" aria-label="Increase quantity">+</button>
         </div>
         {/* The dynamic state on this surface is the add-to-bag confirmation —
@@ -68,7 +68,7 @@ export function BuyBox({ product, stock }: {
                 <span className={s.quantity > 5 ? "text-[#2e6b34] font-bold" : s.quantity > 0 ? "text-[#b5502a] font-bold" : "text-[#cc0008] font-bold"}>
                   {s.quantity > 5 ? `● In stock (${s.quantity})` : s.quantity > 0 ? `● Only ${s.quantity} left` : "○ Out of stock"}
                 </span>
-                {s.aisleBin && <span className="hidden text-[#8a8a8a] sm:block">Aisle {s.aisleBin}</span>}
+                {s.aisleBin && <span className="hidden text-[#5b5b5b] sm:block">Aisle {s.aisleBin}</span>}
               </li>
             ))
           )}

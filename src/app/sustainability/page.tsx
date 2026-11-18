@@ -24,7 +24,7 @@ export default function SustainabilityPage() {
           corporate sustainability claim. */}
       <p className="mt-2 text-[13px] text-[#5b5b5b]">Concept demo storefront — the figures on this page are illustrative, not audited claims.</p>
       <div className="mt-8 grid gap-4 md:grid-cols-3">
-        {[["100% renewable electricity", "All 3 SG stores + warehouse since 2024."], ["73% recycled materials", "Across textiles and board — audited yearly."], ["41,203 pieces re-homed", "Through As-Is corners and buy-back in 2025."]].map(([a, b]) => (
+        {[["100% renewable electricity", "All 3 SG stores + warehouse since 2024."], ["73% recycled materials", "Across textiles and board (illustrative figure)."], ["41,203 pieces re-homed", "Through As-Is corners and buy-back in 2025."]].map(([a, b]) => (
           <div key={a} className="rounded-2xl bg-[#e8f3e9] p-6"><p className="text-[24px] font-black text-[#1d4d22]">{a}</p><p className="mt-1 text-[14px]">{b}</p></div>
         ))}
       </div>

@@ -14,8 +14,20 @@ export function ensureSeed(): Promise<void> {
   if (!seedPromise) {
     seedPromise = (async () => {
       try {
+        // Task 120 F-13: "any product row exists" alone treated a PARTIAL
+        // first seed (crash between the products insert and the inventory
+        // insert) as complete — inventory stayed empty forever and every
+        // checkout refused with "Only 0 left". Both signals must be present;
+        // a products-only state now rebuilds the inventory rows (idempotent —
+        // the tables are empty at that point, so onConflictDoNothing holds).
+        // Seed reviews stay first-time-only: the reviews table has no unique
+        // constraint, so re-inserting them would duplicate rows.
         const existing = await db.select({ id: products.id }).from(products).limit(1);
-        if (existing.length > 0) return;
+        if (existing.length > 0) {
+          const invExisting = await db.select({ id: inventory.id }).from(inventory).limit(1);
+          if (invExisting.length > 0) return;
+        }
+        const firstTime = existing.length === 0;
         await db.insert(categories).values(CATEGORIES.map((c) => ({ ...c }))).onConflictDoNothing();
         await db.insert(stores).values(STORES.map((s) => ({ ...s }))).onConflictDoNothing();
         await db.insert(products).values(PRODUCTS.map((p) => ({ ...p }))).onConflictDoNothing();
@@ -39,9 +51,11 @@ export function ensureSeed(): Promise<void> {
           { slug: "ergonomi-task-chair", author: "Daniel K.", rating: 5, title: "Back pain gone", body: "Upgraded from a dining chair. Lumbar dial + tilt lock are worth every cent.", verified: false },
           { slug: "hdb-kitchen-trolley", author: "Nur A.", rating: 5, title: "Extra counter that moves", body: "Use it as an island daily and roll it aside when cooking big. Very stable.", verified: true },
         ];
-        for (const r of seedReviews) {
-          const prod = all.find((p) => p.slug === r.slug);
-          if (prod) await db.insert(reviews).values({ productId: prod.id, author: r.author, rating: r.rating, title: r.title, body: r.body, verified: r.verified }).onConflictDoNothing();
+        if (firstTime) {
+          for (const r of seedReviews) {
+            const prod = all.find((p) => p.slug === r.slug);
+            if (prod) await db.insert(reviews).values({ productId: prod.id, author: r.author, rating: r.rating, title: r.title, body: r.body, verified: r.verified }).onConflictDoNothing();
+          }
         }
       } catch (err) {
         // Seed must never break rendering — catalogue fallback covers reads.
@@ -138,7 +152,6 @@ export interface CheckoutInput {
   paymentMethod: string;
   promoCode?: string | null;
   lines: Array<{ productId: number; qty: number }>;
-  totals: { subtotalCents: number; discountCents: number; deliveryFeeCents: number; gstCents: number; totalCents: number };
 }
 
 /** A domain refusal at the checkout write boundary (422-class, carries the
@@ -169,24 +182,16 @@ export async function placeOrder(input: CheckoutInput) {
     if (!v.ok) throw new OrderRefusalError("INVALID_PROMO", v.error);
     promo = v.promo;
   }
-  // Honesty of commerce (Task 119): the write boundary refuses what it cannot
-  // fulfil — qty is checked against LIVE inventory (the same per-store rows
-  // the PDP BuyBox renders scarcity from), aggregated per product across
-  // lines so a crafted duplicate-line payload cannot slip past a per-line cap.
+  // Honesty of commerce (Task 119, atomized in Task 120): the write boundary
+  // refuses what it cannot fulfil — qty is checked against LIVE inventory
+  // (the same per-store rows the PDP BuyBox renders scarcity from),
+  // aggregated per product across lines so a crafted duplicate-line payload
+  // cannot slip past a per-line cap. The check, the inserts and the decrement
+  // run in ONE transaction over SELECT … FOR UPDATE row locks: two concurrent
+  // last-unit orders can no longer both pass the check (the loser re-reads 0
+  // under the winner's committed decrement and refuses with LOW_STOCK).
   const qtyByProduct = new Map<number, number>();
   for (const l of lines) qtyByProduct.set(l.product.id, (qtyByProduct.get(l.product.id) ?? 0) + l.qty);
-  const invRows = await db
-    .select({ productId: inventory.productId, qty: sql<number>`coalesce(sum(${inventory.quantity}), 0)` })
-    .from(inventory)
-    .where(inArray(inventory.productId, [...qtyByProduct.keys()]))
-    .groupBy(inventory.productId);
-  const available = new Map(invRows.map((r) => [r.productId, Number(r.qty)]));
-  for (const l of lines) {
-    const have = available.get(l.product.id) ?? 0;
-    if ((qtyByProduct.get(l.product.id) ?? 0) > have) {
-      throw new OrderRefusalError("LOW_STOCK", `Only ${have} left of ${l.product.name} right now — adjust the quantity and try again.`);
-    }
-  }
   // Money truth is the priceTotals() seam — the same function the cart and
   // checkout displays use (Task 119: the previous hand-rolled copy had
   // already drifted from it on the net===0 delivery edge; display and server
@@ -200,50 +205,72 @@ export async function placeOrder(input: CheckoutInput) {
   const { discountCents, deliveryFeeCents, gstCents, totalCents } = totals;
   const num = orderNumber();
 
-  const inserted = await db
-    .insert(orders)
-    .values({
-      orderNumber: num,
-      email: input.email.trim(),
-      fullName: input.fullName.trim(),
-      phone: input.phone.trim(),
-      address: input.address.trim(),
-      postal: input.postal.trim(),
-      deliveryMethod: input.deliveryMethod,
-      deliverySlot: input.deliverySlot,
-      storeSlug: input.storeSlug,
-      paymentMethod: input.paymentMethod,
-      subtotalCents,
-      discountCents,
-      deliveryFeeCents,
-      gstCents,
-      totalCents,
-      status: "confirmed",
-    })
-    .returning();
-  const order = inserted[0];
-  if (!order) throw new Error("Could not create order.");
-  await db.insert(orderItems).values(
-    lines.map((l) => ({
-      orderId: order.id,
-      productId: l.product.id,
-      name: l.product.name,
-      sku: l.product.sku,
-      imageUrl: l.product.imageUrls[0] ?? "",
-      unitPriceCents: l.product.priceCents,
-      qty: l.qty,
-    })),
-  );
-  // Decrement store inventory (best-effort, never fails checkout).
-  try {
+  return db.transaction(async (tx) => {
+    // Lock the touched inventory rows (ordered by id so concurrent carts with
+    // overlapping products acquire locks in one deterministic order — no
+    // cross-transaction deadlock). Sums are computed in JS: FOR UPDATE cannot
+    // ride along with a GROUP BY aggregate in Postgres.
+    const lockedRows = await tx
+      .select({ productId: inventory.productId, quantity: inventory.quantity })
+      .from(inventory)
+      .where(inArray(inventory.productId, [...qtyByProduct.keys()]))
+      .orderBy(inventory.id)
+      .for("update");
+    const available = new Map<number, number>();
+    for (const row of lockedRows) available.set(row.productId, (available.get(row.productId) ?? 0) + row.quantity);
     for (const l of lines) {
-      await db
-        .update(inventory)
-        .set({ quantity: sql`greatest(0, ${inventory.quantity} - ${l.qty})` })
-        .where(and(eq(inventory.productId, l.product.id), eq(inventory.storeSlug, input.storeSlug || "tampines")));
+      const have = available.get(l.product.id) ?? 0;
+      if ((qtyByProduct.get(l.product.id) ?? 0) > have) {
+        throw new OrderRefusalError("LOW_STOCK", `Only ${have} left of ${l.product.name} right now — adjust the quantity and try again.`);
+      }
     }
-  } catch { /* non-blocking */ }
-  return order;
+    const inserted = await tx
+      .insert(orders)
+      .values({
+        orderNumber: num,
+        email: input.email.trim(),
+        fullName: input.fullName.trim(),
+        phone: input.phone.trim(),
+        address: input.address.trim(),
+        postal: input.postal.trim(),
+        deliveryMethod: input.deliveryMethod,
+        deliverySlot: input.deliverySlot,
+        storeSlug: input.storeSlug,
+        paymentMethod: input.paymentMethod,
+        subtotalCents,
+        discountCents,
+        deliveryFeeCents,
+        gstCents,
+        totalCents,
+        status: "confirmed",
+      })
+      .returning();
+    const order = inserted[0];
+    if (!order) throw new Error("Could not create order.");
+    await tx.insert(orderItems).values(
+      lines.map((l) => ({
+        orderId: order.id,
+        productId: l.product.id,
+        name: l.product.name,
+        sku: l.product.sku,
+        imageUrl: l.product.imageUrls[0] ?? "",
+        unitPriceCents: l.product.priceCents,
+        qty: l.qty,
+      })),
+    );
+    // Decrement store inventory (best-effort, single-store source — a
+    // documented deferral; inside the lock no concurrent writer can
+    // interleave between the check above and this commit).
+    try {
+      for (const l of lines) {
+        await tx
+          .update(inventory)
+          .set({ quantity: sql`greatest(0, ${inventory.quantity} - ${l.qty})` })
+          .where(and(eq(inventory.productId, l.product.id), eq(inventory.storeSlug, input.storeSlug || "tampines")));
+      }
+    } catch { /* non-blocking */ }
+    return order;
+  });
 }
 
 export async function trackOrder(orderNumberInput: string, email: string) {

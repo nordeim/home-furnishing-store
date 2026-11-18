@@ -54,7 +54,7 @@ export function Footer() {
           <nav className="grid grid-cols-2 gap-8 sm:grid-cols-3" aria-label="Footer">
             {COLS.map((c) => (
               <div key={c.title}>
-                <h3 className="text-[13px] font-bold uppercase tracking-[0.12em] text-[#8a8a8a]">{c.title}</h3>
+                <h3 className="text-[13px] font-bold uppercase tracking-[0.12em] text-[#5b5b5b]">{c.title}</h3>
                 <ul className="mt-3 space-y-2.5 text-[14px]">
                   {c.links.map((l) => (
                     <li key={l.href + l.label}>
@@ -66,7 +66,7 @@ export function Footer() {
             ))}
           </nav>
         </div>
-        <div className="mt-10 flex flex-col gap-2 border-t border-[#e5e1d8] pt-6 text-[12px] text-[#8a8a8a] sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-10 flex flex-col gap-2 border-t border-[#e5e1d8] pt-6 text-[12px] text-[#5b5b5b] sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} NORDHEM Singapore Pte. Ltd. · Concept demo storefront inspired by Scandinavian retail patterns. All product names, copy and prices are fictional.</p>
           <p>Prices include 9% GST · 365-day returns</p>
         </div>

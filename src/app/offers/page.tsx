@@ -5,7 +5,19 @@ import { ProductCard } from "@/components/ProductCard";
 import { PROMOS } from "@/lib/catalog";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Offers & Last chance" };
+export const metadata = {
+  title: "Offers & Last chance",
+  description:
+    "Up to 24% off dining, decor and sleep across the NORDHEM catalogue — plus one promo code per order. Festive market offers refreshed with the season.",
+  alternates: { canonical: "/offers" },
+  openGraph: {
+    title: "Offers & Last chance · NORDHEM Singapore",
+    description: "Up to 24% off dining, decor and sleep — one promo code per order.",
+    type: "website",
+    siteName: "NORDHEM Singapore",
+    url: "https://nordhem.sg/offers",
+  },
+};
 
 // Computed at module load — the banner previously hard-coded "Ends 28 Dec"
 // and silently went stale after the date (Task 119 F-21).
