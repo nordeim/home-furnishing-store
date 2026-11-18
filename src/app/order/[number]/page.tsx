@@ -1,11 +1,21 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { db } from "@/db";
 import { orderItems, orders } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { formatSGD } from "@/lib/utils";
 import { maskEmail } from "@/lib/mask";
+import { storeName } from "@/lib/catalog";
 
 export const dynamic = "force-dynamic";
+
+// Belt-and-suspenders with robots.txt's /order/ disallow (Task 119 F-10): a
+// disallowed URL can still enter the index URL-only if externally linked;
+// this page-level noindex keeps the PII surface out of results wherever the
+// crawler CAN read it. The pinned robots/sitemap policy itself is unchanged.
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 const STEPS = ["Confirmed", "Picking", "On the way", "Delivered"];
 
@@ -43,7 +53,7 @@ export default async function OrderPage({ params }: { params: Promise<{ number: 
         <p className="mt-2">Order <strong>{order.orderNumber}</strong> · confirmation sent to <strong>{maskEmail(order.email)}</strong></p>
         {/* Public by order number — street address and postal stay off this
             page; the full detail lives behind the email match on /track-order. */}
-        <p className="mt-1 text-[14px] text-[#2e6b34]">{order.deliveryMethod === "click-collect" ? `Ready for pickup at NORDHEM ${order.storeSlug} · ${order.deliverySlot}` : `Arriving ${order.deliverySlot}`}</p>
+        <p className="mt-1 text-[14px] text-[#2e6b34]">{order.deliveryMethod === "click-collect" ? `Ready for pickup at NORDHEM ${storeName(order.storeSlug)} · ${order.deliverySlot}` : `Arriving ${order.deliverySlot}`}</p>
       </div>
 
       <ol className="mt-6 grid grid-cols-4 gap-2" aria-label="Order progress">

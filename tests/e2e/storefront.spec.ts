@@ -1,4 +1,22 @@
 import { expect, test } from "@playwright/test";
+// Direct DB access for the Task-119 specs that must manipulate the pinned
+// database (inventory zeroing + restore, oversell cleanup). pg is a runtime
+// dependency of the app; the connection string mirrors playwright.config.ts.
+import { Client } from "pg";
+
+// PDP specs must select the Product JSON-LD node, not the first script — the
+// root layout's site-level Organization/WebSite graph precedes it in the DOM.
+const productJsonLd = async (page: import("@playwright/test").Page) =>
+  page.evaluate(() => {
+    for (const n of Array.from(document.querySelectorAll('script[type="application/ld+json"]'))) {
+      try {
+        const parsed = JSON.parse(n.textContent ?? "");
+        if (parsed["@type"] === "Product") return JSON.stringify(parsed);
+      } catch { /* skip non-JSON nodes */ }
+    }
+    return null;
+  });
+
 
 // Storefront + commerce journey (desktop 1440×900). Doubles as the
 // characterization net for the cart-store refactor: every behaviour here must
@@ -47,10 +65,7 @@ test.describe("product page + SEO", () => {
     );
 
     // SEO: schema.org Product structured data (F-3).
-    const jsonld = await page
-      .locator('script[type="application/ld+json"]')
-      .first()
-      .textContent();
+    const jsonld = await productJsonLd(page);
     const parsed = JSON.parse(jsonld ?? "null") as { "@type": string; offers?: { price?: string; availability?: string } };
     expect(parsed["@type"]).toBe("Product");
     expect(parsed.offers?.price).toBe("1299.00");
@@ -338,5 +353,178 @@ test.describe("cart promo persistence", () => {
     await page.getByRole("button", { name: /Remove code/i }).click();
     await expect(discountRow).toHaveCount(0);
     await expect(page.getByRole("link", { name: /Checkout/i }).first()).toBeVisible();
+  });
+});
+
+test.describe("PDP JSON-LD availability source (Task 119)", () => {
+  test("availability follows live store inventory, not the stale stockTotal seed", async ({ page }) => {
+    // Task 119 F-3: JSON-LD availability derived from products.stockTotal — a
+    // seed figure no order ever decrements — while the visible BuyBox on the
+    // same page reads live per-store inventory. Structured data must claim
+    // exactly what the page shows. This spec zeroes a quiet product's
+    // inventory rows in the pinned DB (blackout-curtain-pair: no other spec
+    // touches it; sum 45 vs stockTotal 190 at seed), asserts the JSON-LD
+    // follows, then restores the rows in the finally block.
+    const client = new Client({
+      connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+    });
+    await client.connect();
+    const orig = await client.query(
+      "select store_slug, quantity from inventory where product_id = (select id from products where slug = 'blackout-curtain-pair')"
+    );
+    try {
+      await client.query(
+        "update inventory set quantity = 0 where product_id = (select id from products where slug = 'blackout-curtain-pair')"
+      );
+      await page.goto("/product/blackout-curtain-pair");
+      await expect(page.getByRole("heading", { name: "MORNING blackout curtains, pair" })).toBeVisible();
+      const jsonld = await productJsonLd(page);
+      const parsed = JSON.parse(jsonld ?? "null") as { offers?: { availability?: string } };
+      // The stores show zero stock — the crawler-facing claim must agree.
+      expect(parsed.offers?.availability).toBe("https://schema.org/OutOfStock");
+    } finally {
+      for (const row of orig.rows) {
+        await client.query(
+          "update inventory set quantity = $1 where product_id = (select id from products where slug = 'blackout-curtain-pair') and store_slug = $2",
+          [row.quantity, row.store_slug]
+        );
+      }
+      await client.end();
+    }
+  });
+});
+
+test.describe("checkout stock honesty (Task 119)", () => {
+  test("overselling beyond live inventory is a 422 LOW_STOCK, not a silent floor", async ({ request }) => {
+    // Task 119 F-25: placeOrder clamps qty 1–99 but never checks availability —
+    // a 99-qty line for a 51-stock product (katong-bedside-table: quiet, no
+    // other spec touches it) succeeded and floored the store row with
+    // greatest(0,…) while the PDP prints "Only N left". The write boundary
+    // must refuse what it cannot fulfil. The pre-fix behaviour (order placed)
+    // is cleaned up in the finally block so the RED run leaves no residue.
+    const client = new Client({
+      connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+    });
+    await client.connect();
+    const pidRow = await client.query("select id from products where slug = 'katong-bedside-table'");
+    const pid = pidRow.rows[0].id as number;
+    const orig = await client.query("select store_slug, quantity from inventory where product_id = $1", [pid]);
+    let orderNumber: string | null = null;
+    try {
+      const res = await request.post("/api/checkout", {
+        headers: { "x-forwarded-for": "10.9.120.9" },
+        data: {
+          email: "oversell-probe@nordhem.sg",
+          fullName: "Oversell Probe",
+          phone: "+65 91234567",
+          address: "Blk 1 Testing Rd #01-01",
+          postal: "089001",
+          deliveryMethod: "click-collect",
+          deliverySlot: "Click & Collect — today 2pm",
+          storeSlug: "tampines",
+          paymentMethod: "card",
+          lines: [{ productId: pid, qty: 99 }],
+        },
+      });
+      const body = (await res.json()) as {
+        ok?: boolean;
+        data?: { orderNumber?: string };
+        error?: { code?: string; message?: string };
+      };
+      if (body.ok && body.data?.orderNumber) orderNumber = body.data.orderNumber;
+      expect(res.status()).toBe(422);
+      expect(body.error?.code).toBe("LOW_STOCK");
+    } finally {
+      if (orderNumber) {
+        await client.query("delete from order_items where order_id in (select id from orders where order_number = $1)", [orderNumber]);
+        await client.query("delete from orders where order_number = $1", [orderNumber]);
+      }
+      for (const row of orig.rows) {
+        await client.query("update inventory set quantity = $1 where product_id = $2 and store_slug = $3", [
+          row.quantity,
+          pid,
+          row.store_slug,
+        ]);
+      }
+      await client.end();
+    }
+  });
+});
+
+test.describe("SEO metadata blanket (Task 119)", () => {
+  test("sitemap-indexed client pages ship real titles via their route layouts", async ({ page }) => {
+    // Task 119 F-1/M-6: /shop, /family, /business, /sustainability and
+    // /planning-tools are client components pinned into the sitemap — they
+    // previously published only the root layout's default title. Route
+    // layouts now carry each surface's claim (template suffix included).
+    const claims: Array<[string, string]> = [
+      ["/shop", "Shop all furniture · NORDHEM Singapore"],
+      ["/family", "NORDHEM Family programme · NORDHEM Singapore"],
+      ["/business", "NORDHEM Business — office fit-out in one quote · NORDHEM Singapore"],
+      ["/sustainability", "Sustainability — circular furniture, buy-back and As-Is · NORDHEM Singapore"],
+      ["/planning-tools", "Planning tools — room planners and measurement help · NORDHEM Singapore"],
+    ];
+    for (const [path, title] of claims) {
+      await page.goto(path);
+      await expect(page, `${path} title`).toHaveTitle(title);
+    }
+    // The shop route also carries a description + canonical (it is the
+    // highest-traffic indexable client page).
+    await page.goto("/shop");
+    await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+      "content",
+      /Browse the full NORDHEM catalogue/
+    );
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://nordhem.sg/shop");
+  });
+
+  test("inspiration detail ships generated metadata", async ({ page }) => {
+    // Task 119 F-5: the 6 sitemap-pinned room URLs previously had no
+    // metadata export at all.
+    await page.goto("/inspiration/2-room-flexi-bto-tampines");
+    await expect(page).toHaveTitle("A calm 2-room Flexi BTO in Tampines · NORDHEM Singapore");
+    await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+      "content",
+      /low-maintenance home/
+    );
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+      "href",
+      "https://nordhem.sg/inspiration/2-room-flexi-bto-tampines"
+    );
+    await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
+      "content",
+      "A calm 2-room Flexi BTO in Tampines"
+    );
+  });
+
+  test("home ships its own title and description, not the layout default", async ({ page }) => {
+    await page.goto("/");
+    await expect(page).toHaveTitle("NORDHEM Singapore — Scandinavian furniture, beds, dining & more");
+    await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+      "content",
+      /24 products across 8 room categories/
+    );
+    await expect(page.locator("link[rel=canonical]")).toHaveAttribute("href", "https://nordhem.sg");
+  });
+
+  test("order confirmation page is noindex (PII surface)", async ({ page }) => {
+    // Task 119 F-10: belt-and-suspenders with robots.txt's /order/ disallow —
+    // a disallowed URL can still enter the index URL-only if externally
+    // linked; the page itself must declare noindex wherever it IS readable.
+    await page.goto("/order/NH-20260101-000001");
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+  });
+
+  test("site-level Organization/WebSite JSON-LD present on every page", async ({ page }) => {
+    // Task 119 F-26: the storefront previously carried only the PDP Product
+    // schema. The root layout now emits Organization + WebSite.
+    await page.goto("/");
+    const text = await page.locator('script[type="application/ld+json"]').first().textContent();
+    const parsed = JSON.parse(text ?? "null") as {
+      "@graph"?: Array<{ "@type"?: string }>;
+    };
+    const types = (parsed["@graph"] ?? []).map((g) => g["@type"]);
+    expect(types).toContain("Organization");
+    expect(types).toContain("WebSite");
   });
 });

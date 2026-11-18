@@ -1,4 +1,4 @@
-# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.3.0
+# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.4.0
 
 **Classification:** Internal Engineering Reference
 **Status:** DEFINITIVE, PRODUCTION-LOCKED BLUEPRINT
@@ -7,6 +7,50 @@
 **Audience:** Senior Engineers, Tech Leads, DevOps, and Onboarding Engineers (human and AI)
 **Rule:** Every architectural decision in this document traces to a specific rationale.
 Nothing is here "because it's popular."
+
+#### Revision Block — v1.4.0 (Task 119 — server-truth consolidation, SEO metadata blanket, ARIA honesty, rate-limit seam, docs-counts pin)
+
+- `[CA]` **Server money truth consolidated**: `placeOrder()` now calls
+  `priceTotals()` (the display seam) instead of hand-rolling delivery/GST — the
+  hand-rolled copy had diverged on the `net===0` delivery edge; the exact-money
+  e2e journey ($679.15 / $2,338.20) pins the consolidation behaviour-preserving.
+- `[CA]` **JSON-LD availability derives from live per-store inventory** (the
+  same rows the BuyBox renders), not the never-decremented `stockTotal` seed;
+  e2e-pinned by a spec that zeroes a quiet product's inventory rows in the
+  pinned DB and restores them.
+- `[CA]` **Checkout stock honesty**: per-product qty is validated against the
+  live inventory aggregate → 422 `LOW_STOCK` (was: silent `greatest(0,·)` floor);
+  the API response is minimized to `{ orderNumber }` (matching the track route).
+- `[CA]` **SEO metadata blanket**: route-layout metadata for the five
+  sitemap-indexed client pages (/shop, /family, /business, /sustainability,
+  /planning-tools), `generateMetadata` on inspiration details, page-level
+  metadata on home, `robots: noindex` on `/order/[number]` (belt-and-suspenders
+  with the robots.txt disallow), and site-level Organization + WebSite JSON-LD
+  in the root layout.
+- `[CA]` **Rate-limit seam**: the four per-route in-process Map limiters
+  (checkout/reviews/track/promo) consolidated into the shared
+  `src/lib/rate-limit.ts` factory (fixed window, Retry-After, opportunistic
+  expired-key purge — the Maps previously never evicted); 429s now carry a
+  Retry-After header.
+- `[CA]` **ARIA honesty**: the five widget-role surfaces that never
+  implemented the APG keyboard pattern (shop category tabs, checkout
+  delivery/payment, sustainability condition, planning-tools room type,
+  review star rating) now use plain toggle buttons (`role="group"` +
+  `aria-pressed`) — honest semantics over broken radio/tab announcements.
+- `[CA]` **Docs-counts pin** (`tests/unit/docs-counts.test.ts`): every
+  live-tense test-count claim in AGENTS/README/CLAUDE/SKILL is fs-computed and
+  test-enforced (the neo-crm mechanism) — SKILL.md's Appendix B had drifted to
+  50/23 against a 58/27 reality before this cycle.
+- `[CA]` Honesty batch: fabricated member-prices/200+-icons/MRT-app/chat-SLA
+  copy reworded; the Family join form confirms honestly (business/planning
+  pattern); ESG stats carry the concept-demo disclosure; hero price derives
+  from the catalogue; campaign end dates are computed; inspiration budget
+  shows both figures honestly labelled; `storeName()` replaces raw store
+  slugs in order/track copy; BuyBox's confirmation timer is cleared on
+  re-set/unmount; dead `getOrCreateCart`/`getCartLines` + unused Rating prop +
+  dead track interface fields retired.
+- `[SAN]` Gate totals after this cycle: lint 0/0 · typechecks clean ·
+  **79 unit / 34 e2e** · cold build green.
 
 #### Revision Block — v1.1.0 (Tracked Changes)
 
@@ -32,7 +76,7 @@ Nothing is here "because it's popular."
   JSON-LD, `data-scroll-behavior="smooth"`); `/order/[number]` PII masked
   (`maskEmail`, no street address); promo display unified on `findPromo`
   (killing the unknown-code→10% phantom discount); package identity fixed
-  (`home-furnishing-store`); 16 dev-server screenshots under `docs/screenshots/`.
+  (`home-furnishing-store`); dev-server screenshots under `docs/screenshots/` (21 as of Task 119).
   Remediation plan + evidence: `docs/plans/2026-11-18-task114-remediation-plan.md`.
 - `[CA]` **Task 118 remediation cycle (this revision):** fresh-clone re-audit
   caught a **dev-mode hydration trap** — Next 16 `allowedDevOrigins` drops the
@@ -613,12 +657,12 @@ auth is a design event, not a patch.
 
 ## 7. Testing Strategy
 
-### 7.1 Test Distribution — Current State (Task 114: NORDHEM-native)
+### 7.1 Test Distribution — Current State (Task 119: NORDHEM-native)
 
 | Category | Files | Status | Location |
 |----------|-------|--------|----------|
-| Unit (Vitest) | 7 files, 58 tests | ✅ Green — pure seams: `utils` money/validators + `familyVoucherCents` + `visibleBadges` (Task 117), `catalog` invariants + `findPromo`, `local-store` external-store contract, `mask`, robots/sitemap SEO policy | `tests/unit/` |
-| E2E (Playwright) | 2 specs, 27 tests | ✅ Green — production build on `:3100`, pinned `DATABASE_URL`: mobile-navigation project (390×844), desktop storefront/commerce journeys (incl. the live-DB checkout round-trip), API boundary validation (422/400) and wishlist/search fetch-failure resilience (Task 117) | `tests/e2e/` |
+| Unit (Vitest) | 9 files, 79 tests | ✅ Green — pure seams: `utils` money/validators + `familyVoucherCents` + `visibleBadges`, `catalog` invariants + `findPromo` + `storeName`, `local-store` external-store contract, `mask`, robots/sitemap SEO policy, env/compose/config + scan-guard lineage pins, `rate-limit` factory (Task 119), **docs-counts pin** (Task 119 — fails the run on any stale live-tense count claim in AGENTS/README/CLAUDE/SKILL) | `tests/unit/` |
+| E2E (Playwright) | 2 specs, 34 tests | ✅ Green — production build on `:3100`, pinned `DATABASE_URL`: mobile-navigation project (390×844), desktop storefront/commerce journeys (incl. the live-DB checkout round-trip), API boundary validation (422/400), wishlist/search fetch-failure resilience, JSON-LD live-inventory + LOW_STOCK 422 (Task 119, via direct pinned-DB manipulation with restore), and the SEO metadata blanket (Task 119) | `tests/e2e/` |
 | Type coverage | `tsconfig.tests.json` | ✅ `npm run typecheck:tests` (node + vitest/globals types) | repo root |
 
 The predecessor's 73-unit/15-e2e tree (ely-beauty imports, undeclared
@@ -776,6 +820,20 @@ Clone over HTTPS; push over SSH through the wrapper with the mandatory
 | ~~LOW~~ | Rating renderers rounded 4.5 → 5 full stars while the aria-label said 4.5 (`stars()` seam existed unused); dead `clampInt`/`cn` exports | Visual/aria mismatch; dead code | **Fixed (Task 118)** — `stars()` wired into ProductCard + PDP (faded half-star); `clampInt` now live in checkout line validation; `cn` removed |
 | ~~LOW~~ | `/order/[number]` decoded `decodeURIComponent` outside its try/catch; `/api/orders/track` returned the full order row where the page uses a subset | `%ZZ` → error page; needless PII in the envelope (phone/street) | **Fixed (Task 118)** — decode guarded; track response mapped to the rendered fields |
 | LOW | Header store picker persists `nordhem_store` but no other module reads it — decorative in this build | The control implies a behaviour that does not exist | Open — documented deferral (wiring it to BuyBox is new feature work) |
+| ~~HIGH~~ | Sitemap-indexed client pages (+ inspiration details + home) published zero/generic metadata: 6 of 12 indexable static routes + all 6 room URLs shipped the layout default title; /shop's SSR HTML carries no product content | Crawlers saw identical titles; 12+6 URLs under-claimed | **Fixed (Task 119)** — route-layout metadata for the five client pages, generateMetadata on inspiration details, page metadata on home; e2e-pinned (SEO metadata blanket specs) |
+| ~~HIGH~~ | `placeOrder()` re-implemented `priceTotals()` and had already diverged (`net===0` → priceTotals waives standard delivery, placeOrder charged $12) | Latent server-money drift behind a false single-source comment | **Fixed (Task 119)** — placeOrder calls priceTotals(); exact-money e2e journey pins behaviour |
+| ~~MEDIUM~~ | JSON-LD availability derived from `stockTotal` (a seed figure no order decrements; NORDLYS 210 vs live inventory 78) while the same page's BuyBox reads live inventory | Structured data claimed InStock after the stores were genuinely empty | **Fixed (Task 119)** — derived from the same live `getInventory()` rows; e2e zeroes rows in the pinned DB and asserts OutOfStock (restored after) |
+| ~~MEDIUM~~ | Overselling floored inventory (`greatest(0,·)`) instead of refusing — a 99-qty line for a 51-stock product succeeded while the PDP printed "Only N left" | Commerce honesty gap at the write boundary | **Fixed (Task 119)** — per-product qty validated against the live inventory aggregate → 422 `LOW_STOCK`; e2e-pinned |
+| ~~MEDIUM~~ | Fabricated claims: "member prices stack" (help), "Member prices on 200+ icons" (family, 24-product catalogue), "MRT directions in the app" (stores), "~2 min reply" chat SLA; the Family join form was a silent no-op email harvest | Copy contradicted computed behaviour / feature set | **Fixed (Task 119)** — reworded to what the system is; join form uses the business/planning demo-disclosure pattern |
+| ~~MEDIUM~~ | Widget ARIA roles (radiogroup/tablist) announced on five surfaces with no APG keyboard implementation | Screen readers announced broken radio/tab patterns | **Fixed (Task 119)** — plain toggle buttons: `role="group"` + `aria-pressed` (docs updated in lockstep) |
+| ~~MEDIUM~~ | The four per-route rate-limit Maps never evicted expired entries (unbounded memory on a long-lived single-node process) and duplicated the window logic 4× | Memory leak + drift risk | **Fixed (Task 119)** — shared `src/lib/rate-limit.ts` factory (fixed window, Retry-After header on 429s, opportunistic expired-key purge); unit-pinned |
+| ~~MEDIUM~~ | Docs-count rot: SKILL.md Appendix B claimed 50 unit / 23 e2e against the 58/27 reality | The exact drift class web-application §14 prescribes pinning | **Fixed (Task 119)** — `tests/unit/docs-counts.test.ts` fs-computes the counts and fails the run on any disagreeing live-tense claim (AGENTS/README/CLAUDE/SKILL) |
+| ~~MEDIUM~~ | `/order/[number]` (PII surface) had no page-level `noindex` — robots.txt disallow alone cannot prevent URL-only indexing of externally-linked pages | PII page indexed by URL | **Fixed (Task 119)** — `robots: { index: false }` page metadata (robots.txt policy unchanged) |
+| ~~MEDIUM~~ | Inspiration listing vs detail budget contradiction ("Room budget" label on two different numbers: $9,800 vs $2,047) | Same-term contradiction on one funnel | **Fixed (Task 119)** — both figures shown, honestly labelled |
+| ~~LOW~~ | Checkout API echoed the full inserted order row (email/phone/address) where the page needs only the order number; BuyBox's confirmation timer raced and leaked on unmount; cart steppers shared one aria-label; search page had no submit control; checkout slots didn't adapt to the fulfilment method; hardcoded hero price + "ends 28 Dec" dates; raw store slugs in order copy; sustainability ESG stats lacked demo framing; dead `getOrCreateCart`/`getCartLines`, Rating `dark` prop, dead track fields; PDP breadcrumb showed the category slug | Minimization/a11y/quality batch | **Fixed (Task 119)** — see the remediation plan for the per-item file:line evidence |
+| LOW | Read-only API GETs (`/api/products`, GET `/api/reviews`, `/api/health`) are unthrottled and uncached | Demo-scope accepted risk (a limiter on the catalogue GET would contaminate the e2e suite's shared "local" bucket) | Open — documented (register row; POST surfaces are limited) |
+| LOW | `placeOrder` decrements delivery orders from the `storeSlug || "tampines"` store only | Delivery orders drain one store's Click & Collect stock (best-effort demo decrement) | Open — documented (redistributing decrements is feature work) |
+| LOW | Wishlist fetches the full catalogue (`/api/products`) then filters client-side | Fine at the 24-product demo scale; a `?slugs=` param would be the fix at real scale | Open — documented |
 | INFO | PDP `aggregateRating`/`ratingCount` are catalogue fiction while the visible review list is live DB rows (e.g. "412 reviews" beside 2 rows); per-product warranty claims (12/25-yr) vs the generic trio cell | Demo-grade invented-content stance (same class as invented product names) | Documented — the invented-content decision covers it; the universal trio cell was reworded (Task 118) to claim only documented facts |
 
 **Verification ledger (2026-11-18, Task 114 remediation cycle):** rootless

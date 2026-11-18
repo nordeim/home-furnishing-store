@@ -55,9 +55,10 @@ function SearchInner() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <h1 className="text-[clamp(1.8rem,4vw,2.6rem)] font-black tracking-tight">Search the range</h1>
-      <form onSubmit={(e) => e.preventDefault()} role="search" className="mt-4 flex max-w-2xl gap-2">
+      <form onSubmit={(e) => { e.preventDefault(); setRetry((r) => r + 1); }} role="search" className="mt-4 flex max-w-2xl gap-2">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Try “oak bookshelf” or “washable sofa”…" aria-label="Search products" autoFocus
           className="flex-1 rounded-full border-2 border-[#111] px-5 py-3 text-[15px] outline-none focus:border-[#0058a3]" />
+        <button type="submit" className="shrink-0 rounded-full bg-[#0058a3] px-7 py-3 text-[15px] font-bold text-white hover:bg-[#004382] focus-ring">Search</button>
       </form>
       {!needle && (
         <div className="mt-6">

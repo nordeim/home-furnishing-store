@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCart } from "@/lib/cart-store";
-
-const STORE_LABEL: Record<string, string> = { tampines: "Tampines", jurong: "Jurong", alexandra: "Alexandra" };
+import { storeName } from "@/lib/catalog";
 
 export interface StockRow { storeSlug: string; quantity: number; aisleBin: string; }
 
@@ -14,11 +13,22 @@ export function BuyBox({ product, stock }: {
   const { add } = useCart();
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
+  // The confirmation timeout is stored and cleared (Task 119 F-11): a second
+  // Add at t≈2.1s used to be wiped early by the stale timer, and unmount
+  // left a pending setState behind.
+  const addedTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (addedTimer.current !== null) window.clearTimeout(addedTimer.current);
+    };
+  }, []);
 
   function handleAdd() {
     add(product, qty);
     setAdded(true);
-    window.setTimeout(() => setAdded(false), 2200);
+    if (addedTimer.current !== null) window.clearTimeout(addedTimer.current);
+    addedTimer.current = window.setTimeout(() => setAdded(false), 2200);
   }
 
   return (
@@ -54,7 +64,7 @@ export function BuyBox({ product, stock }: {
           ) : (
             stock.map((s) => (
               <li key={s.storeSlug} className="flex items-center justify-between rounded-lg bg-[#f5f3ee] px-3 py-2 text-[13px]">
-                <span className="font-bold">{STORE_LABEL[s.storeSlug] ?? s.storeSlug}</span>
+                <span className="font-bold">{storeName(s.storeSlug)}</span>
                 <span className={s.quantity > 5 ? "text-[#2e6b34] font-bold" : s.quantity > 0 ? "text-[#b5502a] font-bold" : "text-[#cc0008] font-bold"}>
                   {s.quantity > 5 ? `● In stock (${s.quantity})` : s.quantity > 0 ? `● Only ${s.quantity} left` : "○ Out of stock"}
                 </span>

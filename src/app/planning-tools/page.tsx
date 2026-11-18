@@ -34,9 +34,9 @@ export default function PlanningPage() {
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl bg-[#f5f3ee] p-6">
           <h2 className="font-black">Room size explorer</h2>
-          <div className="mt-3 flex gap-2" role="radiogroup" aria-label="Room type">
+          <div className="mt-3 flex gap-2" role="group" aria-label="Room type">
             {(["living", "bedroom", "kitchen"] as const).map((r) => (
-              <button key={r} type="button" role="radio" aria-checked={room === r} onClick={() => setRoom(r)}
+              <button key={r} type="button" aria-pressed={room === r} onClick={() => setRoom(r)}
                 className={`rounded-full px-4 py-2 text-[13px] font-bold capitalize focus-ring ${room === r ? "bg-[#111] text-white" : "bg-white"}`}>{r}</button>
             ))}
           </div>

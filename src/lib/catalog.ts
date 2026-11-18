@@ -161,3 +161,15 @@ export function findPromo(code: string): Pick<PromoLike, "kind" | "value"> | nul
 export function productImage(p: { imageUrls: string[] }, i = 0): string {
   return p.imageUrls[i] ?? p.imageUrls[0] ?? "";
 }
+
+/**
+ * Display label for a store slug in customer-facing copy ("tampines" →
+ * "Tampines"). Task 119: the order/track pages rendered the raw slug
+ * ("Pickup at NORDHEM tampines") while BuyBox kept its own label map — this
+ * is the single seam. The seed's full names carry the NORDHEM prefix, so
+ * short labels derive from the slug itself (unit-pinned).
+ */
+export function storeName(slug: string): string {
+  const s = slug.trim();
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}

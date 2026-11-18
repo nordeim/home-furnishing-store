@@ -6,7 +6,7 @@ const FAQS = [
   { q: "How much is delivery?", a: "Standard delivery (3–5 days) from $12, free over $200. Express next-day is $29. Click & Collect is always free and ready in about 2 hours." },
   { q: "Can I return assembled furniture?", a: "Yes — within 365 days with proof of purchase. Unopened flat-packs get a full refund; assembled pieces are assessed at our As-Is counter and refunded or exchanged on the spot." },
   { q: "Do you deliver to walk-up apartments and Sentosa?", a: "Yes, island-wide including walk-ups (a $10 stair-carry applies above level 3 without lift) and Sentosa (entry fees waived for our trucks on weekdays)." },
-  { q: "How do promo codes stack?", a: "One promo code per order, applied before delivery fees. Member prices stack with promo codes — the best combination wins automatically at checkout." },
+  { q: "Can I use more than one promo code?", a: "No — one promo code per order, applied to the goods subtotal before delivery fees. Codes never stack, and there are no separate member prices in this store." },
   { q: "Where are spare parts and screws?", a: "Free at any store's customer-service counter — bring the 6-digit article number from your manual. Hinges and runners carry up to 25-year warranties." },
   { q: "I lost my receipt — can I still track my order?", a: "Yes. Use Track order with your order number and email, or any store can reprint receipts from your Family card or payment card." },
 ];
@@ -25,7 +25,7 @@ export default function HelpPage() {
         ))}
       </div>
       <div className="mt-8 grid gap-3 sm:grid-cols-3">
-        {[["Chat", "Daily 9am–9pm · ~2 min reply"], ["Call 6788 0600", "Daily 9am–9pm"], ["Stores", "Service counters till close"]].map(([a, b]) => (
+        {[["Track order", "Order number + email, online"], ["Call 6788 0600", "Daily 9am–9pm"], ["Stores", "Service counters till close"]].map(([a, b]) => (
           <div key={a} className="rounded-2xl bg-[#f5f3ee] p-5 text-center"><p className="font-black">{a}</p><p className="text-[13px] text-[#5b5b5b]">{b}</p></div>
         ))}
       </div>

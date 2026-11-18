@@ -164,12 +164,12 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 58 tests at the pure seams
+npm run test             # Vitest unit — 79 tests at the pure seams
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 27 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 34 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
@@ -189,7 +189,7 @@ NORDHEM behaviour. TDD is the default for logic changes.
 |----------|--------|------|-------------|
 | `/api/products` | GET | public | Filter (`q`, `cat`, `max`) and sort (`featured`, `popular`, `price-asc/desc`, `rating`, `new`) the catalogue |
 | `/api/promotions/validate` | POST | public | `{ code, subtotalCents }` → promo or `INVALID_PROMO` with min-spend message |
-| `/api/checkout` | POST | public | ⚠️ Places an order (demo, no charge). Validates email/phone/postal/address, rate-limits 20/min/IP, **re-derives all money server-side** |
+| `/api/checkout` | POST | public | ⚠️ Places an order (demo, no charge). Validates email/phone/postal/address, rate-limits 20/min/IP (Retry-After), **re-derives all money server-side via `priceTotals()`**, validates qty against live inventory (422 `LOW_STOCK`), returns `{ orderNumber }` only |
 | `/api/orders/track` | POST | public | `{ orderNumber, email }` → order + items (email must match) |
 | `/api/reviews` | GET/POST | public | List by `productId` / publish a review (rating 1–5, name ≥ 2 chars) |
 | `/api/health` | GET | public | `{ ok: true }` iff the database answers `select 1` |
@@ -233,30 +233,37 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 11 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 58 unit + 27 e2e, all green | NORDHEM-native harness (Tasks 114/117/118); predecessor dead tree retired |
+| Test suite | ✅ 79 unit + 34 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119); counts pinned by tests/unit/docs-counts.test.ts |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
-| SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD | coherent policy: sitemap = indexable only, robots excludes utility/personal |
+| SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
 
-Current cycle (2026-11-18, Task 118): fresh-clone re-audit that caught a
-**dev-mode hydration trap** (Next 16 `allowedDevOrigins` drops the `/_next/hmr`
-websocket for 127.0.0.1 origins — the dev page rendered but never hydrated;
-fixed in `next.config.ts` and unit-pinned), **lineage drift** in the operator's
-inter-session commits (a sibling-project `.env.example` listing 8 variables
-this codebase never reads, a docker-compose describing Redis/Stripe/Adminer
-this architecture has no use for, and a "Maison" init script for extensions
-the schema never needs — all aligned to the codebase and pinned by
-`tests/unit/env-example.test.ts`), the **PDP badge dedupe rollout**
-(`visibleBadges` now filters on product pages too), reviews 422 for unknown
-productIds, rate limits on the track/promo routes, JSON-LD availability
-derived from stock, honest marketing copy (24% not 30%; no "stackable"
-claims), the cart promo-wipe fix with a Remove button, the half-star rating
-renderer, and checkout per-line validation. Details in `worklog.md` and
-`docs/plans/2026-11-18-task118-remediation-plan.md`. Prior cycles: Task 114
+Current cycle (2026-11-18, Task 119): workspace-refresh re-audit that caught
+**the SEO metadata blanket gap** (6 of 12 sitemap-indexed static routes plus
+all 6 inspiration URLs shipped the generic layout title — client pages now
+carry route-layout metadata, inspiration details generateMetadata, home
+claims its own title; the order page gained noindex and the root layout a
+site-level Organization/WebSite JSON-LD), **server-truth drift**
+(`placeOrder` hand-rolled the delivery/GST math instead of calling
+`priceTotals()` and had already diverged on the net===0 edge; JSON-LD
+availability derived from the never-decremented `stockTotal` seed instead of
+live inventory; overselling floored inventory at 0 instead of refusing with
+422 `LOW_STOCK`), the **docs-count rot** class (SKILL.md's Appendix B said
+50 unit / 23 e2e against a 58/27 reality — counts are now fs-computed and
+enforced by `tests/unit/docs-counts.test.ts`, the neo-crm mechanism), a
+**shared rate-limit seam** (the four per-route Map limiters never evicted
+expired keys — one `createRateLimiter` factory now owns the window, Retry-After
+and the purge), **ARIA honesty** (widget roles without the keyboard pattern →
+plain `aria-pressed` toggle groups on five surfaces), and the honesty batch
+(member-prices/200+-icons/ESG-stat copy, the silent Family join form, the
+hardcoded hero price and campaign dates, the inspiration budget contradiction,
+raw store slugs in order copy). Details in `worklog.md` and
+`docs/plans/2026-11-18-task119-remediation-plan.md`. Prior cycles: Task 114
 (remediation: test harness, lint debt, a11y, SEO, PII, rootless PostgreSQL 17
 + live-DB verification), Task 115 (DEPLOYMENT.md rewrite), Task 117 (honesty
-+ API-boundary cycle) — same plan directory.
++ API-boundary cycle), Task 118 (dev-hydration `allowedDevOrigins` fix,
+lineage-drift pins) — same plan directory.
 
 ## Troubleshooting
 

@@ -46,7 +46,7 @@ function ShopInner() {
         const json = (await res.json()) as { ok: boolean; data?: CardProduct[]; error?: { message: string } };
         if (cancelled) return;
         if (!json.ok) throw new Error(json.error?.message ?? "Failed to load");
-        setItems((json.data ?? []).map((p) => ({ ...p, ratingAvg: String((p as unknown as { ratingAvg: string }).ratingAvg) })));
+        setItems((json.data ?? []).map((p) => ({ ...p, ratingAvg: String(p.ratingAvg) })));
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load products.");
       } finally {
@@ -78,12 +78,11 @@ function ShopInner() {
       <p className="mt-2 text-[15px] text-[#5b5b5b]">{items.length} products · prices include 9% GST · free delivery over $200</p>
 
       <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center">
-        <div className="flex gap-2 overflow-x-auto no-scrollbar" role="tablist" aria-label="Filter by room">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar" role="group" aria-label="Filter by room">
           {[{ slug: "all", name: "All" }, ...CATEGORIES].map((c) => (
             <button
               key={c.slug}
-              role="tab"
-              aria-selected={cat === c.slug}
+              aria-pressed={cat === c.slug}
               onClick={() => pickCat(c.slug)}
               className={`shrink-0 rounded-full px-4 py-2 text-[14px] font-bold focus-ring ${cat === c.slug ? "bg-[#111] text-white" : "bg-[#f5f3ee] hover:bg-[#e9e5da]"}`}
             >

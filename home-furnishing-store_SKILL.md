@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 1.2.0
-last_updated: "2026-11-18 (Task 118: dev-hydration allowedDevOrigins fix, lineage-drift pins, honesty + boundary cycle)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 58/58 unit · 27/27 e2e · cold build green (29 routes) · PostgreSQL 17.12 live-verified"
+version: 1.3.0
+last_updated: "2026-11-18 (Task 119: server-truth consolidation, SEO metadata blanket, ARIA honesty, rate-limit seam, docs-counts pin)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 79/79 unit · 34/34 e2e · cold build green (29 routes) · PostgreSQL 17.12 live-verified · counts pinned by tests/unit/docs-counts.test.ts"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -83,8 +83,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 58/58
-npm run test:e2e                                               # 27/27 (live Postgres for the journey)
+npm run test                                                   # 79/79
+npm run test:e2e                                               # 34/34 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -135,13 +135,20 @@ Canonical patterns (full code in the PAD §3.3):
 - **Idempotent single-flight seed** — module-level promise; `onConflictDoNothing`
   throughout; a failed seed resets the promise (retry next request).
 - **Server-side money truth** — `placeOrder()` clamps qty 1–99, drops unknown
-  products, re-derives subtotal/discount/delivery/GST (importing
-  `GST_RATE` / delivery-fee constants from `utils.ts` since Task 117 — one
-  source with `priceTotals`); the route zeroes the client's `totals` field at
-  the boundary.
+  products, validates per-product qty against the LIVE inventory aggregate
+  (422 `LOW_STOCK` — Task 119), and derives every cent by calling
+  `priceTotals()` itself (Task 119: the hand-rolled copy had drifted on the
+  net===0 delivery edge; the constants-import of Task 117 was only half the
+  consolidation); the route zeroes the client's `totals` field at the boundary
+  and returns `{ orderNumber }` only (minimized, like the track route).
 - **API envelope** — `{ ok: true, data } | { ok: false, error: { code, message } }`
   on every route; codes (`VALIDATION`, `RATE_LIMIT`, `EMPTY_BAG`,
   `INVALID_PROMO`, `NOT_FOUND`, …) are stable contract points.
+- **Shared rate-limit seam** — `createRateLimiter({ limit, windowMs })` in
+  `src/lib/rate-limit.ts` (Task 119): fixed window, `retryAfterSec()` for the
+  429's Retry-After header, opportunistic expired-key purge past 256 entries;
+  each write/lookup route instantiates one (20/min/IP) — never re-inline a
+  Map limiter.
 - **External-store client state** — see §6.
 
 ## 6. Client State — the External-Store Pattern (Task 114)
@@ -187,9 +194,13 @@ checkout is best-effort, non-blocking.
 
 ## 8. Accessibility (WCAG 2.2 AA baseline)
 
-Skip link; `aria-label`s on icon buttons; `role="tablist"` (shop category
-chips), `role="radiogroup"` (delivery/payment/star rating);
-`aria-live` on status regions; visible `focus-ring` (3px accent,
+Skip link; `aria-label`s on icon buttons; toggle-button groups use
+`role="group"` + `aria-pressed` (Task 119's stance: widget roles like
+`radiogroup`/`tablist` are reserved for widgets that implement the full APG
+keyboard pattern — announcing radio semantics without arrow-key roving focus
+is worse than plain buttons; the five former role sites were converted);
+`aria-live` on status regions (`role="alert"` for failures — Task 119); visible
+`focus-ring` (3px accent,
 `:focus-visible` only); responsive to 360px; `prefers-reduced-motion`
 disables the entrance animation and smooth scroll. The mobile drawer is a
 non-modal inline panel that MUST close on Escape (keydown handler — pinned by
@@ -261,6 +272,23 @@ matches ("Go" ⊂ "ERGONOMI").
     Stripe/Adminer) and a "Maison" init script for extensions this schema
     doesn't use (Task 118): infra files are code — pin them to the codebase
     with content tests, not convention.
+19. **Announcing widget roles without the keyboard pattern** — `role="radio"`
+    on buttons with no roving tabindex promised screen readers an interaction
+    that never existed (Task 119): use `aria-pressed` toggle semantics, or
+    implement the full APG pattern — never half of it.
+20. **Deriving crawler-facing claims from stale aggregates** — JSON-LD
+    availability read `products.stockTotal`, a seed figure no order ever
+    decrements, while the visible BuyBox read live inventory (Task 119):
+    every structured-data claim must compute from the same rows the page
+    renders.
+21. **Per-route limiter Maps that never evict** — four copies of the same
+    fixed-window limiter kept every expired key forever (Task 119): one
+    factory (`src/lib/rate-limit.ts`) owns the window, Retry-After and the
+    expired-key sweep; routes instantiate it.
+22. **Letting docs count by memory** — SKILL.md's Appendix B drifted to 50/23
+    against a 58/27 reality (Task 119): test counts are documentation claims;
+    `tests/unit/docs-counts.test.ts` fs-computes them and fails the run on
+    drift, so the same-commit sweep is enforced, not remembered.
 
 ## 10. Debugging Guide
 
@@ -281,6 +309,10 @@ matches ("Go" ⊂ "ERGONOMI").
 | Agent-browser ref extraction returns the whole line | Button refs render as `[expanded=false, ref=e477]` — `\[ref=` patterns miss | `grep -oE "ref=e[0-9]+"` then prefix `@` |
 | Search "Try again" button does nothing | `setQ(needle)` with an unchanged value never re-runs the effect | A `retry` counter state in the effect deps (see `search/page.tsx`) |
 | Dev page renders but nothing is interactive (no console errors), only via `http://127.0.0.1:3000` | Next 16 `allowedDevOrigins` dropped the `/_next/hmr` websocket (origin host ≠ banner host); the RSC client discarded the inline flight payload and waits forever — `self.__next_f` array(0) | `allowedDevOrigins: ["127.0.0.1"]` in `next.config.ts` (unit-pinned); or open `localhost:3000`. Detect: `Object.keys(document.body).some(k => k.startsWith("__react"))` after load |
+| PDP spec parses the wrong JSON-LD node | The root layout's site-level Organization/WebSite graph precedes the page's Product node in the DOM — `.first()` grabs the site one (Task 119) | Select by `@type`: iterate all `ld+json` scripts and pick `@type === "Product"` (see `productJsonLd` in storefront.spec.ts) |
+| A green gate contradicts "obvious" file corruption (e.g. `{SLOTS[m…` looks eaten) | The sandbox display layer mangles `[m` sequences in tool OUTPUT — the file bytes are fine (re-confirmed Task 119; Edit-tool arguments can genuinely lose them though) | Verify with `od -c` / `awk NR==n` / a tsc run before rewriting anything |
+| Edit/MultiEdit writes land mangled | The Edit-tool argument path ate `[[d`/`[m` sequences in this sandbox (Task 119) | Do bracket-heavy source edits via a python heredoc through Bash with exact-string asserts, then gate with tsc |
+| e2e spec needs DB manipulation (zero inventory, cleanup) | The spec runs in Node with repo deps — `import { Client } from "pg"` and the pinned URL (`E2E_DATABASE_URL ?? postgresql://postgres:postgres@127.0.0.1:5432/app_db`) | Manipulate in-test, restore in `finally`; pick products no other spec touches (grep the spec tree for slugs first) |
 
 ## 11. Pre-Ship Checklist
 
@@ -348,6 +380,21 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
     layer mangling tool output, and Next 16's cross-origin HMR guard. When
     evidence contradicts a green gate, suspect the environment layer next
     (shell env shadows, proxies, origin guards) before rewriting code.
+14. **Docs count by memory rot; count by test.** Every remediation cycle
+    hand-swept test totals across five documents, and one still drifted
+    (SKILL Appendix B: 50/23 vs 58/27 — Task 119). The neo-crm mechanism
+    (`tests/unit/docs-counts.test.ts`) turns count-lockstep into a gate —
+    and the pin must itself use literal `test()` declarations, because a
+    loop-generated test is invisible to the fs regex that counts it.
+15. **Site-level JSON-LD changes the spec's DOM contract.** Adding the
+    Organization/WebSite graph to the root layout silently broke two PDP
+    specs that parsed `script[ld+json]` with `.first()` — new global markup
+    shifts DOM order; select structured data by `@type`, not position.
+16. **The display layer lies in both directions.** The Task-114 lesson
+    (output mangling `[msg` → `sg`) recurred with `[m` during Task 119 —
+    AND its inverse appeared: the Edit-tool path genuinely ate bracket
+    sequences from new_str, corrupting the file. od/tsc before trusting
+    either direction.
 
 ## 13. Pitfalls to Avoid
 
@@ -371,6 +418,9 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
 - Keep helper modules small and pure (`utils.ts`, `mask.ts`, `local-store.ts`)
   — they are the unit-test surface.
 - Screenshots for docs from the dev server, gate evidence from the build.
+- Test-count changes: run `npm run test` BEFORE the docs sweep —
+  `tests/unit/docs-counts.test.ts` names the stale claim site in its failure
+  message; fix every named site in the same commit.
 
 ## 15. Coding Patterns (representative)
 
@@ -467,8 +517,8 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | Commands & gotchas | `AGENTS.md` |
 | Architecture detail | `Project_Architecture_Document.md` |
 | Decision record | `docs/implementation-plan.md` |
-| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` · `docs/plans/2026-11-18-task117-remediation-plan.md` |
-| Screenshots | `docs/screenshots/01…19-*.png` |
+| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` · `docs/plans/2026-11-18-task117-remediation-plan.md` · `docs/plans/2026-11-18-task118-remediation-plan.md` · `docs/plans/2026-11-18-task119-remediation-plan.md` |
+| Screenshots | `docs/screenshots/01…21-*.png` |
 | SSH push runbook | `docs/how-to-git-push-using-ssh-wrapper_SKILL.md` |
 | Working history | `worklog.md` (Tasks 113+ NORDHEM; the 1–112 predecessor lineage was operator-trimmed) |
 | Money/validators | `src/lib/utils.ts` |
@@ -477,5 +527,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (50) |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (23) |
+| Unit suite | `tests/unit/*.test.ts` (79) |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (34) |

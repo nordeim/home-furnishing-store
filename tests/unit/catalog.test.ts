@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, findPromo } from "@/lib/catalog";
+import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, findPromo, storeName } from "@/lib/catalog";
 
 describe("catalogue invariants (seed + static fallback contract)", () => {
   it("ships the documented counts", () => {
@@ -57,5 +57,18 @@ describe("findPromo (single client-side display source)", () => {
       expect(found!.kind).toBe(p.kind);
       expect(found!.value).toBe(p.value);
     }
+  });
+});
+
+describe("storeName (display label for store slugs in customer copy)", () => {
+  it("capitalizes the seeded store slugs (order/track pages render these labels)", () => {
+    expect(storeName("tampines")).toBe("Tampines");
+    expect(storeName("jurong")).toBe("Jurong");
+    expect(storeName("alexandra")).toBe("Alexandra");
+  });
+
+  it("capitalizes unknown slugs as a graceful fallback and tolerates blanks", () => {
+    expect(storeName("unknown-store")).toBe("Unknown-store");
+    expect(storeName("")).toBe("");
   });
 });

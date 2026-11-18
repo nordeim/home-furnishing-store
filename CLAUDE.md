@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-18 (Task 118: dev-hydration allowedDevOrigins fix, lineage-drift pins, honesty + boundary cycle)
+last_updated: 2026-11-18 (Task 119: server-truth consolidation, SEO metadata blanket, ARIA honesty, rate-limit seam, docs-counts pin)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -127,23 +127,28 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`typecheck:tests` covers the test tree) |
-| `npm run test` | Vitest unit suite (58 tests, pure seams) |
-| `npm run test:e2e` | Playwright e2e (27 tests, production build on :3100) |
+| `npm run test` | Vitest unit suite (79 tests, pure seams) |
+| `npm run test:e2e` | Playwright e2e (34 tests, production build on :3100) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
-**Current state (Task 118):** a NORDHEM-native suite is wired into the gates.
+**Current state (Task 119):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 58 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 79 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
   candidate-scan guard, and the repo-infrastructure contract (`.env.example`
   single-variable, docker-compose postgres-only, `allowedDevOrigins` — the
-  Task 118 lineage-drift pins). Node environment with a localStorage shim
-  (`tests/unit/setup.ts`); no jsdom, no component rendering.
-- **E2E (Playwright, 27 tests)** against the **production build** (the webServer
+  Task 118 lineage-drift pins), the shared fixed-window `createRateLimiter`
+  factory (window math, Retry-After, expired-key purge — Task 119), the
+  `storeName` label seam, and the docs-counts pin (`tests/unit/docs-counts.test.ts`
+  fails the run when any live-tense test-count claim in AGENTS/README/CLAUDE/SKILL
+  disagrees with the fs-computed reality — count-lockstep is now enforced, not
+  remembered). Node environment with a localStorage shim (`tests/unit/setup.ts`);
+  no jsdom, no component rendering.
+- **E2E (Playwright, 34 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
   hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
@@ -151,10 +156,21 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   envelope + boundary validation (invalid/unknown productId → 422, malformed
   body → 400), the 20/min/IP rate-limit pins on track/promo, fetch-failure
   resilience for wishlist/search, cart promo persistence (failed apply keeps
-  the discount; the Remove button), and the full bag → promo → checkout →
-  masked confirmation → tracking journey against live Postgres).
+  the discount; the Remove button), the full bag → promo → checkout →
+  masked confirmation → tracking journey against live Postgres, plus the
+  Task-119 additions: JSON-LD availability deriving from LIVE per-store
+  inventory (the spec zeroes a quiet product's rows in the pinned DB and
+  restores them), the LOW_STOCK 422 on overselling, and the SEO metadata
+  blanket (titles/canonicals for the sitemap-indexed client pages via their
+  route layouts, the order-page noindex, and the site-level Organization/
+  WebSite JSON-LD).
 - The predecessor's 73-unit/15-e2e dead tree (ely-beauty imports) was retired;
   `tsconfig.tests.json` + `typecheck:tests` now cover the NORDHEM test tree.
+- **ARIA stance (Task 119):** toggle-button groups use `role="group"` +
+  `aria-pressed` — widget roles (`radiogroup`/`tablist`) are only for widgets
+  that implement the full APG keyboard pattern (roving tabindex, arrows);
+  announcing radio/tab semantics without the keyboard behaviour is worse than
+  plain buttons.
 
 TDD is the default for logic changes: red → green → refactor, one seam at a
 time (`skills/tdd`). Bug fixes require a regression test that fails before the

@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { formatSGD } from "@/lib/utils";
+import { storeName } from "@/lib/catalog";
 
 interface Found {
-  order: { orderNumber: string; email: string; fullName: string; status: string; deliveryMethod: string; deliverySlot: string; storeSlug: string; totalCents: number; createdAt: string };
+  order: { orderNumber: string; fullName: string; status: string; deliveryMethod: string; deliverySlot: string; storeSlug: string; totalCents: number };
   items: Array<{ id: number; name: string; qty: number; unitPriceCents: number; imageUrl: string }>;
 }
 
@@ -67,7 +68,7 @@ export default function TrackOrderPage() {
               <li key={s} className={`rounded-xl p-2 text-center text-[12px] font-bold ${i <= stepOf(found.order.status) ? "bg-[#111] text-white" : "bg-[#f5f3ee] text-[#8a8a8a]"}`}>{s}</li>
             ))}
           </ol>
-          <p className="mt-3 text-[14px]">{found.order.deliveryMethod === "click-collect" ? `Pickup at NORDHEM ${found.order.storeSlug}` : "Home delivery"} · {found.order.deliverySlot}</p>
+          <p className="mt-3 text-[14px]">{found.order.deliveryMethod === "click-collect" ? `Pickup at NORDHEM ${storeName(found.order.storeSlug)}` : "Home delivery"} · {found.order.deliverySlot}</p>
           <ul className="mt-3 space-y-2 border-t border-[#eee] pt-3">
             {found.items.map((i) => (
               <li key={i.id} className="flex justify-between text-[14px]"><span>{i.qty}× {i.name}</span><span className="font-bold">{formatSGD(i.unitPriceCents * i.qty)}</span></li>

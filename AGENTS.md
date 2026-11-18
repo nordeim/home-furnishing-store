@@ -22,15 +22,22 @@ ORM + PostgreSQL.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
-| `npm run test` | Vitest unit suite (58 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard pins) |
-| `npm run test:e2e` | Playwright e2e (27 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
+| `npm run test` | Vitest unit suite (79 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins) |
+| `npm run test:e2e` | Playwright e2e (34 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (11 tables) |
 
-The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117/118): `tests/unit`
-(7 files) + `tests/e2e` (mobile-navigation + storefront specs incl. the
-fetch-failure resilience pair, the API rate-limit triple, PDP badge dedupe
-and cart promo persistence). The predecessor's 73-unit/15-e2e dead tree
-was retired with it — do not resurrect ely-beauty specs; pin new ones to this `src/`.
+The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117/118/119):
+`tests/unit` (9 files) + `tests/e2e` (mobile-navigation + storefront specs
+incl. the fetch-failure resilience pair, the API rate-limit pins, PDP badge
+dedupe, cart promo persistence, JSON-LD live-inventory + LOW_STOCK commerce
+honesty, and the SEO metadata blanket). The predecessor's 73-unit/15-e2e dead
+tree was retired with it — do not resurrect ely-beauty specs; pin new ones to
+this `src/`.
+
+**Test counts are documentation claims, pinned by test** (Task 119):
+`tests/unit/docs-counts.test.ts` fs-computes the real counts and fails the run
+if any live-tense claim in AGENTS/README/CLAUDE/SKILL disagrees — change the
+docs in the same commit as any test change (count-lockstep, no exceptions).
 
 ## Hard-won gotchas (read before changing anything)
 
@@ -119,8 +126,8 @@ When adding tests, pin them to this `src/` — never resurrect ely-beauty specs.
 rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db" npm run build
 npm run typecheck
 npm run lint          # 0 errors expected (the 7-error lint debt was fixed in Task 114)
-npm run test          # 58/58 unit
-npm run test:e2e      # 27/27 e2e (needs a live Postgres for the checkout journey)
+npm run test          # 79/79 unit
+npm run test:e2e      # 34/34 e2e (needs a live Postgres for the checkout journey)
 ```
 
 There is no hosted CI; the local gate is the only gate.

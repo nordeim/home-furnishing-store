@@ -15,10 +15,33 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://nordhem.sg"),
 };
 
+// Site-level structured data (Task 119 F-26): Organization + WebSite with
+// only verifiable fields — the fictional brand's name, canonical origin and
+// a catalogue search pointer. No invented sameAs profiles or logo assets.
+const siteJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      name: "NORDHEM Singapore",
+      url: "https://nordhem.sg/",
+    },
+    {
+      "@type": "WebSite",
+      name: "NORDHEM Singapore",
+      url: "https://nordhem.sg/",
+    },
+  ],
+};
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en-SG" data-scroll-behavior="smooth">
       <body className="bg-white text-[#111111] antialiased">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd).replace(/</g, "\\u003c") }}
+        />
         <CartProvider>
           <a
             href="#main"

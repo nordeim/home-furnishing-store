@@ -1,10 +1,39 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { getAllProducts, getInspirations } from "@/lib/server-data";
 import { CATEGORIES, STORES } from "@/lib/catalog";
 import { formatSGD } from "@/lib/utils";
 import { ProductCard } from "@/components/ProductCard";
 
 export const dynamic = "force-dynamic";
+
+// The campaign banner's end date is computed at module load, not a hardcoded
+// string that silently goes stale after 28 Dec (Task 119 F-21; module-level
+// constant — the react-hooks/purity-safe pattern from Task 117).
+const CAMPAIGN_END = new Date(new Date().getFullYear(), 11, 28).toLocaleDateString("en-SG", { day: "numeric", month: "short" });
+// Hero price derives from the loaded catalogue (Task 119 F-13): the hero card
+// previously hard-coded 79900 — a catalogue edit would have made the hero
+// contradict the PDP it links to.
+const HERO_SLUG = "makan-extendable-table";
+
+// Task 119: the home page previously shipped only the root layout's default
+// title — a sitemap-indexed storefront root warrants its own claim.
+export const metadata: Metadata = {
+  title: {
+    absolute: "NORDHEM Singapore — Scandinavian furniture, beds, dining & more",
+  },
+  description:
+    "Shop Scandinavian-designed furniture for Singapore homes — 24 products across 8 room categories with island-wide delivery, free Click & Collect at Tampines, Jurong and Alexandra, and 365-day returns. Prices include 9% GST.",
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: "NORDHEM Singapore — Scandinavian furniture, beds, dining & more",
+    description:
+      "Scandinavian-designed furniture for Singapore homes — island-wide delivery, free Click & Collect, 365-day returns.",
+    type: "website",
+    siteName: "NORDHEM Singapore",
+    url: "https://nordhem.sg/",
+  },
+};
 
 export default async function HomePage() {
   const [all, inspo] = await Promise.all([getAllProducts(), getInspirations()]);
@@ -19,7 +48,7 @@ export default async function HomePage() {
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-2 lg:items-center lg:py-16">
           <div className="reveal-up">
             <p className="inline-flex items-center gap-2 rounded-full bg-[#ffdb00] px-3 py-1 text-[12px] font-black uppercase tracking-[0.1em] text-black">
-              Festive market · ends 28 Dec
+              Festive market · ends {CAMPAIGN_END}
             </p>
             <h1 className="mt-4 text-[clamp(2.2rem,5vw,3.8rem)] font-black leading-[1.02] tracking-tight">
               A merrier home starts with makan-ready spaces
@@ -55,7 +84,7 @@ export default async function HomePage() {
               <img src="https://images.pexels.com/photos/3773579/pexels-photo-3773579.png?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200" alt="" className="h-12 w-12 rounded-lg object-cover" />
               <span>
                 <span className="block text-[13px] font-bold">MAKAN extendable table</span>
-                <span className="block text-[13px] text-[#0058a3] font-bold">{formatSGD(79900)} · Shop now →</span>
+                <span className="block text-[13px] text-[#0058a3] font-bold">{formatSGD(all.find((p) => p.slug === HERO_SLUG)?.priceCents ?? 79900)} · Shop now →</span>
               </span>
             </Link>
           </div>

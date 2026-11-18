@@ -1,14 +1,11 @@
 import { db } from "@/db";
-import { cartItems, carts, categories, inspirations, inventory, orderItems, orders, products, promotions, reviews, stores } from "@/db/schema";
+import { categories, inspirations, inventory, orderItems, orders, products, promotions, reviews, stores } from "@/db/schema";
 import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES } from "@/lib/catalog";
 import {
-  EXPRESS_DELIVERY_FEE_CENTS,
-  FREE_DELIVERY_THRESHOLD_CENTS,
-  GST_RATE,
-  STANDARD_DELIVERY_FEE_CENTS,
   orderNumber,
+  priceTotals,
 } from "@/lib/utils";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 let seedPromise: Promise<void> | null = null;
 
@@ -144,6 +141,17 @@ export interface CheckoutInput {
   totals: { subtotalCents: number; discountCents: number; deliveryFeeCents: number; gstCents: number; totalCents: number };
 }
 
+/** A domain refusal at the checkout write boundary (422-class, carries the
+ *  stable envelope code the client can branch on). */
+export class OrderRefusalError extends Error {
+  readonly code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "OrderRefusalError";
+    this.code = code;
+  }
+}
+
 export async function placeOrder(input: CheckoutInput) {
   await ensureSeed();
   const all = await getAllProducts();
@@ -152,29 +160,44 @@ export async function placeOrder(input: CheckoutInput) {
   const lines = input.lines
     .map((l) => ({ product: byId.get(l.productId), qty: Math.min(99, Math.max(1, Math.floor(l.qty))) }))
     .filter((l): l is { product: ProductRow; qty: number } => !!l.product);
-  if (lines.length === 0) throw new Error("Your bag is empty.");
+  if (lines.length === 0) throw new OrderRefusalError("EMPTY_BAG", "Your bag is empty.");
   const subtotalCents = lines.reduce((a, l) => a + l.product.priceCents * l.qty, 0);
-  let discountCents = 0;
+  let promo: { kind: string; value: number } | null = null;
   const code = (input.promoCode ?? "").trim().toUpperCase();
   if (code) {
     const v = await validatePromo(code, subtotalCents);
-    if (!v.ok) throw new Error(v.error);
-    const promo = v.promo;
-    discountCents = promo.kind === "percent" ? Math.round((subtotalCents * promo.value) / 100) : Math.min(subtotalCents, promo.value);
+    if (!v.ok) throw new OrderRefusalError("INVALID_PROMO", v.error);
+    promo = v.promo;
   }
-  const net = subtotalCents - discountCents;
-  // Delivery rules share the single source of truth with the display path
-  // (priceTotals): express $29, Click & Collect free, standard $12 / free ≥ $200 net.
-  const deliveryFeeCents =
-    input.deliveryMethod === "express"
-      ? EXPRESS_DELIVERY_FEE_CENTS
-      : input.deliveryMethod === "click-collect"
-        ? 0
-        : net >= FREE_DELIVERY_THRESHOLD_CENTS
-          ? 0
-          : STANDARD_DELIVERY_FEE_CENTS;
-  const gstCents = Math.round(((net + deliveryFeeCents) * GST_RATE) / (1 + GST_RATE));
-  const totalCents = net + deliveryFeeCents;
+  // Honesty of commerce (Task 119): the write boundary refuses what it cannot
+  // fulfil — qty is checked against LIVE inventory (the same per-store rows
+  // the PDP BuyBox renders scarcity from), aggregated per product across
+  // lines so a crafted duplicate-line payload cannot slip past a per-line cap.
+  const qtyByProduct = new Map<number, number>();
+  for (const l of lines) qtyByProduct.set(l.product.id, (qtyByProduct.get(l.product.id) ?? 0) + l.qty);
+  const invRows = await db
+    .select({ productId: inventory.productId, qty: sql<number>`coalesce(sum(${inventory.quantity}), 0)` })
+    .from(inventory)
+    .where(inArray(inventory.productId, [...qtyByProduct.keys()]))
+    .groupBy(inventory.productId);
+  const available = new Map(invRows.map((r) => [r.productId, Number(r.qty)]));
+  for (const l of lines) {
+    const have = available.get(l.product.id) ?? 0;
+    if ((qtyByProduct.get(l.product.id) ?? 0) > have) {
+      throw new OrderRefusalError("LOW_STOCK", `Only ${have} left of ${l.product.name} right now — adjust the quantity and try again.`);
+    }
+  }
+  // Money truth is the priceTotals() seam — the same function the cart and
+  // checkout displays use (Task 119: the previous hand-rolled copy had
+  // already drifted from it on the net===0 delivery edge; display and server
+  // can no longer diverge).
+  const totals = priceTotals({
+    subtotalCents,
+    promo,
+    deliveryMethod:
+      input.deliveryMethod === "express" ? "express" : input.deliveryMethod === "click-collect" ? "click-collect" : "delivery",
+  });
+  const { discountCents, deliveryFeeCents, gstCents, totalCents } = totals;
   const num = orderNumber();
 
   const inserted = await db
@@ -231,25 +254,4 @@ export async function trackOrder(orderNumberInput: string, email: string) {
   if (!order || order.email.toLowerCase() !== email.trim().toLowerCase()) return null;
   const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id));
   return { order, items };
-}
-
-// Server cart helpers (cookie token → rows) for API parity with localStorage cart.
-export async function getOrCreateCart(token: string) {
-  const rows = await db.select().from(carts).where(eq(carts.token, token)).limit(1);
-  if (rows[0]) return rows[0];
-  const ins = await db.insert(carts).values({ token }).returning();
-  return ins[0]!;
-}
-
-export async function getCartLines(token: string) {
-  const cart = await getOrCreateCart(token);
-  const items = await db.select().from(cartItems).where(eq(cartItems.cartId, cart.id));
-  const all = await getAllProducts();
-  const byId = new Map(all.map((p) => [p.id, p]));
-  return {
-    cart,
-    lines: items
-      .map((i) => ({ item: i, product: byId.get(i.productId) }))
-      .filter((x): x is { item: typeof x.item; product: ProductRow } => !!x.product),
-  };
 }

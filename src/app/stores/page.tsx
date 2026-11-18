@@ -30,7 +30,7 @@ export default function StoresPage() {
       </div>
       <div className="mt-8 rounded-2xl bg-[#0058a3] p-8 text-white">
         <h2 className="text-[20px] font-black">Getting here is half the fun</h2>
-        <p className="mt-1 text-white/80">Free shuttle weekends from Tampines, Boon Lay & Woodlands interchanges · Free parking for Family members · MRT directions in the app.</p>
+        <p className="mt-1 text-white/80">Free shuttle weekends from Tampines, Boon Lay & Woodlands interchanges · Free parking for Family members · Nearest MRT listed on each store card above.</p>
         <Link href="/food" className="mt-4 inline-block rounded-full bg-[#ffdb00] px-6 py-3 text-[14px] font-black text-black">See the restaurant menu →</Link>
       </div>
     </div>

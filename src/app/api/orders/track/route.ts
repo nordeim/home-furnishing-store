@@ -1,29 +1,18 @@
 import { NextResponse } from "next/server";
 import { trackOrder } from "@/lib/server-data";
+import { createRateLimiter } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-// PII lookup boundary — same fixed-window limiter posture as the checkout and
-// reviews routes (20 req/min/IP, in-process; documented single-node limitation).
-// The order-number+email pair makes enumeration hard, but the limiter still
-// bounds the probe surface.
-const rate = new Map<string, { n: number; reset: number }>();
-
-function throttled(ip: string): boolean {
-  const now = Date.now();
-  const row = rate.get(ip);
-  if (!row || now > row.reset) {
-    rate.set(ip, { n: 1, reset: now + 60_000 });
-    return false;
-  }
-  row.n += 1;
-  return row.n > 20;
-}
+// PII lookup boundary — shared fixed-window seam (src/lib/rate-limit.ts):
+// 20 req/min/IP, in-process, expired keys swept. The order-number+email pair
+// makes enumeration hard, but the limiter still bounds the probe surface.
+const limiter = createRateLimiter({ limit: 20, windowMs: 60_000 });
 
 export async function POST(req: Request) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-  if (throttled(ip)) {
-    return NextResponse.json({ ok: false, error: { code: "RATE_LIMIT", message: "Too many attempts. Please wait a minute." } }, { status: 429 });
+  if (limiter.throttled(ip)) {
+    return NextResponse.json({ ok: false, error: { code: "RATE_LIMIT", message: "Too many attempts. Please wait a minute." } }, { status: 429, headers: { "Retry-After": String(limiter.retryAfterSec(ip)) } });
   }
   let body: { orderNumber?: string; email?: string };
   try {

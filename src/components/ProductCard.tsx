@@ -19,13 +19,13 @@ export interface CardProduct {
   isNew: boolean;
 }
 
-export function Rating({ avg, count, dark = false }: { avg: string | number; count: number; dark?: boolean }) {
+export function Rating({ avg, count }: { avg: string | number; count: number }) {
   const v = typeof avg === "string" ? parseFloat(avg) : avg;
   // The shared stars() seam (unit-pinned): a 4.5 renders 4 full + a half —
   // inline Math.round used to show 5 full stars while the aria-label said 4.5.
   const s = stars(v);
   return (
-    <span className={`inline-flex items-center gap-1 text-[13px] ${dark ? "text-white" : "text-[#5b5b5b]"}`} aria-label={`Rated ${v} out of 5 from ${count} reviews`}>
+    <span className="inline-flex items-center gap-1 text-[13px] text-[#5b5b5b]" aria-label={`Rated ${v} out of 5 from ${count} reviews`}>
       <span className="tracking-tight text-[#e5a000]" aria-hidden="true">
         {"★".repeat(s.full)}
         {s.half && <span className="text-[#e5a000]/40">★</span>}

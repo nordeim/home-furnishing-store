@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAllProducts, getInventory, getProductBySlug, getReviews } from "@/lib/server-data";
 import { formatSGD, stars, visibleBadges } from "@/lib/utils";
+import { CATEGORIES } from "@/lib/catalog";
 import { ProductCard } from "@/components/ProductCard";
 import { BuyBox } from "@/components/BuyBox";
 import { ReviewSection } from "@/components/ReviewSection";
@@ -36,12 +37,22 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   if (!p) notFound();
   const [stock, reviews, all] = await Promise.all([getInventory(p.id), getReviews(p.id), getAllProducts()]);
   const related = all.filter((x) => x.categorySlug === p.categorySlug && x.id !== p.id).slice(0, 4);
+  // Breadcrumb label uses the category's display name, not the raw slug
+  // (Task 119 F-16: "living" → "Living room"; CATEGORIES is the single map).
+  const categoryName = CATEGORIES.find((c) => c.slug === p.categorySlug)?.name ?? p.categorySlug;
   const discount = p.compareAtCents && p.compareAtCents > p.priceCents
     ? Math.round(((p.compareAtCents - p.priceCents) / p.compareAtCents) * 100)
     : 0;
   // Shared star seam: a 4.5 renders 4 full + a faded half, not 5 full stars
   // while the aria-label truthfully says 4.5 (Task 118 F-14).
   const ratingStars = stars(parseFloat(String(p.ratingAvg)));
+  // Availability truth is the SAME live per-store inventory rows the BuyBox
+  // renders (Task 119 F-3): products.stockTotal is a seed figure no order ever
+  // decrements, so deriving from it let the structured data claim InStock
+  // while every store honestly showed none. When inventory data is
+  // unavailable (degrade path — empty rows), NO availability claim is made
+  // rather than asserting a state the page cannot know.
+  const availableQty = stock.reduce((a, s) => a + s.quantity, 0);
 
   // schema.org Product structured data — server-controlled catalogue values
   // only; `<` is escaped so no string can break out of the script element.
@@ -63,10 +74,9 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       url: `${SITE}/product/${p.slug}`,
       priceCurrency: "SGD",
       price: (p.priceCents / 100).toFixed(2),
-      // Derived from the product's stock aggregate — never a hardcoded
-      // InStock claim (BuyBox on this page can honestly show a degrade or
-      // out-of-stock state).
-      availability: p.stockTotal > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      ...(stock.length > 0
+        ? { availability: availableQty > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock" }
+        : {}),
       itemCondition: "https://schema.org/NewCondition",
     },
   };
@@ -79,7 +89,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       />
       <nav aria-label="Breadcrumb" className="text-[13px] text-[#5b5b5b]">
         <Link href="/" className="hover:underline">Home</Link> ·{" "}
-        <Link href={`/shop?cat=${p.categorySlug}`} className="hover:underline">{p.categorySlug}</Link> ·{" "}
+        <Link href={`/shop?cat=${p.categorySlug}`} className="hover:underline">{categoryName}</Link> ·{" "}
         <span className="font-semibold text-black">{p.name}</span>
       </nav>
 
@@ -130,7 +140,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               <p className="text-[17px] text-[#8a8a8a] line-through">{formatSGD(p.compareAtCents)}</p>
             )}
           </div>
-          <p className="text-[13px] text-[#5b5b5b]">Price includes 9% GST · or 3 payments of {formatSGD(Math.round(p.priceCents / 3))} interest-free</p>
+          <p className="text-[13px] text-[#5b5b5b]">Price includes 9% GST · or 3 interest-free payments from {formatSGD(Math.floor(p.priceCents / 3))}</p>
 
           <p className="mt-5 text-[15px] leading-relaxed">{p.description}</p>
 

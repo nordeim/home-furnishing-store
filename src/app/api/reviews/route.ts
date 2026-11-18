@@ -3,23 +3,13 @@ import { db } from "@/db";
 import { getReviews } from "@/lib/server-data";
 import { products, reviews } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { createRateLimiter } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-// Unauthenticated write boundary — same fixed-window limiter posture as the
-// checkout route (20 req/min/IP, in-process; documented single-node limitation).
-const rate = new Map<string, { n: number; reset: number }>();
-
-function throttled(ip: string): boolean {
-  const now = Date.now();
-  const row = rate.get(ip);
-  if (!row || now > row.reset) {
-    rate.set(ip, { n: 1, reset: now + 60_000 });
-    return false;
-  }
-  row.n += 1;
-  return row.n > 20;
-}
+// Unauthenticated write boundary — shared fixed-window seam
+// (src/lib/rate-limit.ts): 20 req/min/IP, in-process, expired keys swept.
+const limiter = createRateLimiter({ limit: 20, windowMs: 60_000 });
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -32,8 +22,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-    if (throttled(ip)) {
-      return NextResponse.json({ ok: false, error: { code: "RATE_LIMIT", message: "Too many attempts. Please wait a minute." } }, { status: 429 });
+    if (limiter.throttled(ip)) {
+      return NextResponse.json({ ok: false, error: { code: "RATE_LIMIT", message: "Too many attempts. Please wait a minute." } }, { status: 429, headers: { "Retry-After": String(limiter.retryAfterSec(ip)) } });
     }
 
     let body: { productId?: number; author?: string; rating?: number; title?: string; body?: string };

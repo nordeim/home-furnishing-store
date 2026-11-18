@@ -325,8 +325,8 @@ rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_
 npm run typecheck
 npm run typecheck:tests
 npm run lint                # 0 errors / 0 warnings expected
-npm run test                # 58/58 unit (Vitest, pure seams)
-npm run test:e2e            # 27/27 e2e — needs the live Postgres
+npm run test                # 79/79 unit (Vitest, pure seams)
+npm run test:e2e            # 34/34 e2e — needs the live Postgres
 ```
 
 One-time before e2e: `npm run test:e2e:install` (installs the pinned

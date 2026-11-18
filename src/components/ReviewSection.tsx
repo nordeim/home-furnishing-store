@@ -11,6 +11,9 @@ export function ReviewSection({ productId, initial }: { productId: number; initi
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
+  // Whether the current message is an error (role="alert") or a success note
+  // (role="status") — failures must announce assertively (Task 119 F-17).
+  const [msgIsError, setMsgIsError] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -27,11 +30,14 @@ export function ReviewSection({ productId, initial }: { productId: number; initi
       if (!json.ok || !json.data) throw new Error(json.error?.message ?? "Could not save review");
       // Trust the server-issued timestamp (the API returns createdAt); the
       // client clock is only a fallback for a malformed response.
-      setList((prev) => [{ ...json.data!, createdAt: json.data!.createdAt || new Date().toISOString() }, ...prev]);
+      const saved = json.data;
+      setList((prev) => [{ ...saved, createdAt: saved.createdAt || new Date().toISOString() }, ...prev]);
       setAuthor(""); setTitle(""); setBody(""); setRating(5);
       setMsg("Thanks — your review is live.");
+      setMsgIsError(false);
     } catch (err) {
       setMsg(err instanceof Error ? err.message : "Could not save review.");
+      setMsgIsError(true);
     } finally {
       setBusy(false);
     }
@@ -56,15 +62,15 @@ export function ReviewSection({ productId, initial }: { productId: number; initi
           <h3 className="font-black">Write a review</h3>
           <label className="mt-3 block text-[13px] font-bold">Your name<input value={author} onChange={(e) => setAuthor(e.target.value)} required minLength={2} maxLength={60} className="mt-1 w-full rounded-lg border border-[#ddd] bg-white px-3 py-2 font-normal outline-none focus:border-[#0058a3]" placeholder="e.g. Priya R." /></label>
           <label className="mt-3 block text-[13px] font-bold">Rating
-            <span className="mt-1 flex gap-1" role="radiogroup" aria-label="Star rating">
+            <span className="mt-1 flex gap-1" role="group" aria-label="Star rating">
               {[1, 2, 3, 4, 5].map((n) => (
-                <button type="button" key={n} role="radio" aria-checked={rating === n} aria-label={`${n} star${n > 1 ? "s" : ""}`} onClick={() => setRating(n)} className={`grid h-9 w-9 place-items-center rounded-full text-[20px] focus-ring ${n <= rating ? "text-[#e5a000]" : "text-[#ccc]"}`}>★</button>
+                <button type="button" key={n} aria-pressed={rating === n} aria-label={`${n} star${n > 1 ? "s" : ""}`} onClick={() => setRating(n)} className={`grid h-9 w-9 place-items-center rounded-full text-[20px] focus-ring ${n <= rating ? "text-[#e5a000]" : "text-[#ccc]"}`}>★</button>
               ))}
             </span>
           </label>
           <label className="mt-3 block text-[13px] font-bold">Headline<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} className="mt-1 w-full rounded-lg border border-[#ddd] bg-white px-3 py-2 font-normal outline-none focus:border-[#0058a3]" placeholder="Sum it up" /></label>
           <label className="mt-3 block text-[13px] font-bold">Review<textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} maxLength={2000} className="mt-1 w-full rounded-lg border border-[#ddd] bg-white px-3 py-2 font-normal outline-none focus:border-[#0058a3]" placeholder="How is the quality, comfort, assembly?" /></label>
-          {msg && <p className="mt-3 text-[13px] font-bold" role="status">{msg}</p>}
+          {msg && <p className="mt-3 text-[13px] font-bold" role={msgIsError ? "alert" : "status"}>{msg}</p>}
           <button disabled={busy} className="mt-4 w-full rounded-full bg-[#111] py-3 text-[14px] font-bold text-white hover:bg-[#0058a3] disabled:opacity-60 focus-ring">
             {busy ? "Publishing…" : "Publish review"}
           </button>
