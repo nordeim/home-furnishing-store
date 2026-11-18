@@ -116,6 +116,79 @@ test.describe("API envelope", () => {
     expect(json.error.code).toBe("INVALID_PROMO");
     expect(json.error.message).toContain("minimum spend");
   });
+
+  test("reviews POST rejects an invalid productId with 422 (not a 500 FK crash)", async ({ request }) => {
+    const res = await request.post("/api/reviews", {
+      data: { productId: -1, author: "E2E Tester", rating: 5, title: "n/a", body: "validation probe" },
+    });
+    expect(res.status()).toBe(422);
+    const json = (await res.json()) as { ok: boolean; error: { code: string } };
+    expect(json.ok).toBe(false);
+    expect(json.error.code).toBe("VALIDATION");
+  });
+
+  test("reviews POST rejects a bad rating / short name with 422", async ({ request }) => {
+    const res = await request.post("/api/reviews", {
+      data: { productId: 1, author: "X", rating: 9, body: "n/a" },
+    });
+    expect(res.status()).toBe(422);
+    const json = (await res.json()) as { ok: boolean; error: { code: string } };
+    expect(json.error.code).toBe("VALIDATION");
+  });
+
+  test("malformed JSON body is a 400 client error, not a 500 (envelope on every route)", async ({ page }) => {
+    // reviews / promotions/validate / orders/track all parse req.json() at the
+    // boundary; a non-JSON body must be a 400 envelope, never a thrown 500.
+    // NOTE: Playwright's request API JSON-serializes string `data` (wrapping it
+    // in quotes makes it valid JSON), so send the raw bytes from the browser.
+    await page.goto("/");
+    const statuses = await page.evaluate(async () => {
+      const out: Array<{ path: string; status: number; ok: boolean }> = [];
+      for (const path of ["/api/reviews", "/api/promotions/validate", "/api/orders/track"]) {
+        const res = await fetch(path, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "not-json{",
+        });
+        const json = (await res.json()) as { ok: boolean };
+        out.push({ path, status: res.status, ok: json.ok });
+      }
+      return out;
+    });
+    for (const r of statuses) {
+      expect(r.status, `${r.path} malformed body`).toBe(400);
+      expect(r.ok, `${r.path} envelope ok flag`).toBe(false);
+    }
+  });
+});
+
+test.describe("client resilience (fetch failure ≠ empty state)", () => {
+  // The bag journey pins the happy path; these pin the FAILURE path — a dead
+  // API must render an explicit error + retry, never the "empty" state.
+  test("wishlist shows an error state (not 'Nothing saved yet') when the API fails", async ({ page }) => {
+    // Seed the wishlist BEFORE app boot — the external store reads localStorage
+    // once at module load, so a post-load setItem would never reach it.
+    await page.addInitScript(() => {
+      localStorage.setItem("nordhem_wish_v1", JSON.stringify(["solbakken-3-seat-sofa"]));
+    });
+    await page.route("**/api/products", (route) => route.abort());
+    await page.goto("/wishlist");
+    // Scope to <main>: Next's route announcer also carries role=alert.
+    await expect(page.locator("main").getByRole("alert")).toBeVisible();
+    await expect(page.getByText(/couldn.?t load your wishlist/i)).toBeVisible();
+    // The misleading empty-state copy must NOT render while items are saved.
+    await expect(page.getByRole("heading", { name: /Your wishlist \(1\)/ })).toBeVisible();
+    await expect(page.getByText("Nothing saved yet")).toHaveCount(0);
+  });
+
+  test("search shows an error state (not 'No products found') when the API fails", async ({ page }) => {
+    await page.route("**/api/products*", (route) => route.abort());
+    await page.goto("/search?q=sofa");
+    // Scope to <main>: Next's route announcer also carries role=alert.
+    await expect(page.locator("main").getByRole("alert")).toBeVisible();
+    await expect(page.getByText(/couldn.?t load results/i)).toBeVisible();
+    await expect(page.getByText(/No products found/)).toHaveCount(0);
+  });
 });
 
 test.describe("bag → checkout → order journey (live DB)", () => {

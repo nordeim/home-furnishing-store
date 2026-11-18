@@ -111,8 +111,8 @@ export default async function HomePage() {
             <Link href="/shop?sort=popular" className="rounded-full bg-[#111] px-5 py-2.5 text-[14px] font-bold text-white hover:bg-[#0058a3] focus-ring">View all →</Link>
           </div>
           <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-            {best.map((p, i) => (
-              <ProductCard key={p.id} p={{ ...p, ratingAvg: String(p.ratingAvg) }} index={i} />
+            {best.map((p) => (
+              <ProductCard key={p.id} p={{ ...p, ratingAvg: String(p.ratingAvg) }} />
             ))}
           </div>
         </div>

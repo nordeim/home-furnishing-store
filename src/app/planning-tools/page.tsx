@@ -4,6 +4,11 @@ import { useMemo, useState } from "react";
 
 const STEPS = ["Measure", "Plan in 3D", "Shop the list", "We install"];
 
+// Sessions book from tomorrow onward. Computed at module load (not during
+// render — react-hooks/purity) so it never ships a stale hardcoded date; the
+// value is per-process, which is fine for a demo booking form.
+const MIN_DATE = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+
 export default function PlanningPage() {
   const [room, setRoom] = useState<"living" | "bedroom" | "kitchen">("living");
   const [len, setLen] = useState(4.2);
@@ -54,10 +59,13 @@ export default function PlanningPage() {
           <h2 className="font-black">Book a free 45-min planning session</h2>
           <p className="mt-1 text-[14px] text-white/70">Video call or in-store at Tampines · bring your floor plan (HDB MyNiceHome PDF works).</p>
           {booked ? (
-            <p className="mt-4 rounded-xl bg-[#1d3a24] p-4 font-bold" role="status">Session requested for {date || "your chosen slot"} — we&apos;ll confirm by SMS.</p>
+            <div className="mt-4 rounded-xl bg-[#1d3a24] p-4 font-bold" role="status">
+              Session requested for {date} — we&apos;ll confirm by SMS.
+              <p className="mt-1 text-[12px] font-normal text-white/70">Demo storefront: no email or SMS is actually sent.</p>
+            </div>
           ) : (
             <form onSubmit={(e) => { e.preventDefault(); if (date) setBooked(true); }} className="mt-4 space-y-3">
-              <label className="block text-[13px] font-bold">Preferred date<input required type="date" value={date} onChange={(e) => setDate(e.target.value)} min="2026-11-19" className="mt-1 w-full rounded-xl px-4 py-3 text-black outline-none" /></label>
+              <label className="block text-[13px] font-bold">Preferred date<input required type="date" value={date} onChange={(e) => setDate(e.target.value)} min={MIN_DATE} className="mt-1 w-full rounded-xl px-4 py-3 text-black outline-none" /></label>
               <label className="block text-[13px] font-bold">Email<input required type="email" placeholder="you@email.com" className="mt-1 w-full rounded-xl px-4 py-3 text-black outline-none" /></label>
               <button className="w-full rounded-full bg-[#ffdb00] py-3.5 font-black text-black hover:bg-white focus-ring">Request session</button>
             </form>

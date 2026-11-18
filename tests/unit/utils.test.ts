@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS } from "@/lib/utils";
+import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges } from "@/lib/utils";
 
 describe("formatSGD", () => {
   // The currency symbol depends on the node build's ICU data ($ vs S$) — assert
@@ -105,5 +105,52 @@ describe("stars", () => {
     expect(stars(4.4)).toEqual({ full: 4, half: false, empty: 1 });
     expect(stars(7)).toEqual({ full: 5, half: false, empty: 0 });
     expect(stars(-1)).toEqual({ full: 0, half: false, empty: 5 });
+  });
+});
+
+describe("familyVoucherCents (Family programme rule: $5 voucher per 1,000 pts)", () => {
+  // The rule is printed on the /family page itself: "10 points per $1 —
+  // $5 voucher every 1,000 pts". Expected values are worked examples of that
+  // rule, NOT recomputations of the implementation.
+  it("default $1,200/yr spend → 12,000 pts → 12 × $5 = $60", () => {
+    expect(familyVoucherCents(12000)).toBe(6000);
+  });
+  it("sub-threshold points earn nothing", () => {
+    expect(familyVoucherCents(999)).toBe(0);
+  });
+  it("exactly 1,000 pts → one $5 voucher", () => {
+    expect(familyVoucherCents(1000)).toBe(500);
+  });
+  it("partial vouchers floor down: 2,999 pts → 2 vouchers", () => {
+    expect(familyVoucherCents(2999)).toBe(1000);
+  });
+  it("zero and negative inputs earn nothing", () => {
+    expect(familyVoucherCents(0)).toBe(0);
+    expect(familyVoucherCents(-500)).toBe(0);
+  });
+});
+
+describe("visibleBadges (dedupe catalogue badge literals against computed chips)", () => {
+  // ProductCard renders a computed red "-{discount}%" chip and a blue "New"
+  // chip; several catalogue rows ALSO carry the same value as a badge literal
+  // (e.g. nordlys badges ["-24%"] with compareAt −24%). The helper must keep
+  // legitimate badges and drop only the duplicates.
+  it("drops a percent literal that matches the computed discount", () => {
+    expect(visibleBadges(["-24%"], { isNew: false, discountPercent: 24 })).toEqual([]);
+    expect(visibleBadges(["Bestseller", "-19%"], { isNew: false, discountPercent: 19 })).toEqual(["Bestseller"]);
+  });
+  it("keeps a percent literal that does NOT match the computed discount", () => {
+    expect(visibleBadges(["-17%"], { isNew: false, discountPercent: 23 })).toEqual(["-17%"]);
+  });
+  it("drops a literal 'New' when the isNew chip already renders, keeps it otherwise", () => {
+    expect(visibleBadges(["New"], { isNew: true, discountPercent: 0 })).toEqual([]);
+    expect(visibleBadges(["New"], { isNew: false, discountPercent: 0 })).toEqual(["New"]);
+  });
+  it("keeps qualitative badges untouched", () => {
+    expect(visibleBadges(["Family pick"], { isNew: true, discountPercent: 10 })).toEqual(["Family pick"]);
+    expect(visibleBadges([], { isNew: true, discountPercent: 10 })).toEqual([]);
+  });
+  it("dedupes repeated literals within the badge list itself", () => {
+    expect(visibleBadges(["Bestseller", "Bestseller"], { isNew: false, discountPercent: 0 })).toEqual(["Bestseller"]);
   });
 });

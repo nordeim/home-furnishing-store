@@ -156,19 +156,21 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 
 ## Testing
 
-A NORDHEM-native suite is wired into the gates (Task 114):
+A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 40 tests at the pure seams
-                         # (money math, validators, catalogue invariants,
-                         #  findPromo, local-store contract, maskEmail,
-                         #  robots/sitemap SEO policy)
-npm run test:e2e         # Playwright e2e — 18 tests against the PRODUCTION build
+npm run test             # Vitest unit — 50 tests at the pure seams
+                         # (money math, validators, Family voucher rule,
+                         #  badge dedupe, catalogue invariants, findPromo,
+                         #  local-store contract, maskEmail, robots/sitemap
+                         #  SEO policy)
+npm run test:e2e         # Playwright e2e — 23 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
-                         # JSON-LD, robots/sitemap, API envelope, and the full
-                         # bag → promo → checkout → masked confirmation →
-                         # tracking journey (live Postgres)
+                         # JSON-LD, robots/sitemap, API envelope + boundary
+                         #  validation, wishlist/search fetch-failure states,
+                         #  and the full bag → promo → checkout → masked
+                         #  confirmation → tracking journey (live Postgres)
 npm run test:e2e:install # one-time: install the Playwright Chromium build
 ```
 
@@ -226,17 +228,23 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 11 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 40 unit + 18 e2e, all green | NORDHEM-native harness (Task 114); predecessor dead tree retired |
+| Test suite | ✅ 50 unit + 23 e2e, all green | NORDHEM-native harness (Tasks 114/117); predecessor dead tree retired |
 | Mobile navigation | ✅ Verified (agent-browser + e2e) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD | coherent policy: sitemap = indexable only, robots excludes utility/personal |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
 
-Latest cycle (2026-11-18, Task 114): rootless PostgreSQL 17 install + live-DB
-verification (checkout round-trip, seed counts), full code audit, test-harness
-re-pin, lint-debt refactor, mobile-nav a11y fix, SEO + PII remediation, 16 dev-
-server screenshots — details in `worklog.md` and
-`docs/plans/2026-11-18-task114-remediation-plan.md`.
+Current cycle (2026-11-18, Task 117): fresh-clone re-audit (mobile-nav
+taxonomy re-verified clean — no Tailwind v4 bug), honesty fixes — the Family
+voucher calculator's 10x overstatement, BuyBox's fabricated degrade-path
+stock, wishlist/search error-vs-empty states, API boundary guards (invalid
+productId 422, malformed body 400, reviews rate limit), `placeOrder` money
+constants unified with `priceTotals`, dead-code sweep, and docs alignment
+(route count 29). Details in `worklog.md` and
+`docs/plans/2026-11-18-task117-remediation-plan.md`. Prior cycles: Task 114
+(remediation: test harness, lint debt, a11y, SEO, PII, rootless PostgreSQL 17
++ live-DB verification) and Task 115 (DEPLOYMENT.md rewrite) — same plan
+directory.
 
 ## Troubleshooting
 

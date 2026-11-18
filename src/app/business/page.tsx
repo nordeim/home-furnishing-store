@@ -56,7 +56,10 @@ export default function BusinessPage() {
             <div className="flex justify-between border-t border-white/15 pt-3 text-[19px] font-black"><dt>Estimate</dt><dd>{formatSGD(subtotal - trade)}</dd></div>
           </dl>
           {sent ? (
-            <p className="mt-4 rounded-xl bg-[#1d3a24] p-4 text-[14px] font-bold" role="status">Request received — our trade desk replies within one business day.</p>
+            <div className="mt-4 rounded-xl bg-[#1d3a24] p-4 text-[14px] font-bold" role="status">
+              Request received — our trade desk replies within one business day.
+              <p className="mt-1 text-[12px] font-normal text-white/70">Demo storefront: no request is actually sent.</p>
+            </div>
           ) : (
             <form onSubmit={(e) => { e.preventDefault(); if (email.includes("@")) setSent(true); }} className="mt-4 space-y-2">
               <label className="block text-[13px] font-bold">Work email<input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ops@company.sg" className="mt-1 w-full rounded-xl px-4 py-3 text-black outline-none" /></label>

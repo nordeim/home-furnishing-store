@@ -1,4 +1,4 @@
-# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.1.0
+# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.2.0
 
 **Classification:** Internal Engineering Reference
 **Status:** DEFINITIVE, PRODUCTION-LOCKED BLUEPRINT
@@ -34,6 +34,22 @@ Nothing is here "because it's popular."
   (killing the unknown-code→10% phantom discount); package identity fixed
   (`home-furnishing-store`); 16 dev-server screenshots under `docs/screenshots/`.
   Remediation plan + evidence: `docs/plans/2026-11-18-task114-remediation-plan.md`.
+- `[CA]` **Task 117 remediation cycle (this revision):** fresh-clone re-audit
+  (mobile-nav taxonomy re-verified clean at 390/768/1440 — no Tailwind v4 bug);
+  honesty fixes — Family voucher calculator 10× overstatement (now the pure,
+  unit-pinned `familyVoucherCents`), BuyBox no longer fabricates stock on the
+  degrade path, wishlist/search render explicit error+retry states instead of
+  misleading empty states; API boundary hardening — malformed JSON bodies are
+  400 envelopes (reviews/promo/track), invalid `productId` is a 422, reviews
+  POST gained the checkout-route rate limiter; `placeOrder` now imports the
+  pricing constants from `utils.ts` (single source with `priceTotals`);
+  badge dedupe (`visibleBadges`), dead-code sweep (`cartToken`, `ilike`/`or`
+  re-exports, inert `animationDelay`), dynamic dates (planning-tools min,
+  footer year), honest demo framing on lead-capture forms. Suite grew to
+  **50 unit + 23 e2e** (fetch-failure resilience specs + API boundary specs).
+  Documentation drift swept: route count corrected to **29** everywhere,
+  §1.2/§3.2/§3.3 stale rows brought current. Plan:
+  `docs/plans/2026-11-18-task117-remediation-plan.md`.
 
 ---
 
@@ -84,7 +100,7 @@ non-app artifacts remain in the tree (§10).
 | DB driver | `pg` (node-postgres) | 8.20.0 | Pooled connections, `drizzle-orm/node-postgres` adapter |
 | Database | PostgreSQL | 15+ recommended | Relational catalogue/orders; `drizzle-kit push` for schema |
 | Lint | ESLint flat config + `eslint-config-next/core-web-vitals` | 9.39.4 | One linter, Next-aware rules |
-| Unit/E2E (future) | Vitest / Playwright | **not installed** | The inherited suites are not runnable here (§7, §10) |
+| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Task 117) — 50 unit + 23 e2e, all green (§7) |
 | Imagery | Pexels CDN | — | Licensed stock, zero local pipeline (ADR-007) |
 
 ### 1.3 Architecture Decision Records (ADRs)
@@ -277,7 +293,7 @@ home-furnishing-store/
 │   │   ├── page.tsx              ← home: hero, rooms, bestsellers, deals, stores, brand (237 lines)
 │   │   ├── globals.css           ← Tailwind v4 @theme tokens + candidate-scan guard + utilities
 │   │   ├── not-found.tsx         ← branded 404
-│   │   ├── robots.ts · sitemap.ts← SEO: allow-all + sitemap pointer; 18 static + 24 product + 6 room URLs
+│   │   ├── robots.ts · sitemap.ts← SEO: robots disallows utility/personal routes; sitemap = 12 static + 24 product + 6 room (42 indexable URLs)
 │   │   ├── shop/ search/         ← client pages filtering via /api/products (debounced 250ms)
 │   │   ├── product/[slug]/       ← RSC: metadata, gallery, stock/aisle, reviews, related (122 lines)
 │   │   ├── cart/ checkout/       ← bag UI; 3-step checkout (contact→delivery→payment) with live totals
@@ -309,14 +325,14 @@ home-furnishing-store/
 │                                   runbook + wrapper, session/prompt archives, build zips
 ├── skills/                        ← vendored agent-skills library (operator contract: excluded
 │                                   from checking/testing/compilation)
-├── tests/                         ← INHERITED from ely-beauty — NOT runnable here (§7, §10)
+├── tests/                         ← NORDHEM-native suite (Task 114/117): unit (Vitest, 50) + e2e (Playwright, 23)
 ├── scripts/                       ← generate-imagery.mjs (lineage), 2 broken inherited scripts
 ├── AGENTS.md · CLAUDE.md · README.md · this PAD
 ├── drizzle.config.json            ← local dev DB URL for drizzle-kit push
 ├── eslint.config.mjs · tsconfig.json · tsconfig.tests.json (inherited)
-├── vitest.config.ts · playwright.config.ts (inherited, inactive)
-└── worklog.md                     ← session-by-session history (Tasks 1–112 are the
-                                    predecessor lineage; 113+ are this repo)
+├── vitest.config.ts · playwright.config.ts (live: node-env unit; prod-build e2e on :3100)
+└── worklog.md                     ← session-by-session history (Tasks 113+; the operator
+                                    trimmed the Tasks 1–112 predecessor lineage at 6ef81d1)
 ```
 
 ### 3.3 Critical Code Patterns
@@ -407,22 +423,24 @@ caller (`ShopInner`, `ReviewSection`, checkout, tracking); codes (`VALIDATION`,
 `RATE_LIMIT`, `EMPTY_BAG`, `INVALID_PROMO`, `NOT_FOUND`, …) are stable
 contract points for the future test suite.
 
-**Pattern 5 — Hydration-safe client persistence (`cart-store.tsx`)**
+**Pattern 5 — Hydration-safe client persistence (`cart-store.tsx`, Task 114 shape)**
 
 ```typescript
-useEffect(() => {
-  setLines(read<CartLine[]>(CART_KEY, []));   // localStorage only exists client-side
-  setWishlist(read<string[]>(WISH_KEY, []));
-  setPromoCode(localStorage.getItem("nordhem_promo") || null);
-  setLoaded(true);                            // gates persistence writes until hydrated
-}, []);
+// src/lib/local-store.ts — external store factory (SSR-safe, quota-safe)
+const linesStore = createLocalStore<CartLine[]>(CART_KEY, []);
+// consumer (src/lib/cart-store.tsx)
+const lines = useSyncExternalStore(linesStore.subscribe, linesStore.getSnapshot, linesStore.getServerSnapshot);
 ```
 
 *Why this pattern:* reading `localStorage` during render would break SSR
-hydration (server HTML ≠ first client render); the mount-effect + `loaded` flag
-is the standard pattern — and the reason the new
-`react-hooks/set-state-in-effect` lint rule flags it (known debt, §10;
-remediation is `useSyncExternalStore`, not suppression).
+hydration, and the old mount-effect + `loaded` flag tripped the
+React Compiler-era `react-hooks/set-state-in-effect` lint rule (the 7-error
+debt fixed in Task 114 by refactor, never by suppression).
+`useSyncExternalStore` handles the server/client split natively —
+`getServerSnapshot` during SSR/hydration, the persisted client snapshot after
+mount — with no effect-body setState. Params-derived state uses the
+adjust-during-render pattern (compare a prev-value during render, setState in
+the conditional branch — see `shop/`, `search/`, Header route-close).
 
 ---
 
@@ -572,8 +590,8 @@ auth is a design event, not a patch.
 
 | Category | Files | Status | Location |
 |----------|-------|--------|----------|
-| Unit (Vitest) | 5 files, 40 tests | ✅ Green — pure seams: `utils` money/validators, `catalog` invariants + `findPromo`, `local-store` external-store contract, `mask`, robots/sitemap SEO policy | `tests/unit/` |
-| E2E (Playwright) | 2 specs, 18 tests | ✅ Green — production build on `:3100`, pinned `DATABASE_URL`: mobile-navigation project (390×844) + desktop storefront/commerce journeys (incl. the live-DB checkout round-trip) | `tests/e2e/` |
+| Unit (Vitest) | 5 files, 50 tests | ✅ Green — pure seams: `utils` money/validators + `familyVoucherCents` + `visibleBadges` (Task 117), `catalog` invariants + `findPromo`, `local-store` external-store contract, `mask`, robots/sitemap SEO policy | `tests/unit/` |
+| E2E (Playwright) | 2 specs, 23 tests | ✅ Green — production build on `:3100`, pinned `DATABASE_URL`: mobile-navigation project (390×844), desktop storefront/commerce journeys (incl. the live-DB checkout round-trip), API boundary validation (422/400) and wishlist/search fetch-failure resilience (Task 117) | `tests/e2e/` |
 | Type coverage | `tsconfig.tests.json` | ✅ `npm run typecheck:tests` (node + vitest/globals types) | repo root |
 
 The predecessor's 73-unit/15-e2e tree (ely-beauty imports, undeclared
@@ -605,8 +623,8 @@ the code, never to hit a number.
 rm -rf .next && DATABASE_URL=… npm run build   # cold build (cache can mask the scan-guard failure)
 npm run typecheck && npm run typecheck:tests  # app scope + test tree
 npm run lint                                   # 0 errors / 0 warnings
-npm run test                                   # 40/40 unit
-npm run test:e2e                               # 18/18 e2e (live Postgres for the journey)
+npm run test                                   # 50/50 unit
+npm run test:e2e                               # 23/23 e2e (live Postgres for the journey)
 # runtime smoke of touched routes against `npm run start`
 ```
 
@@ -621,7 +639,7 @@ DATABASE_URL="postgresql://…" npm run build    # needs the variable present (m
 npm run start                                  # serves the build
 ```
 
-Output: `.next/` — 30 routes (20 pages, 6 API handlers, robots, sitemap,
+Output: `.next/` — 29 routes (20 pages, 6 API handlers, robots, sitemap,
 not-found); data pages are dynamic (`ƒ`), static pages (`/cart`, `/checkout`,
 `/help`, …) prerender as shells that hydrate client state. Build toolchain:
 Turbopack + PostCSS (`@tailwindcss/postcss`). **Always build cold** — the
@@ -669,7 +687,8 @@ npm run dev                       # http://localhost:3000
 |---------|----------|---------|
 | `npm run dev` / `build` / `start` | root | Dev / cold production build / serve |
 | `npm run lint` | root | ESLint (flat; `skills/` ignored) |
-| `npm run typecheck` | root | App-scope `tsc --noEmit` |
+| `npm run typecheck` / `typecheck:tests` | root | App-scope / test-tree `tsc --noEmit` |
+| `npm run test` / `test:e2e` | root | Vitest unit (50) / Playwright e2e (23, production build on :3100) |
 | `npx drizzle-kit push` | root | Apply `src/db/schema.ts` |
 | `python3 docs/ssh_git_wrapper_v3.py --key-file K --remote git@github.com:nordeim/home-furnishing-store.git` | repo | Verified SSH push to main (see the runbook) |
 
@@ -679,9 +698,9 @@ npm run dev                       # http://localhost:3000
 - Tailwind arbitrary values for one-offs, `@theme` tokens for repeats; slash-form
   aspect ratios only (`aspect-[16/9]`) — colon-form breaks the build via the
   candidate scan (the guard at the top of `globals.css` is load-bearing).
-- ESLint flat config enforces Next core-web-vitals; the 7 known
-  `set-state-in-effect` errors are documented debt — fix by refactoring with
-  test coverage, never by disabling the rule.
+- ESLint flat config enforces Next core-web-vitals; the former 7-error
+  `set-state-in-effect` debt was fixed in Task 114 by refactor (external
+  stores + adjust-during-render) — never by disabling the rule.
 
 ### 9.4 Git Workflow
 
@@ -696,7 +715,7 @@ Clone over HTTPS; push over SSH through the wrapper with the mandatory
 
 | Priority | Issue | Impact | Status |
 |----------|-------|--------|--------|
-| ~~CRITICAL~~ | Clean production build broken: Tailwind v4 candidate scan read prose files → invalid `aspect-ratio: 3:1` → PostCSS "Missed semicolon". The `@source not` guard was missing from this repo's `globals.css`. | Build gate failed on every clean checkout | **Fixed (v1.0.0)** — guard restored; clean build verified green (30 routes) |
+| ~~CRITICAL~~ | Clean production build broken: Tailwind v4 candidate scan read prose files → invalid `aspect-ratio: 3:1` → PostCSS "Missed semicolon". The `@source not` guard was missing from this repo's `globals.css`. | Build gate failed on every clean checkout | **Fixed (v1.0.0)** — guard restored; clean build verified green (29 routes) |
 | ~~HIGH~~ | Inherited test suite not runnable (73 unit + 15 e2e ely-beauty files, undeclared packages, ~40 non-existent modules) | No executable regression net | **Fixed (Task 114)** — NORDHEM-native harness: 40 unit + 18 e2e green, typecheck:tests wired; dead tree + config-clobbering scripts retired |
 | ~~HIGH~~ | `.env.example` described the predecessor stack | Misleads every setup | **Fixed (v1.0.0)** — real single-variable contract + precedence note |
 | ~~MEDIUM~~ | 7 `react-hooks/set-state-in-effect` lint errors | Lint gate not green; cascading-render risk | **Fixed (Task 114)** — `local-store.ts` external stores + `useSyncExternalStore` (cart/wishlist/promo/store-picker) + adjust-during-render (Header route-close, search param-follow, shop URL-derived filters). Lint 0/0 without suppressing the rule; behaviour pinned by the e2e journey |
@@ -705,10 +724,17 @@ Clone over HTTPS; push over SSH through the wrapper with the mandatory
 | ~~MEDIUM~~ | SEO: robots allowed everything; no PDP OG/canonical/JSON-LD; `data-scroll-behavior` missing (Next 16 console warning); sitemap listed robots-excluded routes | Indexation noise + missing rich results | **Fixed (Task 114)** — coherent policy (robots disallow × 7; sitemap 12+24+6=42 indexable URLs; PDP canonical+OG+Product JSON-LD; attribute set) — all unit/e2e pinned |
 | ~~LOW~~ | Promo display logic duplicated (cart + checkout) with a phantom 10% default for unknown codes | Misleading totals preview | **Fixed (Task 114)** — shared `findPromo()` in `catalog.ts`; server re-derivation unchanged |
 | ~~LOW~~ | `package.json` name was `nextjs-postgresql-template` | Identity drift | **Fixed (Task 114)** — `home-furnishing-store` |
+| ~~HIGH~~ | Family voucher calculator granted $5 per 100 pts instead of the advertised per-1,000 (×10 overstatement) | Customer-facing monetary claim was wrong | **Fixed (Task 117)** — pure `familyVoucherCents()` in `utils.ts`, unit-pinned against the page's printed rule |
+| ~~MEDIUM~~ | BuyBox fabricated a 12-unit Tampines stock row when inventory data was missing (degrade path) | False availability on every PDP with Postgres down | **Fixed (Task 117)** — honest "stock information unavailable" state; agent-browser-verified on the dead-DB path |
+| ~~MEDIUM~~ | Wishlist/search pages had no error state: fetch failure → unhandled rejection + the misleading empty state | Error ≡ empty; "Nothing saved yet" beside a non-zero count | **Fixed (Task 117)** — explicit error + retry states (`role="alert"`); pinned by route-interception e2e specs |
+| ~~MEDIUM~~ | Reviews POST: no rate limit; negative `productId` → FK-crash 500; malformed body → 500 on reviews/promo/track | Abuse vector + client errors reported as server faults | **Fixed (Task 117)** — 20/min/IP limiter (checkout pattern), positive-integer validation → 422, JSON parse guard → 400; all e2e-pinned |
+| ~~LOW~~ | Computed discount/New chips duplicated catalogue badge literals (`-24%` shown twice on NORDLYS) | Visual noise on 10 of 24 cards | **Fixed (Task 117)** — `visibleBadges()` dedupe helper, unit-pinned |
+| ~~LOW~~ | Dead code: `cartToken()`, `ilike`/`or` re-exports, inert `animationDelay`/`index` prop; stale hardcoded dates | Surface noise, drift risk | **Fixed (Task 117)** — removed; planning-tools date min and footer year are dynamic |
+| ~~LOW~~ | Lead-capture forms (business quote, planning session) confirmed requests that were never sent | UX dishonesty | **Fixed (Task 117)** — demo framing added ("no request is actually sent"), matching the checkout's "Demo — no charge" pattern |
 | LOW | `docs/ssh_git_wrapper_v3.py` default remote still `nordeim/ely-beauty` | A wrapper run without `--remote` pushes to the wrong repo | Open (override documented everywhere; changing the default touches a live operator tool) |
 | LOW | `drizzle.config.json` hardcodes a local dev URL | Surprises on remote DBs | Open — documented in README/.env.example |
 | INFO | Auth + real payments deferred by decision (ADR-006); reviews unauthenticated; per-process rate limiter weak behind multi-instance LB | Demo-scope accepted risks | Documented; revisit before any production use |
-| INFO | Display pricing rules duplicated (`priceTotals` helper vs inline logic in `placeOrder`) | Future drift risk | Reduced in Task 114 (promo lookup unified); full unification still open |
+| ~~INFO~~ | Display pricing rules duplicated (`priceTotals` helper vs inline magic numbers in `placeOrder`) | Drift risk between display and truth | **Fixed (Task 117)** — `placeOrder` imports `GST_RATE` / `FREE_DELIVERY_THRESHOLD_CENTS` / `STANDARD_` / `EXPRESS_DELIVERY_FEE_CENTS` from `utils.ts`; behaviour pinned by the exact-value e2e journey |
 | INFO | `nordhem_promo` persisted format changed raw → JSON in the Task 114 store refactor | One-time cosmetic migration: a returning visitor re-applies their promo once | Documented in `cart-store.tsx` |
 
 **Verification ledger (2026-11-18, Task 114 remediation cycle):** rootless
@@ -720,11 +746,26 @@ total 233820; tracking 200 on match / 404 on mismatch) — *Verified*; mobile
 menu at 390×844 + desktop at 1280×800 via agent-browser (open/navigate/
 auto-close/toggle; Escape gap found → fixed → re-verified) — *Verified*;
 lint 0 errors 0 warnings — *Verified*; typecheck + typecheck:tests clean —
-*Verified*; vitest 40/40 — *Verified*; Playwright 18/18 against the production
-build — *Verified*; cold `next build` green (30 routes) — *Verified*; 16
+*Verified*; vitest 40/40 — *Verified* (Task 114; 50/50 as of Task 117); Playwright 18/18 against the production
+build — *Verified*; cold `next build` green (29 routes) — *Verified*; 16
 dev-server screenshots (PNG signature + dimensions validated) — *Verified*;
 no Tailwind v4 mobile-nav bug found (the family's v4 trap is the candidate
 scan, guarded and cold-build-proven) — *Verified*.
+
+**Verification ledger (2026-11-18, Task 117 remediation cycle):** fresh clone
+→ rootless PostgreSQL 17.12 reinstalled (same skill, same pinned URL) → 11
+tables + seed re-verified (24/8/72/5/3/6/3) — *Verified*; baseline gates on
+the clone (lint 0/0, typechecks clean, 40/40 unit, 18/18 e2e, cold build 29
+routes) — *Verified*; mobile drawer taxonomy at 390×844 + 768×900 + 1440×900
+(open/toggle/Escape/navigate/auto-close; hamburger hidden ≥1024; no Tailwind v4
+display-toggle bug — the drawer conditionally mounts) — *Verified*; every Task
+117 fix TDD'd (RED observed first) — *Verified*; final gates lint 0/0 ·
+typecheck + typecheck:tests clean · vitest 50/50 · Playwright 23/23 against the
+production build (incl. the live-DB checkout journey, money math exact) · cold
+build green (29 routes) — *Verified*; BuyBox degrade state + Family calculator
+re-verified in-browser on the dead-DB path ($1,200/yr → $60 vouchers) —
+*Verified*; 19 dev-server screenshots (16 refreshed + 3 new surfaces) —
+*Verified* (PNG/dimension/hash-validated).
 
 ---
 
@@ -745,8 +786,8 @@ scan, guarded and cold-build-proven) — *Verified*.
 | `src/app/product/[slug]/page.tsx` | ~122 | PDP: metadata, gallery, stock/aisle, reviews, related |
 | `src/app/api/checkout/route.ts` | ~62 | Validation, rate limit, `placeOrder` delegation, envelope |
 | `src/components/Header.tsx` | ~180 | Utility strip, search, store picker (external store), category nav, mobile drawer (Escape-close) |
-| `tests/unit/` | 5 files | 40 unit tests at the pure seams (utils, catalog, local-store, mask, robots/sitemap) |
-| `tests/e2e/` | 2 specs | 18 Playwright tests: mobile-navigation (390×844) + storefront/commerce journeys |
+| `tests/unit/` | 5 files | 50 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges, catalog, local-store, mask, robots/sitemap) |
+| `tests/e2e/` | 2 specs | 23 Playwright tests: mobile-navigation (390×844), storefront/commerce journeys, API boundary validation, fetch-failure resilience |
 | `src/components/ProductCard.tsx` | ~92 | Card + `Rating`; wishlist/add-to-bag affordances |
 | `docs/implementation-plan.md` | 42 | Stack decision record, deviations ledger, acceptance criteria |
 | `docs/reference-investigation.md` | 45 | Reference-site evidence (Verified/Reasoned/Assumed/Unknown) |

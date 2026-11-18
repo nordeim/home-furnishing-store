@@ -25,7 +25,9 @@ export function ReviewSection({ productId, initial }: { productId: number; initi
       });
       const json = (await res.json()) as { ok: boolean; data?: ReviewVM; error?: { message: string } };
       if (!json.ok || !json.data) throw new Error(json.error?.message ?? "Could not save review");
-      setList((prev) => [{ ...json.data!, createdAt: new Date().toISOString() }, ...prev]);
+      // Trust the server-issued timestamp (the API returns createdAt); the
+      // client clock is only a fallback for a malformed response.
+      setList((prev) => [{ ...json.data!, createdAt: json.data!.createdAt || new Date().toISOString() }, ...prev]);
       setAuthor(""); setTitle(""); setBody(""); setRating(5);
       setMsg("Thanks — your review is live.");
     } catch (err) {
@@ -43,7 +45,7 @@ export function ReviewSection({ productId, initial }: { productId: number; initi
           {list.length === 0 && <li className="rounded-xl bg-[#f5f3ee] p-6 text-[#5b5b5b]">No reviews yet — be the first to share how it fits your home.</li>}
           {list.map((r) => (
             <li key={r.id} className="rounded-xl p-5 ring-1 ring-[#ece8df]">
-              <p className="text-[#e5a000]" aria-label={`${r.rating} out of 5 stars`}>{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</p>
+              <p className="text-[#e5a000]" aria-label={`${r.rating} out of 5 stars`}><span aria-hidden="true">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span></p>
               <p className="mt-1 font-bold">{r.title || "Verified review"}</p>
               <p className="mt-1 text-[14px] text-[#444]">{r.body}</p>
               <p className="mt-2 text-[13px] text-[#8a8a8a]">{r.author} {r.verified && <span className="ml-1 rounded-full bg-[#e8f3e9] px-2 py-0.5 font-bold text-[#2e6b34]">Verified buyer</span>}</p>

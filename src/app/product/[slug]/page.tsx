@@ -156,7 +156,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         <section className="mt-12">
           <h2 className="text-[22px] font-black">Pairs well with</h2>
           <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {related.map((r, i) => <ProductCard key={r.id} p={{ ...r, ratingAvg: String(r.ratingAvg) }} index={i} />)}
+            {related.map((r) => <ProductCard key={r.id} p={{ ...r, ratingAvg: String(r.ratingAvg) }} />)}
           </div>
         </section>
       )}

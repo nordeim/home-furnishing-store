@@ -69,10 +69,6 @@ export function orderNumber(): string {
   return `NH-${ymd}-${rand}`;
 }
 
-export function cartToken(): string {
-  return `ct_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
-}
-
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 export function isValidEmail(v: string): boolean {
   return EMAIL_RE.test(v.trim());
@@ -91,6 +87,39 @@ export function stars(rating: number): { full: number; half: boolean; empty: num
   const full = Math.floor(r);
   const half = r - full >= 0.5;
   return { full, half, empty: 5 - full - (half ? 1 : 0) };
+}
+
+/** Family programme rule (as printed on /family): $5 voucher per 1,000 pts. */
+export const FAMILY_VOUCHER_CENTS = 500;
+export const FAMILY_POINTS_PER_VOUCHER = 1000;
+
+export function familyVoucherCents(points: number): number {
+  if (!Number.isFinite(points) || points <= 0) return 0;
+  return Math.floor(points / FAMILY_POINTS_PER_VOUCHER) * FAMILY_VOUCHER_CENTS;
+}
+
+/**
+ * Badges a product card should actually render. ProductCard already draws a
+ * computed red "-{discount}%" chip and a blue "New" chip; several catalogue
+ * rows carry the same value as a badge literal, which used to render the chip
+ * twice. Drop only the duplicates — a percent literal that does not match the
+ * computed discount, and every qualitative badge, stays.
+ */
+export function visibleBadges(
+  badges: string[],
+  computed: { isNew: boolean; discountPercent: number },
+): string[] {
+  const percentLiteral = `-${computed.discountPercent}%`;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const b of badges) {
+    if (computed.discountPercent > 0 && b === percentLiteral) continue;
+    if (computed.isNew && b.toLowerCase() === "new") continue;
+    if (seen.has(b)) continue;
+    seen.add(b);
+    out.push(b);
+  }
+  return out;
 }
 
 export function cn(...parts: Array<string | false | null | undefined>): string {

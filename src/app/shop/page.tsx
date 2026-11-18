@@ -132,7 +132,7 @@ function ShopInner() {
         </div>
       ) : (
         <div className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          {items.map((p, i) => <ProductCard key={p.id} p={p} index={i} />)}
+          {items.map((p) => <ProductCard key={p.id} p={p} />)}
         </div>
       )}
     </div>

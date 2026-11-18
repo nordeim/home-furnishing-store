@@ -22,6 +22,10 @@ function SearchInner() {
 
   const [items, setItems] = useState<CardProduct[]>([]);
   const [loading, setLoading] = useState(false);
+  // A failed fetch is an error — distinct from a genuine zero-result query.
+  const [error, setError] = useState(false);
+  // Bumping this re-runs the search effect (retry button) without changing q.
+  const [retry, setRetry] = useState(0);
 
   const needle = q.trim();
   // The empty-needle case is a render derivation, not a state reset — with no
@@ -33,16 +37,20 @@ function SearchInner() {
     let cancelled = false;
     const t = setTimeout(async () => {
       setLoading(true); // inside the async callback — not sync in the effect body
+      setError(false);
       try {
         const res = await fetch(`/api/products?q=${encodeURIComponent(needle)}`);
         const json = (await res.json()) as { ok: boolean; data?: CardProduct[] };
         if (!cancelled && json.ok) setItems(json.data ?? []);
+        else if (!cancelled) setError(true);
+      } catch {
+        if (!cancelled) setError(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
     }, 250);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [needle]);
+  }, [needle, retry]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
@@ -62,13 +70,20 @@ function SearchInner() {
         </div>
       )}
       {loading && <p className="mt-6 text-[#5b5b5b]" role="status">Searching…</p>}
-      {!loading && needle && (
+      {error && !loading && (
+        <div className="mt-4 rounded-xl bg-[#fff4f4] p-10 text-center" role="alert">
+          <p className="text-[18px] font-black text-[#a00008]">We couldn’t load results</p>
+          <p className="mt-1 text-[#5b5b5b]">The catalogue service didn’t answer. Check your connection and try again.</p>
+          <button onClick={() => setRetry((n) => n + 1)} className="mt-3 rounded-full bg-[#0058a3] px-6 py-2.5 text-[14px] font-bold text-white hover:bg-[#004382] focus-ring">Try again</button>
+        </div>
+      )}
+      {!loading && !error && needle && (
         <p className="mt-6 text-[15px]" role="status"><strong>{shown.length}</strong> result{shown.length === 1 ? "" : "s"} for “{needle}”</p>
       )}
       <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {shown.map((p, i) => <ProductCard key={p.id} p={{ ...p, ratingAvg: String(p.ratingAvg) }} index={i} />)}
+        {shown.map((p) => <ProductCard key={p.id} p={{ ...p, ratingAvg: String(p.ratingAvg) }} />)}
       </div>
-      {!loading && needle && shown.length === 0 && (
+      {!loading && !error && needle && shown.length === 0 && (
         <div className="mt-4 rounded-xl bg-[#f5f3ee] p-10 text-center">
           <p className="text-[18px] font-black">No products found for “{needle}”</p>
           <Link href="/shop" className="mt-3 inline-block font-bold text-[#0058a3] underline">Browse everything instead →</Link>

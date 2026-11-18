@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { formatSGD } from "@/lib/utils";
+import { familyVoucherCents, formatSGD } from "@/lib/utils";
 
 export default function FamilyPage() {
   const [spend, setSpend] = useState(1200);
   const points = useMemo(() => Math.floor(spend * 10), [spend]);
-  const reward = useMemo(() => Math.floor(points / 100) * 5 * 100, [points]);
+  const reward = useMemo(() => familyVoucherCents(points), [points]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">

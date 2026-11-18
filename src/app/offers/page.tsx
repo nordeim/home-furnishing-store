@@ -30,7 +30,7 @@ export default async function OffersPage() {
 
       <h2 className="mt-10 text-[22px] font-black">Discounted now ({deals.length})</h2>
       <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {deals.map((p, i) => <ProductCard key={p.id} p={{ ...p, ratingAvg: String(p.ratingAvg) }} index={i} />)}
+        {deals.map((p) => <ProductCard key={p.id} p={{ ...p, ratingAvg: String(p.ratingAvg) }} />)}
       </div>
 
       <div className="mt-10 rounded-2xl bg-[#111] p-8 text-white">

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { formatSGD } from "@/lib/utils";
+import { formatSGD, visibleBadges } from "@/lib/utils";
 import { useCart } from "@/lib/cart-store";
 
 export interface CardProduct {
@@ -32,23 +32,26 @@ export function Rating({ avg, count, dark = false }: { avg: string | number; cou
   );
 }
 
-export function ProductCard({ p, index = 0 }: { p: CardProduct; index?: number }) {
+export function ProductCard({ p }: { p: CardProduct }) {
   const { add, toggleWish, isWished } = useCart();
   const wished = isWished(p.slug);
   const img = p.imageUrls[0] ?? "";
   const discount = p.compareAtCents && p.compareAtCents > p.priceCents
     ? Math.round(((p.compareAtCents - p.priceCents) / p.compareAtCents) * 100)
     : 0;
+  // Several catalogue rows carry the computed chip value as a badge literal
+  // (e.g. badges ["-24%"] on a −24% product) — render each chip once.
+  const badges = visibleBadges(p.badges, { isNew: p.isNew, discountPercent: discount }).slice(0, 2);
 
   return (
-    <article className="group relative flex flex-col overflow-hidden rounded-xl bg-white ring-1 ring-[#ece8df] transition hover:shadow-[0_16px_40px_rgba(0,0,0,0.10)]" style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}>
+    <article className="group relative flex flex-col overflow-hidden rounded-xl bg-white ring-1 ring-[#ece8df] transition hover:shadow-[0_16px_40px_rgba(0,0,0,0.10)]">
       <Link href={`/product/${p.slug}`} className="relative block aspect-[4/3] overflow-hidden bg-[#f5f3ee] focus-ring" aria-label={p.name}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={img} alt={p.name} loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]" />
         <div className="absolute left-3 top-3 flex flex-col gap-1.5">
           {p.isNew && <span className="rounded-full bg-[#0058a3] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white">New</span>}
           {discount > 0 && <span className="rounded-full bg-[#cc0008] px-2.5 py-1 text-[11px] font-bold text-white">-{discount}%</span>}
-          {p.badges.slice(0, 1).map((b) => (
+          {badges.map((b) => (
             <span key={b} className="rounded-full bg-[#ffdb00] px-2.5 py-1 text-[11px] font-bold text-black">{b}</span>
           ))}
         </div>

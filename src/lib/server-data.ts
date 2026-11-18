@@ -1,8 +1,14 @@
 import { db } from "@/db";
 import { cartItems, carts, categories, inspirations, inventory, orderItems, orders, products, promotions, reviews, stores } from "@/db/schema";
 import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES } from "@/lib/catalog";
-import { orderNumber } from "@/lib/utils";
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import {
+  EXPRESS_DELIVERY_FEE_CENTS,
+  FREE_DELIVERY_THRESHOLD_CENTS,
+  GST_RATE,
+  STANDARD_DELIVERY_FEE_CENTS,
+  orderNumber,
+} from "@/lib/utils";
+import { and, desc, eq, sql } from "drizzle-orm";
 
 let seedPromise: Promise<void> | null = null;
 
@@ -157,9 +163,17 @@ export async function placeOrder(input: CheckoutInput) {
     discountCents = promo.kind === "percent" ? Math.round((subtotalCents * promo.value) / 100) : Math.min(subtotalCents, promo.value);
   }
   const net = subtotalCents - discountCents;
+  // Delivery rules share the single source of truth with the display path
+  // (priceTotals): express $29, Click & Collect free, standard $12 / free ≥ $200 net.
   const deliveryFeeCents =
-    input.deliveryMethod === "express" ? 2900 : input.deliveryMethod === "click-collect" ? 0 : net >= 20000 ? 0 : 1200;
-  const gstCents = Math.round(((net + deliveryFeeCents) * 0.09) / 1.09);
+    input.deliveryMethod === "express"
+      ? EXPRESS_DELIVERY_FEE_CENTS
+      : input.deliveryMethod === "click-collect"
+        ? 0
+        : net >= FREE_DELIVERY_THRESHOLD_CENTS
+          ? 0
+          : STANDARD_DELIVERY_FEE_CENTS;
+  const gstCents = Math.round(((net + deliveryFeeCents) * GST_RATE) / (1 + GST_RATE));
   const totalCents = net + deliveryFeeCents;
   const num = orderNumber();
 
@@ -239,6 +253,3 @@ export async function getCartLines(token: string) {
       .filter((x): x is { item: typeof x.item; product: ProductRow } => !!x.product),
   };
 }
-
-export { db };
-export { and, desc, eq, ilike, or };

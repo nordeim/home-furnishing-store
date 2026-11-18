@@ -38,7 +38,7 @@ export default async function InspirationDetail({ params }: { params: Promise<{ 
       </div>
       <h2 className="mt-10 text-[22px] font-black">Shop this room</h2>
       <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {pieces.map((p, i) => p && <ProductCard key={p.id} p={{ ...p, ratingAvg: String(p.ratingAvg) }} index={i} />)}
+        {pieces.map((p) => p && <ProductCard key={p.id} p={{ ...p, ratingAvg: String(p.ratingAvg) }} />)}
       </div>
     </div>
   );

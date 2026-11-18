@@ -7,7 +7,7 @@ const MAINS = [
   { n: "Swedish meatballs, 12 pcs", d: "Mash, cream sauce, lingonberry", c: 1290 },
   { n: "Plant balls, 12 pcs", d: "Pea-protein, same trimmings", c: 1090 },
   { n: "Salmon fillet, mustard-dill", d: "Butter rice, seasonal greens", c: 1590 },
-  { n: "Chicken schnitzel", d: " fries, mixed salad", c: 1190 },
+  { n: "Chicken schnitzel", d: "With fries, mixed salad", c: 1190 },
   { n: "Kids pasta & meatballs", d: "Small portion, fruit cup", c: 590 },
   { n: "Festive Christmas plate", d: "Turkey, ham, red cabbage, gravy", c: 1690 },
 ];

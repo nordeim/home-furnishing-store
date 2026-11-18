@@ -67,7 +67,7 @@ export function Footer() {
           </nav>
         </div>
         <div className="mt-10 flex flex-col gap-2 border-t border-[#e5e1d8] pt-6 text-[12px] text-[#8a8a8a] sm:flex-row sm:items-center sm:justify-between">
-          <p>© 2026 NORDHEM Singapore Pte. Ltd. · Concept demo storefront inspired by Scandinavian retail patterns. All product names, copy and prices are fictional.</p>
+          <p>© {new Date().getFullYear()} NORDHEM Singapore Pte. Ltd. · Concept demo storefront inspired by Scandinavian retail patterns. All product names, copy and prices are fictional.</p>
           <p>Prices include 9% GST · 365-day returns</p>
         </div>
       </div>

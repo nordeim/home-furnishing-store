@@ -1,15 +1,15 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 1.0.0
+version: 1.1.0
 last_updated: "2026-11-18"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 40/40 unit · 18/18 e2e · cold build green (30 routes) · PostgreSQL 17.12 live-verified"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 50/50 unit · 23/23 e2e · cold build green (29 routes) · PostgreSQL 17.12 live-verified"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
 
 > How to use: this is the distilled engineering memory of the NORDHEM codebase
-> after the Task 114 remediation cycle. `AGENTS.md` is the quick operator
+> after the Task 114 remediation and the Task 117 honesty/hardening cycle. `AGENTS.md` is the quick operator
 > reference, the PAD is the full blueprint, and this skill is the
 > pattern/lesson layer an agent needs before touching the code. When code and
 > this document disagree, **the code wins** — then fix this document in the
@@ -74,8 +74,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 40/40
-npm run test:e2e                                               # 18/18 (live Postgres for the journey)
+npm run test                                                   # 50/50
+npm run test:e2e                                               # 23/23 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -126,8 +126,10 @@ Canonical patterns (full code in the PAD §3.3):
 - **Idempotent single-flight seed** — module-level promise; `onConflictDoNothing`
   throughout; a failed seed resets the promise (retry next request).
 - **Server-side money truth** — `placeOrder()` clamps qty 1–99, drops unknown
-  products, re-derives subtotal/discount/delivery/GST; the route zeroes the
-  client's `totals` field at the boundary.
+  products, re-derives subtotal/discount/delivery/GST (importing
+  `GST_RATE` / delivery-fee constants from `utils.ts` since Task 117 — one
+  source with `priceTotals`); the route zeroes the client's `totals` field at
+  the boundary.
 - **API envelope** — `{ ok: true, data } | { ok: false, error: { code, message } }`
   on every route; codes (`VALIDATION`, `RATE_LIMIT`, `EMPTY_BAG`,
   `INVALID_PROMO`, `NOT_FOUND`, …) are stable contract points.
@@ -164,7 +166,10 @@ fallback**: 24 products / 8 categories / 3 stores / 6 inspirations / 3 promos,
 plus `findProduct` and `findPromo`. `findPromo(code)` is the single
 client-side promo lookup for DISPLAY (cart + checkout previews); the server
 re-validates every code against the `promotions` table (ADR-005 stands).
-Schema highlights (`src/db/schema.ts`): money is `integer` cents;
+Pure display helpers worth knowing (Task 117, unit-pinned): `familyVoucherCents(points)`
+implements the Family programme's printed rule ($5 per 1,000 pts) and
+`visibleBadges(badges, { isNew, discountPercent })` dedupes catalogue badge
+literals against the computed card chips. Schema highlights (`src/db/schema.ts`): money is `integer` cents;
 `rating_avg` is `numeric(3,2)` (arrives as string over JSON — cards accept
 `string | number`); `order_items` is a denormalized snapshot (orders survive
 catalogue edits); 11 tables total. Inventory is seeded 3 rows/product
@@ -217,6 +222,22 @@ matches ("Go" ⊂ "ERGONOMI").
 10. **Letting the inherited ely-beauty artifacts back in** — the dead test
     tree and config-restorer scripts were retired in Task 114; pin new tests
     to THIS `src/`.
+11. **Fabricating fallback data on degrade paths** — BuyBox once invented a
+    12-unit Tampines stock row when inventory was unavailable (Task 117);
+    a degrade state must say what it truly is ("information unavailable"),
+    never invent plausible data.
+12. **Conflating fetch failure with the empty state** — wishlist/search once
+    rendered "Nothing saved yet"/"No products found" on a dead API (Task 117);
+    every client fetch surface needs the loading/error/empty trio (see
+    `shop/page.tsx` for the house pattern).
+13. **Display copy that contradicts computed math** — the Family calculator
+    printed "$5 voucher every 1,000 pts" while computing $5 per 100 (Task
+    117); when a page states a rule, the code and the copy must be pinned to
+    the same unit-tested helper.
+14. **Money/rule magic numbers at the write boundary** — `placeOrder` once
+    inlined 2900/20000/1200/0.09 while `utils.ts` exported named constants
+    (Task 117 unified them); every fee the server charges must come from the
+    same exported constant the display uses.
 
 ## 10. Debugging Guide
 
@@ -231,6 +252,11 @@ matches ("Go" ⊂ "ERGONOMI").
 | e2e count() returns 0 with content present | `count()` does not auto-wait | `await expect(locator.first()).toBeVisible()` first |
 | Hydration mismatch warnings about `data-gr-ext-installed` | Browser extension injected attributes (Grammarly et al.) | Not a code bug — test headless |
 | `tsc` clean but runtime import error under tests | Test tree not in the app tsconfig scope | `npm run typecheck:tests` (tsconfig.tests.json) |
+| e2e POST of a malformed body returns 422, not the expected 400 | Playwright's request API JSON-serializes string `data` (wraps it in quotes → valid JSON) | Send the raw bytes via `page.evaluate(() => fetch(...))` |
+| e2e `getByRole("alert")` strict-mode violation | Next's route announcer (`__next_route_announcer__`) also carries `role=alert` | Scope to `page.locator("main").getByRole("alert")` |
+| Seeding localStorage in e2e has no effect | The external stores read localStorage once at module load | Seed via `page.addInitScript` (before app boot), never post-load `evaluate` |
+| Agent-browser ref extraction returns the whole line | Button refs render as `[expanded=false, ref=e477]` — `\[ref=` patterns miss | `grep -oE "ref=e[0-9]+"` then prefix `@` |
+| Search "Try again" button does nothing | `setQ(needle)` with an unchanged value never re-runs the effect | A `retry` counter state in the effect deps (see `search/page.tsx`) |
 
 ## 11. Pre-Ship Checklist
 
@@ -274,6 +300,19 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
    test tree and the config-restorer script were hazards
    (`ensure-build-configs.mjs` would have clobbered the new configs);
    "re-pinning" means writing NORDHEM-native specs, not keeping broken ones.
+9. **A printed rule is a spec.** The Family page's own bullet text ("$5
+   voucher every 1,000 pts") was the correct spec the code violated ×10
+   (Task 117); when copy states a numeric rule, encode it as a named,
+   unit-tested constant pair (`FAMILY_VOUCHER_CENTS` /
+   `FAMILY_POINTS_PER_VOUCHER`) so the page cannot drift from itself.
+10. **Honesty is a UX state.** Fabricated stock on the degrade path and
+    confirmations for never-sent requests are worse than an honest "this
+    demo doesn't do X" — the checkout's "Demo — no charge" flag is the house
+    pattern; apply it everywhere a demo surface promises an action.
+11. **Docs rot at the edges.** Task 114 updated the PAD's §7 but left §1.2's
+    "not installed" row and Pattern 5's retired code sample stale; a doc
+    sweep must `rg` the whole doc set for the old claim (route counts, test
+    totals, lineage notes), not just edit the section you touched.
 
 ## 13. Pitfalls to Avoid
 
@@ -393,15 +432,15 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | Commands & gotchas | `AGENTS.md` |
 | Architecture detail | `Project_Architecture_Document.md` |
 | Decision record | `docs/implementation-plan.md` |
-| Remediation plan + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` |
-| Screenshots | `docs/screenshots/01…16-*.png` |
+| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` · `docs/plans/2026-11-18-task117-remediation-plan.md` |
+| Screenshots | `docs/screenshots/01…19-*.png` |
 | SSH push runbook | `docs/how-to-git-push-using-ssh-wrapper_SKILL.md` |
-| Working history | `worklog.md` (Tasks 113–114 NORDHEM; 1–112 predecessor lineage) |
+| Working history | `worklog.md` (Tasks 113+ NORDHEM; the 1–112 predecessor lineage was operator-trimmed) |
 | Money/validators | `src/lib/utils.ts` |
 | Catalogue + findPromo | `src/lib/catalog.ts` |
 | DB seam + pricing truth | `src/lib/server-data.ts` |
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (40) |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (18) |
+| Unit suite | `tests/unit/*.test.ts` (50) |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (23) |
