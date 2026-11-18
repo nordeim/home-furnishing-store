@@ -1,239 +1,379 @@
-# Deployment Guide — ElyBeauty
+# Deployment Guide — NORDHEM (home-furnishing-store)
 
-ElyBeauty ships as a single Next.js **standalone** build with a SQLite
-file database — one Node process, zero external services. This guide covers
-the supported production paths and the environment contract. (Rewritten in
-session 6 to match the actual codebase — the previous revision was a template
-from another project; rebranded in session 75 after the run-72 re-skin.)
+NORDHEM ships as a **single Next.js application over one PostgreSQL
+database**: one Node process plus Postgres, nothing else. This revision
+(2026-11-18, Task 115) replaces the inherited ElyBeauty-era guide wholesale —
+that document described Prisma + SQLite file databases, an
+`output: "standalone"` build with `.env` baking, `AUTH_SECRET` / Stripe /
+`NEXT_PUBLIC_SITE_URL` environment variables, and a Cloudflare-aware rate
+limiter, none of which exist in this codebase. Every claim below is verified
+against the remediated tree: Drizzle ORM over `node-postgres`
+(`src/db/index.ts`), the `{ ok, data | error }` envelope on all six API
+routes, integer-cents money re-derived server-side at checkout
+(`src/lib/server-data.ts`, `src/lib/utils.ts`), and the "Degrade, Never Fail"
+static-catalogue fallback.
 
-## 1. Prerequisites
+## 1. Supported shape
 
-- Node ≥ 20, npm ≥ 10 (npm is the package manager — there is no committed
-  `bun.lock`; `bun.lock` is git-ignored by policy).
-- No database server: SQLite ships as a file.
+- One Next.js 16 App Router app: 20 page routes + 6 API route handlers under
+  `src/app/` (the current build compiles 29 routes).
+- One PostgreSQL database: 11 tables defined in `src/db/schema.ts`
+  (categories, products, stores, inventory, carts, cart_items, orders,
+  order_items, reviews, inspirations, promotions).
+- No external services: no Redis, no queues, no object storage. Product
+  imagery is hot-linked from the Pexels CDN through plain `<img>` tags —
+  there is no local image pipeline.
+- No authentication and mock payments (card / PayNow / GrabPay / Atome
+  selectors, flagged "Demo — no charge"). These are documented deferrals
+  (`docs/implementation-plan.md`), not omissions to work around.
+- The build output is the plain `.next/` directory served by `next start`.
+  `next.config.ts` sets no options — there is no standalone bundle assembly
+  and no `.env` copying into the build.
 
-## 2. Build
+## 2. Prerequisites
 
-```bash
-npm install            # approve @prisma/engines, esbuild, unrs-resolver postinstall scripts if npm asks
-npm run db:setup       # prisma db push + idempotent seed (safe to re-run)
-npm run build          # next build + standalone assembly (.next/standalone)
-```
+- **Node.js ≥ 20** (verified on Node 24). npm is the package manager;
+  `package-lock.json` is the lockfile.
+- **A reachable PostgreSQL server.** The **rootless install in §4 is the
+  documented and verified method** (PostgreSQL 17.12 served the live-DB
+  verification cycle — checkout round-trip, seeding, tracking). Any other
+  PostgreSQL — system service, Docker, or a managed instance — works
+  identically: the application only ever sees `DATABASE_URL`.
 
-The build compiles the storefront, admin console, and the REST route handlers
-(`src/app/api/*`), then copies `.next/static` and `public/` into
-`.next/standalone/` (see the `build` script in `package.json`).
-`next.config.ts` pins `outputFileTracingRoot` to the repo root — keep it; the
-standalone trace depends on it. The build also copies `.env` into
-`standalone/`, so environment changes need a rebuild.
-
-## 3. Run
-
-```bash
-npm run start          # NODE_ENV=production node .next/standalone/server.js
-```
-
-The server listens on port 3000 by default (`PORT` overrides) and logs are
-tee'd to `server.log`. Always start it from the repo root via the npm script —
-the script guarantees the working directory that the SQLite path resolution
-and the standalone trace rely on. Behind a reverse proxy, forward
-`X-Forwarded-For` (appending — do not pass the client's value through
-untouched) and `X-Forwarded-Proto` so rate-limit keys and cookie attributes
-derive correctly. Behind Cloudflare, `CF-Connecting-IP` is picked up
-automatically by the limiter (`src/lib/rate-limit.ts`).
-
-## 4. Environment variables
-
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `DATABASE_URL` | Yes | SQLite connection string. See §5. |
-| `AUTH_SECRET` | **Yes in production** | HMAC secret for session cookies and receipt/order-access tokens. Generate with `openssl rand -hex 32`. The server **refuses to start** in production without a strong value (`src/lib/auth-secret.ts` throws at module load). |
-| `NEXT_PUBLIC_SITE_URL` | Recommended | Canonical public origin, used for metadata URLs, `sitemap.xml`, `robots.txt`, and JSON-LD (e.g. `https://shop.example.com`). |
-| `NEXT_PUBLIC_DEMO_MODE` | Optional | The login page's demo-credentials quick-fill box. **Production builds hide it by default** (it names the seeded admin account); set `true` to opt in for an evaluation deploy. In development the box is shown unless explicitly `false`. Since session-13 (S13-1) the credentials are passed server-side as props only when enabled — a default production build ships **no credential strings** in the client bundle at all. |
-| `TRUST_CF_CONNECTING_IP` | Optional (default: trust) | Session-13 (S13-7): set `"false"` on **direct deployments** (no Cloudflare edge) so the client-forgeable `cf-connecting-ip` header cannot rotate per-IP rate-limit buckets. Keep the default (or unset) behind Cloudflare. |
-| `STRIPE_BDT_PER_USD` | **Required with the Stripe keys** | The taka-per-dollar FX rate (a positive number, e.g. `120`). Stripe cannot charge BDT, so the card path converts the server-derived ৳ total through this rate (`stripeChargeAmount`). **Without it the Card option stays OFF even with keys set** — keys alone would mint a USD intent whose amount equals the poisha count (a ~120× overcharge). See "The FX rate gate" below. |
-| `STRIPE_SECRET_KEY` | Optional | Session-61 (the Stripe retrofit): the secret key (`sk_live_…`/`sk_test_…`). **Empty = the demo checkout** (clearly labeled, no charges). Set together with the publishable key to activate the real card path: the Payment Element island (PCI SAQ-A — card data never touches this app), a server-minted PaymentIntent (the amount is re-derived server-side from the live cart + coupon + settings), and webhook-driven order placement for interrupted checkouts. |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Optional | The publishable key (`pk_live_…`/`pk_test_…`) for the client island. Must be set for the element to mount; the server/client "configured" checks share one truth table (`src/lib/stripe-config.ts`). |
-| `STRIPE_WEBHOOK_SECRET` | Optional | The signing secret (`whsec_…`) for `POST /api/stripe/webhook` — from the Stripe dashboard's webhook endpoint (add the events `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`) or `stripe listen --forward-to localhost:3000/api/stripe/webhook` locally. The backstop for interrupted checkouts (payment captured, browser died before placement) — the dedup row commits WITH the placement; a transient failure answers 500 so Stripe retries. |
-
-Start from `.env.example` (`cp .env.example .env`) — it documents every
-variable above.
-
-**Stripe activation checklist (the three vars set):** the checkout's card
-method renders the Payment Element (test cards: `4242 4242 4242 4242`
-succeeds, `4000 0000 0000 0002` declines); the CSP header gains the
-`js.stripe.com` / `api.stripe.com` / `frame-src` family automatically; the
-admin console gains the Payments ledger (`/admin/payments` — a succeeded
-event with no linked order is the **Refund needed** signal); refunds fire
-from the order dialog's "Refund via Stripe" (one idempotent full refund per
-payment) and the order's payment state updates when Stripe delivers
-`charge.refunded`. Keep the webhook secret in sync whenever you rotate the
-endpoint — a mismatched secret answers 400 `Invalid signature.` and Stripe
-retries with backoff.
-
-## 5. Database location
-
-`DATABASE_URL` accepts three forms:
-
-1. **Relative `file:` URL (the default, zero-config local story).**
-   ```
-   DATABASE_URL="file:../db/custom.db"
-   ```
-   Relative URLs resolve against the **`prisma/` directory that owns
-   `schema.prisma`** — exactly like the Prisma CLI — so this string points
-   at `<repo>/db/custom.db` for `prisma db push`, `prisma/seed.ts`,
-   `next build` and the running server alike, regardless of the process
-   working directory. The resolution rule lives in
-   `src/lib/db-path.ts` and is pinned by `tests/unit/db-path.test.ts`.
-   `db/` sits at the repo root and is git-ignored.
-
-2. **Absolute `file:` URL (recommended for production).**
-   ```
-   DATABASE_URL="file:/var/lib/homenest/custom.db"
-   ```
-   Absolute paths pass through untouched — immune to any working-directory
-   ambiguity across service managers, containers, or cron wrappers. Point
-   them at a persisted volume and back the file up.
-
-3. **PostgreSQL.** Switch `provider = "postgresql"` in
-   `prisma/schema.prisma`, set a `postgresql://` URL, then
-   `npm run db:push && npm run db:seed`.
-
-Initialize (or reset) the database with:
+## 3. Install and configure
 
 ```bash
-npm run db:push        # apply schema (db push — no migrations folder)
-npm run db:seed        # idempotent seed: catalog, settings, coupons, demo users
+git clone https://github.com/nordeim/home-furnishing-store.git
+cd home-furnishing-store
+npm install
+cp .env.example .env    # then edit DATABASE_URL
 ```
 
-The seed is **create-or-refresh by design** (scoped in session 7, `src/lib/seed-policy.ts`):
-product upserts refresh CATALOG CONTENT only (name, copy, category, images, tags,
-specs) — price, compare-at price, stock, rating, reviewCount, sku, badge,
-featured/new-arrival flags and active state are admin- or traffic-owned and a
-reseed never resets them; settings and carousel slides are create-only (missing
-keys/slides are created, existing values survive), exactly like the coupon
-bookkeeping (fresh databases additionally get deterministic, minute-spaced
-coupon `createdAt` values — session-51 S51-1 — so the admin coupons grid's
-newest-first order is stable; existing rows keep their own timestamps). Re-running the seed after real traffic is therefore safe — it
-cannot corrupt the stock ledger, collapse customer-grown review aggregates, or
-revert admin edits.
+`DATABASE_URL` is the **only** variable the codebase reads (verified: the
+sole environment access in `src/` is `src/db/index.ts`). Set it to a
+PostgreSQL connection string — with §4's defaults:
 
-> **Demo credentials:** the seed creates `admin@elybeauty.com` /
-> `Admin123!` and `demo@elybeauty.com` / `Demo1234!`. Production builds
-> hide the login page's quick-fill box by default (session-12 S12-2) — for a
-> real store, still change the admin password (or reseed with your own
-> credentials) before going live, and leave `NEXT_PUBLIC_DEMO_MODE` unset
-> (set `true` only for evaluation deploys that want the box back).
-> Since S92-2 the change has a UI path: sign in as the admin →
-> **/account → Profile → Password** (verify the current password, set the
-> new one — every other device is signed out), and the admin dashboard
-> itself warns with a **Default admin password active** card while the
-> seeded credential is still live on a production build.
+```
+DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db"
+```
 
-## 6. Custom-domain production deploy (the run-92 workflow)
+- There is no `AUTH_SECRET` (auth is deferred), no payment keys (mock
+  methods only), and no `NEXT_PUBLIC_SITE_URL` — the canonical origin
+  `https://nordhem.sg` is hardcoded in `src/app/layout.tsx`, `robots.ts` and
+  `sitemap.ts`.
+- `src/db/index.ts` throws `DATABASE_URL is required` at module load when
+  the variable is missing — including during `next build`. It must always
+  be present; it may point at an unreachable server while developing on the
+  static fallback (§8).
+- **Precedence trap:** an exported shell `DATABASE_URL` silently overrides
+  `.env` (dotenv never overrides existing environment variables). If the
+  app connects to the wrong database, check `env | grep DATABASE` and pin
+  the value per command:
+  `DATABASE_URL="postgresql://…" npm run dev`.
 
-The verified path for putting the store on a real domain (field-proven on
-`https://ely-beauty.jesspete.shop` — every step below was observed green
-on that deploy, including the built sitemap/robots on the custom domain
-and the health round-trip):
+## 4. Database installation — rootless PostgreSQL
 
-1. **Point the domain at the server** (an A/AAAA/CNAME record at your
-   provider) and terminate TLS at a reverse proxy (Caddy/Nginx) that
-   forwards to the Node port — forward `X-Forwarded-For` (appending) and
-   `X-Forwarded-Proto` as §3 describes.
-2. **Set the env for the domain** in `.env`:
-   - `NEXT_PUBLIC_SITE_URL=https://your-domain.example` — the canonical
-     origin. Everything public composes from this single seam
-     (`siteBaseUrl()`, `src/lib/seo.ts`): metadata, canonicals, OpenGraph,
-     JSON-LD, `sitemap.xml`, `robots.txt`.
-   - `AUTH_SECRET` — a strong value (`openssl rand -hex 32`). The
-     server refuses to start in production without one.
-   - `TRUST_CF_CONNECTING_IP` — decide by edge topology: **unset (trust)
-     behind Cloudflare; `"false"` on a direct deploy** so the
-     client-forgeable `cf-connecting-ip` header cannot mint fresh per-IP
-     rate-limit buckets. (On any single-homed direct deploy, header IPs
-     are advisory at best — the per-email budgets on credential routes
-     remain the authoritative bound.)
-3. **Provision the database**: `npm run db:setup` (creates
-   `<repo>/db/custom.db`, pushes the schema, seeds the catalog — see §5
-   for the reseed-safety contract).
-4. **Build**: `npm run build` — assembles `.next/standalone/` and copies
-   `.env`, `.next/static`, and `public/` into it.
-5. **Start**: `npm run start` (or a process manager running the same
-   command from the repo root).
-6. **Rotate the admin password** before taking orders: sign in as the
-   seeded admin → /account → Profile → Password (S92-2). The dashboard's
-   advisory card stays up until this is done — treat it as the deploy's
-   final checklist item.
-7. **Verify** with the §8 checklist plus the domain surfaces:
-   `curl -s https://your-domain.example/sitemap.xml | grep -c "<loc>"`
-   (28 public locs on the custom domain) and the canonical/og tags in the
-   home page source.
+The supported method installs and runs PostgreSQL **entirely as an
+unprivileged user**: the server binaries are extracted from the official
+Debian packages into a user-owned prefix, the cluster is initialized with
+`initdb` under that prefix, and the server lifecycle runs through `pg_ctl`.
+No `sudo`, no `apt-get install`, no systemd, no writes outside the prefix.
+This fits restricted hosts — shared sandboxes, VPS user accounts, containers
+without init systems — and it is the exact method behind this repository's
+live-database verification (PostgreSQL 17.12, port 5432, database `app_db`).
 
-> **Rebuild after env changes — the baked-sitemap trap.** `sitemap.xml`
-> and `robots.txt` are **prerendered at build time** (they are the only
-> static routes in the build output), while page canonicals/JSON-LD render
-> per request. Editing `NEXT_PUBLIC_SITE_URL` in `.env` WITHOUT rebuilding
-> leaves the sitemap/robots on the old domain while the canonicals flip —
-> a silent divergence search engines will happily index. The §2 note
-> ("environment changes need a rebuild") covers this; this is the concrete
-> symptom it prevents.
+The canonical version is the repo skill `skills/rootless-postgresql/SKILL.md`
+(Debian trixie/sid, non-root user with a writable prefix). The commands
+below are that method as executed for this codebase.
 
-## 7. Updating
+```bash
+set -euo pipefail
+
+# 0. Layout — any writable prefix works (the verification workspace used
+#    /home/z/my-project/pg). Port/role/database match drizzle.config.json
+#    and the .env.example default: zero configuration drift.
+PG_BASE="$HOME/pg"                  # the prefix
+PG_MAJOR=17                         # trixie ships 17; resolve dynamically with:
+                                    # apt-cache search --names-only '^postgresql-[0-9]+$'
+PG_ROOT="$PG_BASE/pgroot"           # extracted binaries (the "install")
+PG_DATA="$PG_BASE/pgdata"           # the cluster
+PG_LOG_DIR="$PG_BASE/pglog"         # server logs
+PG_PORT=5432
+PG_ROLE=postgres
+PG_SECRET=postgres                  # dev default; scram-authenticated over TCP only
+PG_DB=app_db
+
+# 1. Probes — every check must pass before proceeding
+[ "$(id -u)" -ne 0 ] || { echo "FAIL: run as a non-root user"; exit 1; }
+mkdir -p "$PG_BASE" && [ -w "$PG_BASE" ] || { echo "FAIL: $PG_BASE not writable"; exit 1; }
+mkdir -p "$PG_ROOT" "$PG_DATA" "$PG_LOG_DIR" "$PG_BASE/pgdeb"
+
+# 2. Download the official .debs (download only — nothing is installed)
+cd "$PG_BASE/pgdeb"
+apt-get download "postgresql-${PG_MAJOR}" "postgresql-client-${PG_MAJOR}" \
+                 postgresql-common libpq5
+
+# 3. Extract them into the prefix
+for f in *.deb; do dpkg-deb -x "$f" "$PG_ROOT/"; done
+PGBIN="$PG_ROOT/usr/lib/postgresql/${PG_MAJOR}/bin"
+"$PGBIN/initdb" --version     # sanity: the binaries run against system libs
+
+# 4. Initialize the cluster (only if empty).
+#    Socket auth = trust (admin convenience, local user only);
+#    TCP auth = scram-sha-256 (the app carries the password).
+if [ ! -f "$PG_DATA/PG_VERSION" ]; then
+  chmod 700 "$PG_DATA"
+  "$PGBIN/initdb" -D "$PG_DATA" -U "$PG_ROLE" \
+    --auth-local=trust --auth-host=scram-sha-256 \
+    --encoding=UTF8 --locale=C.UTF-8
+fi
+
+# 5. Point the config at the prefix and the port (idempotent)
+PGCONF="$PG_DATA/postgresql.conf"
+sed -i "s/^#port = 5432/port = ${PG_PORT}/"                                       "$PGCONF"
+sed -i "s|^#unix_socket_directories = .*|unix_socket_directories = '${PG_DATA}'|" "$PGCONF"
+sed -i "s/^#listen_addresses = 'localhost'/listen_addresses = 'localhost'/"      "$PGCONF"
+sed -i "s/^#logging_collector = off/logging_collector = on/"                     "$PGCONF"
+sed -i "s|^#log_directory = 'log'|log_directory = '${PG_LOG_DIR}'|"              "$PGCONF"
+
+# 6. Start (pg_ctl, not systemd) — logs go to $PG_LOG_DIR/postgres.log
+"$PGBIN/pg_ctl" -D "$PG_DATA" -l "$PG_LOG_DIR/postgres.log" -w -t 30 start
+
+# 7. Role password + application database (over the trusted socket)
+"$PGBIN/psql" -h "$PG_DATA" -p "$PG_PORT" -U "$PG_ROLE" -d postgres \
+  -c "ALTER ROLE \"${PG_ROLE}\" WITH LOGIN PASSWORD '${PG_SECRET}';"
+"$PGBIN/createdb" -h "$PG_DATA" -p "$PG_PORT" -U "$PG_ROLE" "$PG_DB" \
+  || echo "database ${PG_DB} already exists"
+
+# 8. Verify — TCP requires the scram password; this is the app's path
+"$PGBIN/pg_isready" -h 127.0.0.1 -p "$PG_PORT"
+```
+
+On success the connection string is exactly what `.env` and
+`drizzle.config.json` pin:
+
+```
+postgresql://postgres:postgres@127.0.0.1:5432/app_db
+```
+
+Operational notes:
+
+- **Lifecycle** is `pg_ctl`: `… -D "$PG_DATA" status`, and
+  `… -D "$PG_DATA" -m fast -w stop`. Keep start/stop/status scripts next to
+  the prefix (the verification workspace keeps them under
+  `<prefix>/scripts/`); the whole cluster is plain files under `$PG_DATA`
+  — stop the server before copying it wholesale.
+- **Auth split:** the Unix socket inside `$PG_DATA` trusts the local user
+  (administrative commands never need the password); TCP on 127.0.0.1
+  requires the scram password. The application always connects over TCP.
+- **Change `PG_SECRET`** for anything exposed beyond loopback, and never
+  expose this cluster directly to the internet — it is a single-user
+  development-grade deployment.
+- **Backups:** `pg_dump` / `pg_dumpall` from the same `$PGBIN` against
+  `app_db`.
+
+**Alternatives.** Any reachable PostgreSQL serves equally — a system
+service (`apt-get install postgresql`), Docker
+(`docker run -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:17`), or a
+managed provider. The application is indifferent; §5–§6 are the same either
+way. The rootless method above is the one this repository documents,
+verifies, and keeps in lockstep with its pinned connection string.
+
+## 5. Schema push
+
+There is no migrations folder. The schema is applied by **push** from the
+single source of truth `src/db/schema.ts`:
+
+```bash
+npx drizzle-kit push
+```
+
+On a fresh database this creates all 11 tables; on an existing one it
+applies the diff (drizzle-kit asks for confirmation on data-loss
+operations). Seeding is automatic afterwards (§6) — no schema or seed
+command is wired into `npm run` scripts by design.
+
+> **Dual-config drift warning.** `drizzle.config.json` pins its own
+> `dbCredentials.url` (`postgresql://postgres:postgres@127.0.0.1:5432/app_db`)
+> and does **not** read `.env`. When your database moves, update **both**
+> `.env` and `drizzle.config.json`, or the app and the push tool will
+> silently disagree.
+
+## 6. Seeding — automatic on first read
+
+No seed command exists. `ensureSeed()` in `src/lib/server-data.ts` runs
+lazily on the first database read of a server process. It checks whether
+the `products` table has any row and, **only when it is empty**, inserts
+the static catalogue from `src/lib/catalog.ts`:
+
+- 24 products, 8 categories, 3 stores (Tampines, Jurong, Alexandra),
+- 6 inspiration rooms, 3 promotions (`WELCOME10`, `MAKAN15`, `FLAT20`),
+- 72 per-store inventory rows (24 products × 3 stores) with aisle/bin
+  locations, and 5 sample reviews.
+
+The insert is single-flight (one shared promise per process) and every row
+uses `onConflictDoNothing`, so concurrent first requests cannot double-seed.
+
+Consequences for operators:
+
+- **Re-seeding is a no-op once data exists.** The seed is a bootstrap, not
+  a refresh: it never overwrites live rows (it returns early when
+  `products` is non-empty). Admin edits, orders and customer reviews are
+  safe from it.
+- **To force a full reseed** on a database you are willing to reset (this
+  destroys orders and reviews — real traffic), with any psql client (§4's
+  `"$PGBIN/psql"` or a system psql):
+  ```bash
+  PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -d app_db \
+    -c 'TRUNCATE order_items, orders, cart_items, carts, reviews, inventory,
+        products, categories, stores, inspirations, promotions
+        RESTART IDENTITY CASCADE;'
+  ```
+  then restart the app and open any database-backed page (e.g. `/shop`).
+
+## 7. Build and run
+
+```bash
+npm run build     # DATABASE_URL must be in the environment (§3) — module-
+                  # level import of src/db throws otherwise, even for build
+npm run start     # next start — port 3000 by default (PORT overrides)
+```
+
+- There is no standalone output and no `.env` copying: environment changes
+  do **not** require a rebuild, only a server restart.
+- Run a process manager (systemd, pm2, Docker) around
+  `DATABASE_URL=… npm run start` (or `next start` directly) from the repo
+  root. The Node process is stateless apart from two in-process caches
+  (§8).
+- Development: `npm run dev` (same environment requirement).
+- The Playwright suite boots its own production server on **:3100** with a
+  pinned `DATABASE_URL` (`playwright.config.ts` `webServer`) — keep the
+  port free while testing.
+
+## 8. Production notes
+
+**Degrade, Never Fail — the operational contract.** Every database read in
+`src/lib/server-data.ts` is wrapped in try/catch with a static-catalogue
+fallback: the storefront keeps rendering (home, shop, search, product
+pages, inspiration) even when PostgreSQL is unreachable. Write paths have
+no fallback and genuinely require the live database:
+
+| Path | Needs live DB? |
+|---|---|
+| Browse / search / product pages | No — static fallback (`src/lib/catalog.ts`) |
+| `POST /api/checkout` (order placement) | Yes |
+| `POST /api/reviews` (publish a review) | Yes |
+| `POST /api/orders/track` (order tracking) | Yes — fail-closed |
+| `POST /api/promotions/validate` | Partial — falls back to the static promo table |
+
+`GET /api/health` is the probe: `{"ok":true}` iff the database answers
+`select 1`, HTTP 500 otherwise. Monitor it; a 500 means the deployment has
+degraded to catalogue-only browsing.
+
+**Money is server-truth.** `placeOrder()` re-derives every total from the
+live product rows and promo rules; the client's totals payload is ignored
+(the checkout route passes zeroed totals deliberately). All amounts are
+integer cents. Prices are GST-inclusive (9%, back-calculated for the
+receipt line); delivery is $12 standard / free at ≥ $200 net / $29 express
+/ $0 Click & Collect; order numbers are `NH-YYYYMMDD-XXXXXX` with a random
+base-36 suffix.
+
+**Reverse proxy.** Terminate TLS in front (Caddy/Nginx) and forward to the
+Node port. The checkout limiter keys on the **first entry** of
+`X-Forwarded-For` (`src/app/api/checkout/route.ts`) — run exactly one
+trusted proxy hop that appends the client address, otherwise a client can
+forge its own bucket key.
+
+**Single-process state.** The checkout rate limiter is an in-process fixed
+window (20 attempts/min/IP, a module-scope Map) and the seed is a
+single-flight per-process promise. Both reset on restart and neither is
+shared between processes. The intended deployment is one Node process;
+before scaling to multiple replicas, move rate limiting to a shared store
+(there is no session state to share — auth is deferred).
+
+## 9. Updating an existing deployment
 
 ```bash
 git pull
 npm install
-npm run db:generate    # after schema changes
-npm run db:push
-npm run build
-# restart the server process
+npx drizzle-kit push        # apply schema changes (§5 dual-config warning)
+rm -rf .next                # cold build — mandatory, see below
+DATABASE_URL="postgresql://…" npm run build
+# restart the server process (§7)
 ```
 
-## 8. Verification checklist
+The `rm -rf .next` is not ritual: Tailwind v4's candidate scan guard (the
+`@source not` block at the top of `src/app/globals.css`) keeps prose files
+from injecting class candidates, and a warm `.next` cache can mask both
+the failure and the fix. The repository's gate mandates cold builds.
+
+## 10. Verification checklist
+
+There is no hosted CI; the local gate (AGENTS.md) is the only gate. Run it
+before every deploy of code changes:
 
 ```bash
-curl -s localhost:3000/api/health            # {"status":"ok","db":"up",...}
-npm run lint
-npm run typecheck && npm run typecheck:tests
-npm run test                                 # Vitest unit suite
-npm run build
-npm run test:e2e                             # Playwright suite (starts the standalone server on :3100 itself; a fresh start first restores the demo stock — scripts/restore-demo-stock.ts, S14-4)
+rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db" npm run build
+npm run typecheck
+npm run typecheck:tests
+npm run lint                # 0 errors / 0 warnings expected
+npm run test                # 40/40 unit (Vitest, pure seams)
+npm run test:e2e            # 18/18 e2e — needs the live Postgres
 ```
 
-The clean-check order in `AGENTS.md` is the deploy gate: every step must exit
-0. Regenerate the documentation screenshots with
-`npx tsx scripts/capture-screenshots.ts` (server on :3000).
+One-time before e2e: `npm run test:e2e:install` (installs the pinned
+Playwright Chromium build). The e2e suite builds and boots the production
+server itself on :3100.
 
-## 9. Common production issues
+Runtime probes against a running deployment:
+
+```bash
+curl -s localhost:3000/api/health      # {"ok":true} — database answers
+curl -s localhost:3000/api/products    # {"ok":true,"data":[…24 products…]}
+
+# promo boundary (min spend is inclusive: $150.00 exactly passes)
+curl -s -X POST localhost:3000/api/promotions/validate \
+  -H 'content-type: application/json' \
+  -d '{"code":"WELCOME10","subtotalCents":15000}'      # {"ok":true,…}
+
+# end-to-end: place a demo order from /checkout in a browser (any payment
+# selector — they are all "Demo, no charge"), then:
+curl -s -X POST localhost:3000/api/orders/track \
+  -H 'content-type: application/json' \
+  -d '{"orderNumber":"NH-YYYYMMDD-XXXXXX","email":"<the email you entered>"}'
+# {"ok":true,…} on match; 404 on mismatch — tracking is fail-closed
+```
+
+## 11. Common production issues
 
 | Symptom | Cause | Fix |
-|---------|-------|-----|
-| `Error code 14: Unable to open the database file` | Server started from a directory that has no `prisma/schema.prisma` and no absolute `DATABASE_URL` | Start via `npm run start`, or set an absolute `file:` URL (§5) |
-| `db/custom.db` appears elsewhere / rows survive a "fresh" reseed | `DATABASE_URL` shadowed by the process env (Prisma never overrides existing env) | `node -e "console.log(process.env.DATABASE_URL)"` — converge or unset |
-| Page paints but never hydrates, zero console errors | Static prerender baked without the per-request CSP nonce | Make the route render per-request (`await connection()` — see `(auth)/layout.tsx`) |
-| Logins loop back to `/login` | `AUTH_SECRET` changed between restarts | Keep the secret stable across restarts |
-| 429s on login/checkout | Per-email (10/min) + per-IP (30/min) fixed-window limiter | Wait for `Retry-After` — **every metered route carries it** (session-15 S15-3); in-memory buckets reset on restart (single-node) |
-| 429s on "Add All to Cart" with a huge wishlist | The bulk endpoint is limiter-budgeted at 10 requests/min (up to 100 lines each) | Wait for `Retry-After`; split unusually large operations |
-| 429s on the cart drawer loading behind a shared IP | `GET /api/cart-summary` is metered at 120 requests/min per IP (session-9 — the last unmetered public route) | Wait for `Retry-After`; raise the budget only alongside the limiter's other read budgets |
-| 429s on review submissions from one network | Reviews are two-tier metered (session-11): 20/min per IP (authoritative anti-spam ceiling) + 5/min per author per product | Wait for `Retry-After`; raise the per-IP ceiling only with a shared-store limiter decision |
-| `noindex` on pages you expected indexed | Session-8: cart/account/checkout/track-order/auth/wishlist/admin ship `robots: noindex` by design | Public catalog surfaces (`/`, `/shop`, `/product/*`, `/about`, `/contact`, `/legal/*`) stay indexable |
-| `EADDRINUSE :3100` during e2e | A previous standalone server is alive (process renames to `next-server`) | `pkill -f next-server` |
-| Stock-assuming e2e pins fail after many suite runs ("In Stock" gone, sold-out 409s on seeded products) | E2E checkouts are traffic that permanently drains the demo DB's traffic-owned stock (the seed policy never refreshes it — S14-4) | `npx tsx scripts/restore-demo-stock.ts` (the e2e webServer runs it automatically on a fresh server start); run it BEFORE suspecting code |
-| The auth e2e fails at its FIRST assertion (profile name `expected "Ayesha Rahman"`) | A previously crashed/killed e2e run died mid-flow and left the demo profile name edited — the test restores it only on success (the seed's `update: {}` policy never re-resets the name) | One-line SQLite fix: `UPDATE User SET name = 'Ayesha Rahman' WHERE email = 'demo@elybeauty.com'` — then re-run; run BEFORE suspecting code |
+|---|---|---|
+| `Error: DATABASE_URL is required` at boot or build | `src/db/index.ts` throws at module load — the variable is absent | Set it in `.env` (§3); while developing on the fallback it may point anywhere |
+| `/api/health` returns 500 | Database unreachable — expected on the static fallback | Start the cluster (§4) and re-check; browsing still works (§8) |
+| `POST /api/checkout` → 500 `CHECKOUT_FAILED` | Write path has no fallback: DB down, schema not pushed, or seed not run | Verify §4 → §5 → §6 in order, then retry |
+| App connects to the wrong DB / seed logs SASL password errors | An exported shell `DATABASE_URL` beats `.env` (dotenv never overrides) | `env \| grep DATABASE`, pin the value per command (§3) |
+| `drizzle-kit push` touches the wrong database | `drizzle.config.json` pins its own URL, independent of `.env` | Update both when the database moves (§5) |
+| Build fails: `Missed semicolon` in `globals.css` | Tailwind v4's candidate scan read a class-like string from a prose file — the `@source not` guard was removed, or a colon-form arbitrary value was added somewhere | Keep the guard; write slash-form `aspect-[16/9]`, never colon-form; verify with a COLD build (§9) |
+| 429 `RATE_LIMIT` on checkout | In-process fixed window: 20 attempts/min/IP (first `X-Forwarded-For` hop) | Wait a minute; ensure exactly one trusted proxy hop appends the header (§8) |
+| `pg_ctl: another server might be running` / rootless start fails | Stale `postmaster.pid` after a hard kill, or the log directory is missing | `pg_ctl status`; remove `$PG_DATA/postmaster.pid` only when no postgres process owns it; `mkdir -p` the log dir; retry (§4) |
+| e2e: browser not found | Playwright Chromium not installed | `npm run test:e2e:install` once |
+| e2e: port 3100 in use / suite hangs at webServer | A previous e2e webServer is still alive | Kill the leftover `next start` process on :3100, re-run |
+| e2e checkout journey fails with `CHECKOUT_FAILED` | The journey places real orders — it needs the live database | Start Postgres (§4), `npx drizzle-kit push` (§5), re-run |
 
+## 12. Pushing changes to this repository
 
-## The FX rate gate (S74-11)
+Code and doc deployments go to **main only** (no feature branches), with
+Conventional Commit messages, through the SSH wrapper — full runbook:
+`docs/how-to-git-push-using-ssh-wrapper_SKILL.md`. The wrapper's built-in
+default remote is stale (`nordeim/ely-beauty`), so the `--remote` override
+is **mandatory**:
 
-Stripe cannot charge BDT. The card path therefore converts the server-derived
-BDT total (poisha) through the explicit operator rate `STRIPE_BDT_PER_USD`
-via the single `stripeChargeAmount(totalPoisha, rate)` seam
-(`src/lib/stripe-payment.ts`): a ৳288 order at rate 120 mints a $2.40
-PaymentIntent. **Without a valid positive rate the Card option does not
-render even when Stripe keys are set** — keys alone used to mint a USD intent
-whose amount equaled the poisha count (a ~120x overcharge). The gate is
-enforced in three places: the checkout page's `cardEnabled`, the mint route
-(503 without the rate), and the placement's in-tx amount guard (which
-converts through the same rate before comparing). The idempotency key hashes
-the CONVERTED amount, so changing the rate mints a fresh intent instead of
-replaying a stale one. Keep the rate current with your pricing FX.
+```bash
+python3 docs/ssh_git_wrapper_v3.py --key-file /secure/key-outside-the-repo \
+  --remote git@github.com:nordeim/home-furnishing-store.git
+```
+
+Run the §10 gate before every push. The wrapper materializes the key into
+a 0600 temp file outside the repo, pushes `HEAD:refs/heads/main`, re-queries
+the remote to verify the ref equals local HEAD, then shreds the temp key.
+Never commit the key (`.gitignore` rejects `*.key`, `ssh-key.txt`, `.env`).
