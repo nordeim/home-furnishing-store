@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useCart } from "@/lib/cart-store";
+import { findPromo } from "@/lib/catalog";
 import { formatSGD, priceTotals } from "@/lib/utils";
 
 type Method = "delivery" | "click-collect" | "express";
@@ -16,12 +17,9 @@ export default function CheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const promo = useMemo(() => {
-    if (!promoCode) return null;
-    if (promoCode === "FLAT20") return { kind: "fixed", value: 2000 };
-    if (promoCode === "MAKAN15") return { kind: "percent", value: 15 };
-    return { kind: "percent", value: 10 };
-  }, [promoCode]);
+  // Display totals use the shared findPromo source (single client-side
+  // definition, aligned with the seed); the server re-derives at order time.
+  const promo = promoCode ? findPromo(promoCode) : null;
   const t = priceTotals({ subtotalCents, promo, deliveryMethod: method });
 
   function set(k: keyof typeof form, v: string) {

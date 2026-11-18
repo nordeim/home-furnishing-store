@@ -1,25 +1,39 @@
-# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.0.0
+# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.1.0
 
 **Classification:** Internal Engineering Reference
 **Status:** DEFINITIVE, PRODUCTION-LOCKED BLUEPRINT
-**Companion Documents:** `docs/implementation-plan.md` (build decision record) · `docs/reference-investigation.md` (reference-site evidence dossier) · `AGENTS.md` / `CLAUDE.md` (agent instructions) · `README.md` (product view)
+**Companion Documents:** `docs/implementation-plan.md` (build decision record) · `docs/reference-investigation.md` (reference-site evidence dossier) · `AGENTS.md` / `CLAUDE.md` (agent instructions) · `README.md` (product view) · `home-furnishing-store_SKILL.md` (distilled engineering memory)
 **Last Updated:** 2026-11-18
 **Audience:** Senior Engineers, Tech Leads, DevOps, and Onboarding Engineers (human and AI)
 **Rule:** Every architectural decision in this document traces to a specific rationale.
 Nothing is here "because it's popular."
 
-#### Revision Block — v1.0.0 (Tracked Changes)
+#### Revision Block — v1.1.0 (Tracked Changes)
 
-- `[SYN]` First PAD for the NORDHEM codebase (the repository's earlier PAD described
-  the predecessor `ely-beauty` project and was removed at commit `6bca89e`).
+- `[SYN]` First PAD for the NORDHEM codebase (v1.0.0; the repository's earlier PAD
+  described the predecessor `ely-beauty` project and was removed at commit `6bca89e`).
 - `[CA]` Docs-validation audit of `docs/implementation-plan.md` /
   `docs/reference-investigation.md` performed against the codebase; findings encoded
   in §11 (including the corrected table count: **11** tables, not the plan's 10).
-- `[CA]` Clean-build blocker fixed this cycle: the Tailwind v4 candidate-scan guard
-  (`@source not` block) restored to `src/app/globals.css` — the family's
-  run-76 build-breaker, re-verified live (see §9.1 and §11).
+- `[CA]` Clean-build blocker fixed (v1.0.0 cycle): the Tailwind v4 candidate-scan
+  guard (`@source not` block) restored to `src/app/globals.css`.
 - `[SAN]` `.env.example` rewritten to match the actual codebase (the inherited file
   described Prisma/SQLite/Stripe variables the code never reads).
+- `[CA]` **Task 114 remediation cycle (this revision):** rootless PostgreSQL 17
+  installed and the full DB path verified live (seed counts, checkout round-trip
+  `NH-20261118-2NRWZD` with exact money math, fail-closed tracking); test harness
+  re-pinned (vitest 5.1 + @playwright/test 1.65 — 40 unit / 18 e2e, all green;
+  the ely-beauty dead tree + config-clobbering `ensure-build-configs.mjs` retired);
+  the 7-error `react-hooks/set-state-in-effect` debt fixed via `local-store.ts`
+  external stores + `useSyncExternalStore` + adjust-during-render (never
+  suppressed); mobile drawer gained Escape-close (agent-browser-verified gap);
+  SEO policy made coherent (robots disallows utility/personal routes, sitemap
+  lists 12+24+6 indexable URLs only, PDP canonical + OpenGraph + Product
+  JSON-LD, `data-scroll-behavior="smooth"`); `/order/[number]` PII masked
+  (`maskEmail`, no street address); promo display unified on `findPromo`
+  (killing the unknown-code→10% phantom discount); package identity fixed
+  (`home-furnishing-store`); 16 dev-server screenshots under `docs/screenshots/`.
+  Remediation plan + evidence: `docs/plans/2026-11-18-task114-remediation-plan.md`.
 
 ---
 
@@ -554,37 +568,45 @@ auth is a design event, not a patch.
 
 ## 7. Testing Strategy
 
-### 7.1 Test Distribution — Current, Honest State
+### 7.1 Test Distribution — Current State (Task 114: NORDHEM-native)
 
 | Category | Files | Status | Location |
 |----------|-------|--------|----------|
-| Unit | 73 | ❌ Inherited from `ely-beauty`; imports `vitest` (not installed) + ~40 non-existent modules (`@/lib/stripe-payment`, `@/lib/auth`, `@/components/store/*`, …) | `tests/unit/` |
-| E2E | 15 specs | ❌ Same lineage; `@playwright/test` not installed; selectors target the predecessor UI | `tests/e2e/` |
-| Config | `vitest.config.ts`, `playwright.config.ts`, `tsconfig.tests.json` | ⚠️ Present but inactive (toolchain undeclared) | repo root |
+| Unit (Vitest) | 5 files, 40 tests | ✅ Green — pure seams: `utils` money/validators, `catalog` invariants + `findPromo`, `local-store` external-store contract, `mask`, robots/sitemap SEO policy | `tests/unit/` |
+| E2E (Playwright) | 2 specs, 18 tests | ✅ Green — production build on `:3100`, pinned `DATABASE_URL`: mobile-navigation project (390×844) + desktop storefront/commerce journeys (incl. the live-DB checkout round-trip) | `tests/e2e/` |
+| Type coverage | `tsconfig.tests.json` | ✅ `npm run typecheck:tests` (node + vitest/globals types) | repo root |
 
-The npm scripts `test` / `test:e2e` **do not exist** in `package.json`. Until
-the suite is re-pinned or retired, verification is the gate chain + runtime
-smoke (§9.4, AGENTS.md).
+The predecessor's 73-unit/15-e2e tree (ely-beauty imports, undeclared
+packages) was retired in Task 114 — replaced, not deleted: every spec pins
+NORDHEM behaviour. `npm run test` / `npm run test:e2e` are part of the gate.
 
-### 7.2 Test Patterns (for the re-pin)
+### 7.2 Test Patterns
 
-The predecessor suites were re-pinned repeatedly in the family lineage; the
-NORDHEM equivalents should start with: `formatSGD`/`priceTotals`/validators
-(pure unit), `ensureSeed` idempotence + fallback reads (DB-mocked or
-Testcontainers), API envelope + validation + rate-limit (route-level), and one
-Playwright journey per acceptance bullet in `docs/implementation-plan.md`.
+Unit tests assert at pure seams with independent expected values (worked money
+examples like the verified `NH-20261118-2NRWZD` order); the localStorage-backed
+stores are tested against an in-memory storage shim (`tests/unit/setup.ts`).
+E2E runs against the **production build** (the dev server lies about
+production) with auto-waiting locators, visible-subtree filters for the
+responsive double-DOM (two search inputs), and a self-contained checkout
+journey that creates and tracks its own order. TDD (`skills/tdd`):
+red → green → refactor, one seam at a time; bug fixes ship with a regression
+spec that failed before the fix.
 
 ### 7.3 Coverage Thresholds
 
-Not yet established — set them when the harness exists. The implementation
-plan's acceptance list is the de-facto coverage target.
+Formal thresholds not enforced yet; the de-facto target is every acceptance
+bullet in `docs/implementation-plan.md` plus the seam table in
+`docs/plans/2026-11-18-task114-remediation-plan.md` §3. Grow the suite with
+the code, never to hit a number.
 
 ### 7.4 Pre-Push Checklist
 
 ```bash
 rm -rf .next && DATABASE_URL=… npm run build   # cold build (cache can mask the scan-guard failure)
-npm run typecheck                              # app scope — currently clean
-npm run lint                                   # 7 known set-state-in-effect errors (§10) — do not grow
+npm run typecheck && npm run typecheck:tests  # app scope + test tree
+npm run lint                                   # 0 errors / 0 warnings
+npm run test                                   # 40/40 unit
+npm run test:e2e                               # 18/18 e2e (live Postgres for the journey)
 # runtime smoke of touched routes against `npm run start`
 ```
 
@@ -674,28 +696,35 @@ Clone over HTTPS; push over SSH through the wrapper with the mandatory
 
 | Priority | Issue | Impact | Status |
 |----------|-------|--------|--------|
-| ~~CRITICAL~~ | Clean production build broken: Tailwind v4 candidate scan read prose files (`ely-beauty_SKILL.md`, `worklog.md`, the guard test itself quote `md:aspect-[3:1]`) → invalid `aspect-ratio: 3:1` → PostCSS "Missed semicolon". The `@source not` guard was missing from this repo's `globals.css` (the family's run-76 fix was not carried into the "muse 1.3" rebuild). | Build gate failed on every clean checkout | **Fixed this run** — guard restored; clean build verified green (30 routes) |
-| HIGH | Inherited test suite not runnable: 73 unit + 15 e2e files import `vitest`/`@playwright/test` (undeclared in package.json) and ~40 modules that do not exist in this `src/` | No executable regression net; `npm run typecheck` had to be scoped to the app (this run) to keep gates meaningful | Open — re-pin or retire; the family precedent is re-pinning |
-| ~~HIGH~~ | `.env.example` described the predecessor stack (Prisma/SQLite/AUTH_SECRET/Stripe) | Misleads every setup; contradicted the code | **Fixed this run** — rewritten to the real single-variable contract |
-| MEDIUM | 7 `react-hooks/set-state-in-effect` lint errors (`cart-store.tsx`, `Header.tsx`, `shop/page.tsx`, `search/page.tsx`) — intentional localStorage-hydration + URL-param-sync patterns under the new rule | Lint gate not green; cascading-render risk flagged by the rule | Open — remediate via `useSyncExternalStore`/render-derivation **with** a test re-pin; do not suppress |
-| MEDIUM | `docs/implementation-plan.md` says "10 tables"; schema has 11 | Doc drift on a structural count | Corrected forward in this PAD; plan kept as history |
-| LOW | `package.json` name is still `nextjs-postgresql-template` | Cosmetic identity drift | Open |
+| ~~CRITICAL~~ | Clean production build broken: Tailwind v4 candidate scan read prose files → invalid `aspect-ratio: 3:1` → PostCSS "Missed semicolon". The `@source not` guard was missing from this repo's `globals.css`. | Build gate failed on every clean checkout | **Fixed (v1.0.0)** — guard restored; clean build verified green (30 routes) |
+| ~~HIGH~~ | Inherited test suite not runnable (73 unit + 15 e2e ely-beauty files, undeclared packages, ~40 non-existent modules) | No executable regression net | **Fixed (Task 114)** — NORDHEM-native harness: 40 unit + 18 e2e green, typecheck:tests wired; dead tree + config-clobbering scripts retired |
+| ~~HIGH~~ | `.env.example` described the predecessor stack | Misleads every setup | **Fixed (v1.0.0)** — real single-variable contract + precedence note |
+| ~~MEDIUM~~ | 7 `react-hooks/set-state-in-effect` lint errors | Lint gate not green; cascading-render risk | **Fixed (Task 114)** — `local-store.ts` external stores + `useSyncExternalStore` (cart/wishlist/promo/store-picker) + adjust-during-render (Header route-close, search param-follow, shop URL-derived filters). Lint 0/0 without suppressing the rule; behaviour pinned by the e2e journey |
+| ~~MEDIUM~~ | Mobile drawer ignored Escape | a11y gap (overlay baseline) | **Fixed (Task 114)** — keydown handler; pinned by the mobile-navigation e2e spec |
+| ~~MEDIUM~~ | `/order/[number]` rendered full email + street address to anyone with the number | PII exposure on a public-by-number page | **Fixed (Task 114)** — `maskEmail` + address/postal removed; full detail stays behind the email match on `/track-order` |
+| ~~MEDIUM~~ | SEO: robots allowed everything; no PDP OG/canonical/JSON-LD; `data-scroll-behavior` missing (Next 16 console warning); sitemap listed robots-excluded routes | Indexation noise + missing rich results | **Fixed (Task 114)** — coherent policy (robots disallow × 7; sitemap 12+24+6=42 indexable URLs; PDP canonical+OG+Product JSON-LD; attribute set) — all unit/e2e pinned |
+| ~~LOW~~ | Promo display logic duplicated (cart + checkout) with a phantom 10% default for unknown codes | Misleading totals preview | **Fixed (Task 114)** — shared `findPromo()` in `catalog.ts`; server re-derivation unchanged |
+| ~~LOW~~ | `package.json` name was `nextjs-postgresql-template` | Identity drift | **Fixed (Task 114)** — `home-furnishing-store` |
 | LOW | `docs/ssh_git_wrapper_v3.py` default remote still `nordeim/ely-beauty` | A wrapper run without `--remote` pushes to the wrong repo | Open (override documented everywhere; changing the default touches a live operator tool) |
 | LOW | `drizzle.config.json` hardcodes a local dev URL | Surprises on remote DBs | Open — documented in README/.env.example |
-| LOW | Two inherited scripts broken (`capture-screenshots.ts` imports `@playwright/test` + deleted `@/lib/demo-credentials`; `restore-demo-stock.ts` imports `@prisma/client` + deleted `prisma/seed`) | Dead code in `scripts/` | Open — adapt or remove with the test re-pin |
 | INFO | Auth + real payments deferred by decision (ADR-006); reviews unauthenticated; per-process rate limiter weak behind multi-instance LB | Demo-scope accepted risks | Documented; revisit before any production use |
-| INFO | Display pricing rules duplicated (`priceTotals` helper vs inline logic in `placeOrder`) | Future drift risk | Noted in ADR-005; unify on the helper during the test re-pin |
+| INFO | Display pricing rules duplicated (`priceTotals` helper vs inline logic in `placeOrder`) | Future drift risk | Reduced in Task 114 (promo lookup unified); full unification still open |
+| INFO | `nordhem_promo` persisted format changed raw → JSON in the Task 114 store refactor | One-time cosmetic migration: a returning visitor re-applies their promo once | Documented in `cart-store.tsx` |
 
-**Verification ledger (2026-11-18, this PAD's audit cycle):** cold `npm run
-build` green after the guard fix (30 routes) — *Verified*; `npm run typecheck`
-exit 0 (app scope) — *Verified*; `npm run lint` 7 errors, all one rule family —
-*Verified*; production-server smoke: 19 page routes → 200, `/api/products`
-fallback data + dining/price-asc filter correct, `/api/health` → 500 without
-DB (documented behavior), checkout validation → 422 envelope, DB-down order →
-500 `CHECKOUT_FAILED`, promo min-spend rejection → 422 — *Verified*; checkout
-persistence round-trip in Postgres — *Reasoned* (code path inspected; no
-Postgres in the audit sandbox); no unit/e2e execution — *Unverifiable* in this
-environment (toolchain not installed).
+**Verification ledger (2026-11-18, Task 114 remediation cycle):** rootless
+PostgreSQL 17.12 installed (scram TCP + trust socket, `app_db` created) —
+*Verified*; `drizzle-kit push` → 11 tables — *Verified*; first-read seed
+(24/8/72/5/3/6/3 rows) — *Verified*; checkout round-trip in Postgres
+(`NH-20261118-2NRWZD`: 259800 − 25980 WELCOME10, free delivery, GST 19306,
+total 233820; tracking 200 on match / 404 on mismatch) — *Verified*; mobile
+menu at 390×844 + desktop at 1280×800 via agent-browser (open/navigate/
+auto-close/toggle; Escape gap found → fixed → re-verified) — *Verified*;
+lint 0 errors 0 warnings — *Verified*; typecheck + typecheck:tests clean —
+*Verified*; vitest 40/40 — *Verified*; Playwright 18/18 against the production
+build — *Verified*; cold `next build` green (30 routes) — *Verified*; 16
+dev-server screenshots (PNG signature + dimensions validated) — *Verified*;
+no Tailwind v4 mobile-nav bug found (the family's v4 trap is the candidate
+scan, guarded and cold-build-proven) — *Verified*.
 
 ---
 
@@ -706,14 +735,18 @@ environment (toolchain not installed).
 | `src/lib/server-data.ts` | ~244 | All DB reads/writes, seed, fallbacks, promo validation, `placeOrder` money truth, tracking |
 | `src/lib/catalog.ts` | ~142 | Static catalogue: 24 products, 8 categories, 3 stores, 6 rooms, 3 promos (seed + fallback) |
 | `src/lib/utils.ts` | ~98 | Pure helpers: `formatSGD`, `priceTotals`, validators, `orderNumber`, `clampInt`, `stars` |
-| `src/lib/cart-store.tsx` | ~127 | The one client store: CartProvider/useCart, localStorage persistence |
+| `src/lib/cart-store.tsx` | ~110 | The one client store: three `local-store` external stores via `useSyncExternalStore` + `useCart` context |
+| `src/lib/local-store.ts` | ~75 | localStorage-backed external-store factory (subscribe/getSnapshot/getServerSnapshot/set) — the set-state-in-effect remedy |
+| `src/lib/mask.ts` | ~14 | `maskEmail` — PII policy for the public order page |
 | `src/db/schema.ts` | ~178 | 11 Drizzle tables + row types |
 | `src/db/index.ts` | ~25 | Pooled client, `DATABASE_URL` fail-fast guard, globalThis singleton |
 | `src/app/globals.css` | ~85 | Tailwind v4 `@theme` tokens, candidate-scan guard, utility classes |
 | `src/app/page.tsx` | ~237 | Home page composition (hero, rooms, bestsellers, deals, stores, brand) |
 | `src/app/product/[slug]/page.tsx` | ~122 | PDP: metadata, gallery, stock/aisle, reviews, related |
 | `src/app/api/checkout/route.ts` | ~62 | Validation, rate limit, `placeOrder` delegation, envelope |
-| `src/components/Header.tsx` | ~174 | Utility strip, search, store picker, category nav, mobile drawer |
+| `src/components/Header.tsx` | ~180 | Utility strip, search, store picker (external store), category nav, mobile drawer (Escape-close) |
+| `tests/unit/` | 5 files | 40 unit tests at the pure seams (utils, catalog, local-store, mask, robots/sitemap) |
+| `tests/e2e/` | 2 specs | 18 Playwright tests: mobile-navigation (390×844) + storefront/commerce journeys |
 | `src/components/ProductCard.tsx` | ~92 | Card + `Rating`; wishlist/add-to-bag affordances |
 | `docs/implementation-plan.md` | 42 | Stack decision record, deviations ledger, acceptance criteria |
 | `docs/reference-investigation.md` | 45 | Reference-site evidence (Verified/Reasoned/Assumed/Unknown) |

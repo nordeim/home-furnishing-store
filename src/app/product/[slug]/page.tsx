@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAllProducts, getInventory, getProductBySlug, getReviews } from "@/lib/server-data";
@@ -8,11 +9,25 @@ import { ReviewSection } from "@/components/ReviewSection";
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+const SITE = "https://nordhem.sg";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const p = await getProductBySlug(slug);
   if (!p) return { title: "Product not found" };
-  return { title: `${p.name} — ${p.tagline}`, description: p.description };
+  return {
+    title: `${p.name} — ${p.tagline}`,
+    description: p.description,
+    alternates: { canonical: `/product/${p.slug}` },
+    openGraph: {
+      title: `${p.name} — ${p.tagline}`,
+      description: p.description,
+      type: "website",
+      siteName: "NORDHEM Singapore",
+      url: `${SITE}/product/${p.slug}`,
+      images: [{ url: p.imageUrls[0], alt: p.name }],
+    },
+  };
 }
 
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -25,8 +40,37 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     ? Math.round(((p.compareAtCents - p.priceCents) / p.compareAtCents) * 100)
     : 0;
 
+  // schema.org Product structured data — server-controlled catalogue values
+  // only; `<` is escaped so no string can break out of the script element.
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: p.name,
+    description: p.description,
+    sku: p.sku,
+    image: p.imageUrls,
+    brand: { "@type": "Brand", name: "NORDHEM" },
+    aggregateRating: {
+      "@type": "AggregateRating",
+      ratingValue: String(p.ratingAvg),
+      reviewCount: p.ratingCount,
+    },
+    offers: {
+      "@type": "Offer",
+      url: `${SITE}/product/${p.slug}`,
+      priceCurrency: "SGD",
+      price: (p.priceCents / 100).toFixed(2),
+      availability: "https://schema.org/InStock",
+      itemCondition: "https://schema.org/NewCondition",
+    },
+  };
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
+      />
       <nav aria-label="Breadcrumb" className="text-[13px] text-[#5b5b5b]">
         <Link href="/" className="hover:underline">Home</Link> ·{" "}
         <Link href={`/shop?cat=${p.categorySlug}`} className="hover:underline">{p.categorySlug}</Link> ·{" "}

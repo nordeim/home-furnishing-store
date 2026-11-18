@@ -1,10 +1,10 @@
-// S87-2 canonical config — restored by scripts/ensure-build-configs.mjs when
-// missing or empty (the gated npm scripts run that bootstrap first; keep the
-// CONFIG_FALLBACKS registry in sync — pinned by build-config-resilience.test.ts).
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 
+// NORDHEM unit suite — pure seams only (utils, catalog, external stores,
+// SEO route modules). Route handlers, pages and journeys are covered by the
+// Playwright suite (tests/e2e) against the production build.
 export default defineConfig({
   plugins: [react()],
   test: {

@@ -94,10 +94,10 @@ Troubleshooting).
 ├── 📂 src/components/        # Header, Footer, ProductCard, BuyBox, ReviewSection
 ├── 📂 src/lib/               # server-data (DB+fallbacks), catalog (static seed), cart-store, utils
 ├── 📂 src/db/                # schema.ts (11 tables) + index.ts (pooled Drizzle client)
-├── 📂 docs/                  # implementation-plan, reference-investigation, SSH push runbook, archives
+├── 📂 docs/                  # implementation-plan, reference-investigation, plans, screenshots, SSH push runbook
 ├── 📂 skills/                # vendored agent skills (excluded from gates)
-├── 📂 tests/                 # ⚠️ inherited from predecessor repo — not runnable here (see Testing)
-├── 📄 AGENTS.md · CLAUDE.md · Project_Architecture_Document.md
+├── 📂 tests/                 # NORDHEM-native suite: unit (Vitest) + e2e (Playwright)
+├── 📄 AGENTS.md · CLAUDE.md · Project_Architecture_Document.md · home-furnishing-store_SKILL.md
 ├── 📄 drizzle.config.json · playwright.config.ts · vitest.config.ts
 └── 📄 worklog.md             # session-by-session working history
 ```
@@ -156,19 +156,25 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 
 ## Testing
 
-There is currently **no runnable test suite for this codebase** — the `tests/`
-tree (73 unit + 15 e2e files) and its configs were inherited from the
-predecessor `ely-beauty` project, import packages that are not installed
-(`vitest`, `@playwright/test`) and ~40 modules that do not exist in this `src/`.
-Re-pinning the suite is the top open remediation item (PAD §11).
-
-Until then, the verification gate (run before every commit):
+A NORDHEM-native suite is wired into the gates (Task 114):
 
 ```bash
-rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db" npm run build
-npm run typecheck   # app scope: src/** + next.config.ts — currently clean
-npm run lint        # 7 known react-hooks/set-state-in-effect errors (documented debt)
+npm run test             # Vitest unit — 40 tests at the pure seams
+                         # (money math, validators, catalogue invariants,
+                         #  findPromo, local-store contract, maskEmail,
+                         #  robots/sitemap SEO policy)
+npm run test:e2e         # Playwright e2e — 18 tests against the PRODUCTION build
+                         # (boots :3100 with a pinned DATABASE_URL): mobile
+                         # navigation @390×844 incl. Escape-close, PDP SEO +
+                         # JSON-LD, robots/sitemap, API envelope, and the full
+                         # bag → promo → checkout → masked confirmation →
+                         # tracking journey (live Postgres)
+npm run test:e2e:install # one-time: install the Playwright Chromium build
 ```
+
+The predecessor repo's 73-unit/15-e2e dead tree (importing modules that do not
+exist in this `src/`) was retired in the same pass — every test here pins
+NORDHEM behaviour. TDD is the default for logic changes.
 
 ## API Reference
 
@@ -218,14 +224,19 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Reference investigation (IKEA SG, public routes) | ✅ Done | `docs/reference-investigation.md` |
 | Implementation plan + decision record | ✅ Done | `docs/implementation-plan.md` |
 | Storefront build (20 routes, 6 APIs, 11 tables) | ✅ Done | built from the `ely-beauty` template lineage |
-| Build/typecheck gate | ✅ Green (this run fixed the clean-build breaker) | scan guard restored in `globals.css` |
-| Lint gate | 🟡 7 known errors (one rule family) | remediation plan in PAD §11 |
-| Test suite | 🔴 Inherited, not runnable | re-pin or retire — top open item |
+| Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
+| Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
+| Test suite | ✅ 40 unit + 18 e2e, all green | NORDHEM-native harness (Task 114); predecessor dead tree retired |
+| Mobile navigation | ✅ Verified (agent-browser + e2e) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug |
+| SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD | coherent policy: sitemap = indexable only, robots excludes utility/personal |
+| PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
 
-Latest cycle (2026-11-18): docs-validation audit of the plan/investigation
-against the codebase, clean-build blocker fixed, AGENTS/CLAUDE/README/PAD
-regenerated — details in `worklog.md`.
+Latest cycle (2026-11-18, Task 114): rootless PostgreSQL 17 install + live-DB
+verification (checkout round-trip, seed counts), full code audit, test-harness
+re-pin, lint-debt refactor, mobile-nav a11y fix, SEO + PII remediation, 16 dev-
+server screenshots — details in `worklog.md` and
+`docs/plans/2026-11-18-task114-remediation-plan.md`.
 
 ## Troubleshooting
 
@@ -235,7 +246,9 @@ regenerated — details in `worklog.md`.
 | `Error: DATABASE_URL is required` at startup | `src/db/index.ts` throws without it. Set any Postgres URL in `.env` (even unreachable — the storefront falls back to the static catalogue; writes need a live DB). |
 | `/api/health` returns 500 | The database is unreachable — expected on the static fallback; bring Postgres up and re-check. |
 | Checkout returns 500 `CHECKOUT_FAILED` | Almost certainly the DB (write path has no fallback). Verify `DATABASE_URL`, `drizzle-kit push`, and that first-read seeding has run. |
-| `tsc` errors under `tests/` or `scripts/` | Those trees belong to the predecessor repo. `npm run typecheck` is scoped to the app; don't widen the include without re-pinning the suite. |
+| `DATABASE_URL` returns the wrong DB / health 500 with the DB up | An exported shell `DATABASE_URL` overrides `.env` (dotenv never overrides). Check `env \| grep DATABASE` and pin the value per command. |
+| `npx playwright test` can't find a browser | Run `npm run test:e2e:install` once (installs the pinned Chromium build). |
+| e2e checkout journey fails with `CHECKOUT_FAILED` | The journey needs a live Postgres (writes have no fallback). Start the DB, `drizzle-kit push`, and re-run. |
 | Push rejected by wrapper: default remote wrong | The wrapper's built-in default still points at `nordeim/ely-beauty`. Always pass `--remote git@github.com:nordeim/home-furnishing-store.git` (runbook: `docs/how-to-git-push-using-ssh-wrapper_SKILL.md`). |
 
 ## Contributing

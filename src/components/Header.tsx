@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { createLocalStore } from "@/lib/local-store";
 import { useCart } from "@/lib/cart-store";
 import { CATEGORIES } from "@/lib/catalog";
 
@@ -14,28 +15,40 @@ const TOP_LINKS = [
   { href: "/track-order", label: "Track order" },
 ];
 
+// Persisted store picker (nordhem_store) as an external store — the same
+// useSyncExternalStore pattern as the cart (see cart-store.tsx for why).
+const storePick = createLocalStore<string>("nordhem_store", "Tampines");
+
 export function Header() {
   const { count, wishlist } = useCart();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
-  const [store, setStore] = useState("Tampines");
+  const store = useSyncExternalStore(storePick.subscribe, storePick.getSnapshot, storePick.getServerSnapshot);
   const router = useRouter();
   const pathname = usePathname();
-  const searchRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => setOpen(false), [pathname]);
+  // Close the drawer when the route changes. Adjust-during-render (the
+  // React-docs pattern) instead of a pathname-keyed effect — effects must not
+  // call setState synchronously (react-hooks/set-state-in-effect).
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    setOpen(false);
+  }
 
+  // Escape closes the mobile drawer (overlay a11y baseline). State changes
+  // happen in the event callback, not synchronously in the effect body.
   useEffect(() => {
-    try {
-      setStore(localStorage.getItem("nordhem_store") || "Tampines");
-    } catch { /* ignore */ }
-  }, []);
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   function pickStore(s: string) {
-    setStore(s);
-    try {
-      localStorage.setItem("nordhem_store", s);
-    } catch { /* ignore */ }
+    storePick.set(s);
   }
 
   function submit(e: React.FormEvent) {
@@ -85,7 +98,6 @@ export function Header() {
         <form onSubmit={submit} role="search" className="relative hidden flex-1 md:block">
           <svg className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#5b5b5b]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" strokeLinecap="round" /></svg>
           <input
-            ref={searchRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search sofas, beds, bookshelves, pendant lights…"

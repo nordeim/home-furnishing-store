@@ -1,12 +1,17 @@
 {
-  "name": "nextjs-postgresql-template",
+  "name": "home-furnishing-store",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
+    "typecheck:tests": "tsc --noEmit -p tsconfig.tests.json"
   },
   "dependencies": {
     "dotenv": "^17.3.1",
@@ -17,16 +22,20 @@
     "react-dom": "^19.2.6"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/postcss": "^4.1.17",
     "@types/node": "^22.19.15",
     "@types/pg": "^8.18.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.3.0",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.4.2",
     "postcss": "^8.5.23",
     "tailwindcss": "^4.1.17",
-    "typescript": "^5.9.3"
-  }
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.0"
+  },
+  "description": "NORDHEM Singapore — furniture & home-furnishing storefront (Next.js 16 + React 19 + Drizzle + PostgreSQL)"
 }

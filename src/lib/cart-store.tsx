@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
+import { createLocalStore } from "@/lib/local-store";
 
 export interface CartLine {
   productId: number;
@@ -18,7 +19,6 @@ interface CartState {
   promoCode: string | null;
   count: number;
   subtotalCents: number;
-  loaded: boolean;
   add: (line: Omit<CartLine, "qty">, qty?: number) => void;
   setQty: (productId: number, qty: number) => void;
   remove: (productId: number) => void;
@@ -29,93 +29,79 @@ interface CartState {
   wishlist: string[];
 }
 
-const CartContext = createContext<CartState | null>(null);
 const CART_KEY = "nordhem_cart_v1";
 const WISH_KEY = "nordhem_wish_v1";
+const PROMO_KEY = "nordhem_promo";
 
-function read<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
+// One external store per persisted key. useSyncExternalStore handles the
+// server/client hydration split natively (getServerSnapshot → fallback during
+// SSR/hydration, client snapshot after mount) — the reason this replaced the
+// old mount-effect + setState hydration, which the React Compiler-era
+// `react-hooks/set-state-in-effect` rule flags.
+// Note: `nordhem_promo` was persisted as a raw string before the refactor and
+// is JSON-encoded now — a returning visitor re-applies their promo once.
+const linesStore = createLocalStore<CartLine[]>(CART_KEY, []);
+const wishStore = createLocalStore<string[]>(WISH_KEY, []);
+const promoStore = createLocalStore<string | null>(PROMO_KEY, null);
+
+function addLine(line: Omit<CartLine, "qty">, qty = 1) {
+  linesStore.set((prev) => {
+    const found = prev.find((l) => l.productId === line.productId);
+    if (found) {
+      return prev.map((l) =>
+        l.productId === line.productId ? { ...l, qty: Math.min(99, l.qty + qty) } : l,
+      );
+    }
+    return [...prev, { ...line, qty: Math.min(99, Math.max(1, qty)) }];
+  });
 }
 
+function setLineQty(productId: number, qty: number) {
+  linesStore.set((prev) =>
+    qty <= 0
+      ? prev.filter((l) => l.productId !== productId)
+      : prev.map((l) => (l.productId === productId ? { ...l, qty: Math.min(99, Math.floor(qty)) } : l)),
+  );
+}
+
+const actions = {
+  add: addLine,
+  setQty: setLineQty,
+  remove: (productId: number) => linesStore.set((prev) => prev.filter((l) => l.productId !== productId)),
+  clear: () => linesStore.set([]),
+  setPromo: (code: string | null) => promoStore.set(code),
+  toggleWish: (slug: string) =>
+    wishStore.set((prev) => (prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug])),
+};
+
+const CartContext = createContext<CartState | null>(null);
+
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [lines, setLines] = useState<CartLine[]>([]);
-  const [promoCode, setPromoCode] = useState<string | null>(null);
-  const [wishlist, setWishlist] = useState<string[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const lines = useSyncExternalStore(linesStore.subscribe, linesStore.getSnapshot, linesStore.getServerSnapshot);
+  const wishlist = useSyncExternalStore(wishStore.subscribe, wishStore.getSnapshot, wishStore.getServerSnapshot);
+  const promoCode = useSyncExternalStore(promoStore.subscribe, promoStore.getSnapshot, promoStore.getServerSnapshot);
 
-  useEffect(() => {
-    setLines(read<CartLine[]>(CART_KEY, []));
-    setWishlist(read<string[]>(WISH_KEY, []));
-    setPromoCode(localStorage.getItem("nordhem_promo") || null);
-    setLoaded(true);
-  }, []);
-
-  useEffect(() => {
-    if (!loaded) return;
-    try {
-      localStorage.setItem(CART_KEY, JSON.stringify(lines));
-    } catch { /* storage full — degrade silently */ }
-  }, [lines, loaded]);
-
-  useEffect(() => {
-    if (!loaded) return;
-    try {
-      localStorage.setItem(WISH_KEY, JSON.stringify(wishlist));
-      if (promoCode) localStorage.setItem("nordhem_promo", promoCode);
-      else localStorage.removeItem("nordhem_promo");
-    } catch { /* ignore */ }
-  }, [wishlist, promoCode, loaded]);
-
-  const add = useCallback((line: Omit<CartLine, "qty">, qty = 1) => {
-    setLines((prev) => {
-      const found = prev.find((l) => l.productId === line.productId);
-      if (found) {
-        return prev.map((l) =>
-          l.productId === line.productId ? { ...l, qty: Math.min(99, l.qty + qty) } : l,
-        );
-      }
-      return [...prev, { ...line, qty: Math.min(99, Math.max(1, qty)) }];
-    });
-  }, []);
-
-  const setQty = useCallback((productId: number, qty: number) => {
-    setLines((prev) =>
-      qty <= 0
-        ? prev.filter((l) => l.productId !== productId)
-        : prev.map((l) => (l.productId === productId ? { ...l, qty: Math.min(99, Math.floor(qty)) } : l)),
-    );
-  }, []);
-
-  const remove = useCallback((productId: number) => {
-    setLines((prev) => prev.filter((l) => l.productId !== productId));
-  }, []);
-
-  const clear = useCallback(() => setLines([]), []);
-  const setPromo = useCallback((code: string | null) => setPromoCode(code), []);
-
-  const toggleWish = useCallback((slug: string) => {
-    setWishlist((prev) => (prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]));
-  }, []);
-
-  const isWished = useCallback((slug: string) => wishlist.includes(slug), [wishlist]);
-
-  const { count, subtotalCents } = useMemo(() => {
-    return {
+  const { count, subtotalCents } = useMemo(
+    () => ({
       count: lines.reduce((a, l) => a + l.qty, 0),
       subtotalCents: lines.reduce((a, l) => a + l.qty * l.unitPriceCents, 0),
-    };
-  }, [lines]);
-
-  const value = useMemo(
-    () => ({ lines, promoCode, count, subtotalCents, loaded, add, setQty, remove, clear, setPromo, toggleWish, isWished, wishlist }),
-    [lines, promoCode, count, subtotalCents, loaded, add, setQty, remove, clear, setPromo, toggleWish, isWished, wishlist],
+    }),
+    [lines],
   );
+
+  const value = useMemo<CartState>(
+    () => ({
+      lines,
+      promoCode,
+      count,
+      subtotalCents,
+      isWished: (slug: string) => wishlist.includes(slug),
+      wishlist,
+      ...actions,
+    }),
+    [lines, promoCode, count, subtotalCents, wishlist],
+  );
+
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
 

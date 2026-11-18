@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-18
+last_updated: 2026-11-18 (Task 114: test harness, lint debt, a11y, SEO, PII)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -63,9 +63,11 @@ PostgreSQL (node-postgres) · ESLint 9 flat config.
   `{ ok: true, data } | { ok: false, error: { code, message } }` — always.
 - `generateMetadata` on dynamic product pages; `metadataBase` fixed at
   `https://nordhem.sg` (layout.tsx, robots.ts, sitemap.ts).
-- Client-state hydration from `localStorage` happens in `useEffect` after mount
-  (never during render — SSR/html hydration safety); see the known lint debt in the
-  PAD before refactoring it.
+- Client state: cart/wishlist/promo live in `src/lib/local-store.ts` external
+  stores consumed via `useSyncExternalStore` (`src/lib/cart-store.tsx`) —
+  localStorage hydration without effect-setState (the React Compiler-era rule).
+  Params-derived page state uses adjust-during-render (`shop/`, `search/`).
+  See the known-gotcha list in AGENTS.md before refactoring this seam.
 
 ### TypeScript Strict Mode
 
@@ -91,9 +93,13 @@ PostgreSQL (node-postgres) · ESLint 9 flat config.
 - Five shared components in `src/components/` (`Header`, `Footer`, `ProductCard`,
   `BuyBox`, `ReviewSection`); pages compose them — no component library (Shadcn/
   Radix/MUI) is installed; match the existing hand-rolled style.
-- Accessibility is a feature, not a garnish: skip link, `aria-label`s, `role=
-  "tablist"/"radiogroup"`, `aria-live` regions, visible focus rings, responsive
-  down to 360px.
+- Accessibility is a feature, not a garnish: skip link, `aria-label`s, `role=`
+  `"tablist"/"radiogroup"`, `aria-live` regions, visible focus rings, Escape-close
+  on the mobile drawer, responsive down to 360px.
+- SEO surfaces are code: `robots.ts` disallows utility/personal routes, the
+  sitemap lists indexable routes only (never both), PDPs carry canonical +
+  OpenGraph + `schema.org/Product` JSON-LD, and `<html>` carries
+  ˋdata-scroll-behavior="smooth"ˋ (the CSS pairs with it in globals.css).
 
 ## Development Workflow
 
@@ -119,36 +125,43 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run dev` | Development server |
 | `npm run build` | Production build (needs `DATABASE_URL` in env; test cold with `rm -rf .next`) |
 | `npm run start` | Serve the production build |
-| `npm run lint` | ESLint (`skills/` ignored by operator contract) |
-| `npm run typecheck` | App-scope TypeScript check |
+| `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
+| `npm run typecheck` | App-scope TypeScript check (`typecheck:tests` covers the test tree) |
+| `npm run test` | Vitest unit suite (40 tests, pure seams) |
+| `npm run test:e2e` | Playwright e2e (18 tests, production build on :3100) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
-**Current state (honest):** no runnable test suite exists for this codebase. The
-`tests/` tree (73 unit + 15 e2e files), `vitest.config.ts`, `playwright.config.ts`
-and two `scripts/` files are artifacts of the predecessor `ely-beauty` project —
-they import `vitest`/`@playwright/test` and ~40 modules that do not exist here, and
-those packages are not in `package.json`. Re-pinning the suite to NORDHEM is the
-single largest open remediation item (see PAD §11).
+**Current state (Task 114):** a NORDHEM-native suite is wired into the gates.
 
-Until then, verification is the gate chain + runtime smoke:
+- **Unit (Vitest, 40 tests)** at the pure seams — `src/lib/utils.ts` money math
+  and validators, `src/lib/catalog.ts` invariants + `findPromo`, the
+  `local-store.ts` external-store contract, `maskEmail`, and the `robots.ts` /
+  `sitemap.ts` SEO policy. Node environment with a localStorage shim
+  (`tests/unit/setup.ts`); no jsdom, no component rendering.
+- **E2E (Playwright, 18 tests)** against the **production build** (the webServer
+  builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
+  project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
+  hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD,
+  robots/sitemap endpoints, API envelope, and the full bag → promo → checkout →
+  masked confirmation → tracking journey against live Postgres).
+- The predecessor's 73-unit/15-e2e dead tree (ely-beauty imports) was retired;
+  `tsconfig.tests.json` + `typecheck:tests` now cover the NORDHEM test tree.
 
-```bash
-rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db" npm run build
-npm run typecheck && npm run lint
-DATABASE_URL="…" npm run start &   # smoke: / /shop /product/<slug> /cart /checkout
-                                   # /track-order /inspiration /offers + GET /api/products
-```
+TDD is the default for logic changes: red → green → refactor, one seam at a
+time (`skills/tdd`). Bug fixes require a regression test that fails before the
+fix and passes after.
 
 ## Code Quality Standards
 
-- Gate order: lint → typecheck → cold build → smoke. Never weaken a rule, skip a
-  check, or delete a test to make a gate pass.
-- Known lint debt (do not grow it): 7 `react-hooks/set-state-in-effect` errors in
-  `cart-store.tsx`, `Header.tsx`, `shop/page.tsx`, `search/page.tsx` — the
-  intentional client-hydration patterns; remediate via `useSyncExternalStore` /
-  render-derivation **together with** a test re-pin, not by suppression.
+- Gate order: lint → typecheck (+ `typecheck:tests`) → unit → cold build → e2e
+  → runtime smoke. Never weaken a rule, skip a check, or delete a test to make
+  a gate pass.
+- Lint is **0 errors / 0 warnings** — the former 7-error
+  `react-hooks/set-state-in-effect` debt was fixed in Task 114 via
+  `useSyncExternalStore` external stores + adjust-during-render (never by
+  suppression). Do not reintroduce effect-body setState.
 - Comments explain *why* (the degrade-fallbacks and the scan guard carry
   rationale comments); no commented-out code, no placeholder values.
 
@@ -174,6 +187,9 @@ DATABASE_URL="…" npm run start &   # smoke: / /shop /product/<slug> /cart /che
 - Debugging a "Missed semicolon" build failure in `globals.css`: it is almost
   always the Tailwind candidate scan picking up a class-like string from prose —
   see the scan guard at the top of `globals.css` and AGENTS.md gotcha #1.
+- "App connects to the wrong DB / health 500 with the DB up": an exported shell
+  `DATABASE_URL` overrides `.env` (dotenv never overrides). Check
+  `env | grep DATABASE` and pin the value per command.
 
 ## Communication & Documentation
 

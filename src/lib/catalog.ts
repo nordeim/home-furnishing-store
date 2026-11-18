@@ -127,7 +127,15 @@ export const INSPIRATIONS: SeedInspiration[] = [
   { slug: "renter-refresh-800", title: "A renter refresh under $800", room: "Living · 18 sqm", sqm: 18, budgetCents: 80000, description: "No drilling, no painting, no regrets: a flatweave rug, blackout curtains and a pendant cluster transform any rental.", imageUrl: IMG.living1, productSlugs: ["pandan-rug-200", "blackout-curtain-pair", "hygge-pendant-cluster"] },
 ];
 
-export const PROMOS = [
+export interface PromoLike {
+  code: string;
+  label: string;
+  kind: "percent" | "fixed";
+  value: number;
+  minSubtotalCents: number;
+}
+
+export const PROMOS: PromoLike[] = [
   { code: "WELCOME10", label: "10% off your first order over $150", kind: "percent", value: 10, minSubtotalCents: 15000 },
   { code: "MAKAN15", label: "15% off dining collections over $400", kind: "percent", value: 15, minSubtotalCents: 40000 },
   { code: "FLAT20", label: "$20 off orders over $250", kind: "fixed", value: 2000, minSubtotalCents: 25000 },
@@ -135,6 +143,19 @@ export const PROMOS = [
 
 export function findProduct(slug: string): SeedProduct | undefined {
   return PRODUCTS.find((p) => p.slug === slug);
+}
+
+/**
+ * Client-side promo lookup for DISPLAY ONLY (cart + checkout totals preview).
+ * The server re-validates every code against the promotions table in
+ * placeOrder() / /api/promotions/validate — those remain the truth (ADR-005).
+ * Unknown codes return null so the UI can never show a phantom discount
+ * (the old inline switch defaulted every unknown code to 10% off).
+ */
+export function findPromo(code: string): Pick<PromoLike, "kind" | "value"> | null {
+  const c = code.trim().toUpperCase();
+  const promo = PROMOS.find((p) => p.code === c);
+  return promo ? { kind: promo.kind, value: promo.value } : null;
 }
 
 export function productImage(p: { imageUrls: string[] }, i = 0): string {

@@ -3,20 +3,32 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useCart } from "@/lib/cart-store";
+import { findPromo } from "@/lib/catalog";
 import { formatSGD, priceTotals } from "@/lib/utils";
 
 export default function CartPage() {
   const { lines, setQty, remove, promoCode, setPromo, subtotalCents } = useCart();
   const [code, setCode] = useState(promoCode ?? "");
-  const [promoMsg, setPromoMsg] = useState<string | null>(promoCode ? `${promoCode} applied` : null);
-  const [promoValid, setPromoValid] = useState(!!promoCode);
+  // Follow an externally-applied promo (e.g. hydrated from localStorage after
+  // mount) via adjust-during-render — the input mirrors the live promo state.
+  const [prevPromo, setPrevPromo] = useState(promoCode);
+  if (promoCode !== prevPromo) {
+    setPrevPromo(promoCode);
+    setCode(promoCode ?? "");
+  }
+  // Transient apply/error feedback only — the "applied" state itself is
+  // derived from the store, so a revisit with a persisted promo shows its
+  // discount immediately (previously the summary forgot it until re-applied).
+  const [applyMsg, setApplyMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [checking, setChecking] = useState(false);
+
+  const promoMsg = applyMsg ?? (promoCode ? { ok: true, text: `${promoCode} applied` } : null);
 
   async function applyPromo() {
     const c = code.trim().toUpperCase();
     if (!c) return;
     setChecking(true);
-    setPromoMsg(null);
+    setApplyMsg(null);
     try {
       const res = await fetch("/api/promotions/validate", {
         method: "POST",
@@ -26,21 +38,18 @@ export default function CartPage() {
       const json = (await res.json()) as { ok: boolean; data?: { label: string }; error?: { message: string } };
       if (!json.ok) throw new Error(json.error?.message ?? "Invalid code");
       setPromo(c);
-      setPromoValid(true);
-      setPromoMsg(`${c} applied — ${json.data?.label ?? "discount"}`);
+      setApplyMsg({ ok: true, text: `${c} applied — ${json.data?.label ?? "discount"}` });
     } catch (e) {
       setPromo(null);
-      setPromoValid(false);
-      setPromoMsg(e instanceof Error ? e.message : "Invalid code");
+      setApplyMsg({ ok: false, text: e instanceof Error ? e.message : "Invalid code" });
     } finally {
       setChecking(false);
     }
   }
 
-  // Totals preview client-side; checkout re-derives server-side (server is truth).
-  const promo = promoValid && promoCode
-    ? promoCode === "FLAT20" ? { kind: "fixed", value: 2000 } : promoCode === "MAKAN15" ? { kind: "percent", value: 15 } : { kind: "percent", value: 10 }
-    : null;
+  // Totals preview client-side via the shared findPromo source; checkout
+  // re-derives server-side (server is truth).
+  const promo = promoCode ? findPromo(promoCode) : null;
   const t = priceTotals({ subtotalCents, promo, deliveryMethod: "delivery" });
 
   if (lines.length === 0) {
@@ -93,7 +102,7 @@ export default function CartPage() {
             <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Promo code (try WELCOME10)" aria-label="Promo code" className="flex-1 rounded-full border border-[#ddd] bg-white px-4 py-2.5 text-[14px] outline-none focus:border-[#0058a3]" />
             <button onClick={applyPromo} disabled={checking} className="rounded-full bg-[#111] px-5 py-2.5 text-[14px] font-bold text-white disabled:opacity-60 focus-ring">{checking ? "…" : "Apply"}</button>
           </div>
-          {promoMsg && <p className={`mt-2 text-[13px] font-bold ${promoValid ? "text-[#2e6b34]" : "text-[#cc0008]"}`} role="status">{promoMsg}</p>}
+          {promoMsg && <p className={`mt-2 text-[13px] font-bold ${promoMsg.ok ? "text-[#2e6b34]" : "text-[#cc0008]"}`} role="status">{promoMsg.text}</p>}
           <dl className="mt-4 space-y-2 text-[14px]">
             <div className="flex justify-between"><dt>Subtotal</dt><dd className="font-bold">{formatSGD(t.subtotalCents)}</dd></div>
             {t.discountCents > 0 && <div className="flex justify-between text-[#2e6b34]"><dt>Discount</dt><dd className="font-bold">−{formatSGD(t.discountCents)}</dd></div>}

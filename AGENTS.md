@@ -20,12 +20,15 @@ ORM + PostgreSQL.
 | `DATABASE_URL=… npm run dev` | Dev server (DATABASE_URL is **required at module load** — `src/db/index.ts` throws without it; point it at any Postgres, even an unreachable one, and the storefront falls back to the static catalogue) |
 | `npm run build` | Production build (set `DATABASE_URL` in the environment for the same reason) |
 | `npm run start` | Serve the production build |
-| `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) |
+| `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
+| `npm run test` | Vitest unit suite (40 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap) |
+| `npm run test:e2e` | Playwright e2e (18 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (11 tables) |
 
-There is **no runnable test suite in this repo yet** — see "Inherited ely-beauty
-artifacts" below before touching `tests/`.
+The test suite is **NORDHEM-native** (Task 114): `tests/unit` (5 files) + `tests/e2e`
+(mobile-navigation + storefront specs). The predecessor's 73-unit/15-e2e dead tree
+was retired with it — do not resurrect ely-beauty specs; pin new ones to this `src/`.
 
 ## Hard-won gotchas (read before changing anything)
 
@@ -55,10 +58,13 @@ artifacts" below before touching `tests/`.
    literal hex in the `@theme` block of `src/app/globals.css`
    (`--color-brand: #0058a3`, `--color-accent: #ffdb00`, …). Arbitrary values in
    JSX use bracket syntax (`bg-[#f5f3ee]`, `text-[15px]`) by convention.
-6. **One store, no state library.** Cart + wishlist + promo live in a single
-   React-context provider (`src/lib/cart-store.tsx`), persisted to `localStorage`
-   (`nordhem_cart_v1`, `nordhem_wish_v1`, `nordhem_promo`, `nordhem_store`). Do not
-   add Zustand/Redux for new client state; extend the context or use local state.
+6. **One store, no state library — via external stores.** Cart + wishlist + promo live
+   in `src/lib/local-store.ts` external stores consumed with `useSyncExternalStore`
+   (`src/lib/cart-store.tsx`); persisted to `localStorage` (`nordhem_cart_v1`,
+   `nordhem_wish_v1`, `nordhem_promo`, `nordhem_store`). Do NOT reintroduce the old
+   mount-effect hydration (it trips `react-hooks/set-state-in-effect` — the reason
+   the lint gate once sat at 7 errors). Adjust-during-render is the sanctioned
+   pattern for params-derived state (see `shop/` + `search/`).
 7. **`<img>` not `next/image`.** The codebase deliberately uses plain `<img>` with
    Pexels CDN URLs and per-line `eslint-disable-next-line @next/next/no-img-element`.
    Keep the pattern (no local image pipeline exists).
@@ -66,45 +72,47 @@ artifacts" below before touching `tests/`.
    passwords); payment methods (card/PayNow/GrabPay/Atome) are selectors only,
    flagged "Demo — no charge". This deferral is documented in
    `docs/implementation-plan.md`; don't "fix" it silently.
+9. **PII on public order pages.** `/order/[number]` is reachable by number alone —
+   mask the email (`maskEmail` in `src/lib/mask.ts`) and never render the street
+   address there; full detail stays behind the email match on `/track-order`.
+10. **Shell env beats `.env`.** An exported `DATABASE_URL` silently overrides the
+   `.env` file (dotenv never overrides). If the app connects to the wrong DB,
+   pin the value per command: `DATABASE_URL="postgresql://…" npm run dev`.
 
-## Inherited ely-beauty artifacts (do not trust, do not run)
+## Inherited ely-beauty artifacts (historical, mostly retired in Task 114)
 
-This repo was scaffolded from the `nordeim/ely-beauty` codebase. These files are
-**leftovers from that project and do not compile against this `src/`**:
+This repo was scaffolded from the `nordeim/ely-beauty` codebase. The Task 114
+remediation retired the dead trees that could not compile against this `src/`:
+the 73-file `tests/unit` + 15-spec `tests/e2e` (imported ~40 non-existent
+modules), `scripts/capture-screenshots.ts`, `scripts/restore-demo-stock.ts`,
+`scripts/measure-parity.mjs` and `scripts/ensure-build-configs.mjs` (its
+CONFIG_FALLBACKS registry would have clobbered the NORDHEM test configs).
 
-- `tests/unit/**` (73 files) and `tests/e2e/**` (15 specs) — import `vitest`,
-  `@playwright/test` and ~40 modules (`@/lib/stripe-payment`, `@/components/store/*`,
-  `@/lib/auth`, …) that do not exist here; `vitest`, `@vitejs/plugin-react` and
-  `@playwright/test` are **not** in `package.json`/`package-lock.json`.
-- `playwright.config.ts`, `vitest.config.ts`, `tsconfig.tests.json` — same origin;
-  `tsconfig.json`'s include is scoped to the app precisely so these don't break
-  typecheck/build.
-- `scripts/capture-screenshots.ts`, `scripts/restore-demo-stock.ts` — import
-  `@playwright/test` / `@prisma/client` / deleted paths. `scripts/generate-imagery.mjs`,
-  `gen-gallery-variants.mjs`, `ensure-build-configs.mjs` are from the same lineage
-  (ensure-build-configs still works as a config-restorer).
-- `ely-beauty_SKILL.md`, `worklog.md` (Tasks 1–112), `docs/*session*`, the
-  `docs/nordherm-*.zip` build archives — historical narrative of the predecessor
-  project(s), kept for provenance. `docs/ssh_git_wrapper_v3.py` and
-  `docs/how-to-git-push-using-ssh-wrapper_SKILL.md` are live tooling (below).
+Still present, kept for provenance (do not treat as live):
 
-If a future run re-establishes the test harness, re-pin these suites to the NORDHEM
-codebase (the family precedent is re-pinning, not deleting). Until then, do not wire
-them into gates.
+- `ely-beauty_SKILL.md`, `worklog.md` (Tasks 1–112 predecessor lineage),
+  `docs/*session*`/`docs/prompt-to-review-*`, the `docs/nordherm-*.zip` build
+  archives — historical narrative of the predecessor project(s).
+- `tsconfig.tests.json` — now points at the NORDHEM test tree (extend the app
+  tsconfig + node/vitest types); not part of `npm run typecheck` (app scope).
+- `scripts/generate-imagery.mjs`, `scripts/gen-gallery-variants.mjs` — lineage
+  imagery utilities, no broken imports.
+- `docs/ssh_git_wrapper_v3.py` and `docs/how-to-git-push-using-ssh-wrapper_SKILL.md`
+  are **live tooling** (below).
+
+When adding tests, pin them to this `src/` — never resurrect ely-beauty specs.
 
 ## Verification gate (before every commit/push)
 
 ```bash
 rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db" npm run build
 npm run typecheck
-npm run lint
+npm run lint          # 0 errors expected (the 7-error lint debt was fixed in Task 114)
+npm run test          # 40/40 unit
+npm run test:e2e      # 18/18 e2e (needs a live Postgres for the checkout journey)
 ```
 
-There is no hosted CI; the local gate is the only gate. Current known lint debt: 7
-`react-hooks/set-state-in-effect` errors in `src/` (the intentional localStorage
-hydration + URL-param sync patterns) — documented in the PAD's Known Issues; fix via
-`useSyncExternalStore`/render-derivation together with a test re-pin, not by
-suppressing the rule.
+There is no hosted CI; the local gate is the only gate.
 
 ## Git contract
 
