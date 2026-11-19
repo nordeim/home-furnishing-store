@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useCart } from "@/lib/cart-store";
-import { effectivePromo } from "@/lib/catalog";
+import { effectivePromo, findPromoMinimumCents } from "@/lib/catalog";
 import { formatSGD, priceTotals } from "@/lib/utils";
 
 export default function CartPage() {
@@ -22,7 +22,22 @@ export default function CartPage() {
   const [applyMsg, setApplyMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [checking, setChecking] = useState(false);
 
-  const promoMsg = applyMsg ?? (promoCode ? { ok: true, text: `${promoCode} applied` } : null);
+  // Totals preview client-side via the effectivePromo gate (Task 122 F-5:
+  // a below-minimum code must not display a discount the server refuses);
+  // checkout re-derives server-side (server is truth). Computed BEFORE the
+  // message so both halves of the promo UI agree.
+  const promo = effectivePromo(promoCode, subtotalCents);
+
+  // Task 123 F-2: the message must agree with the gate. applyMsg reflects the
+  // apply MOMENT — persisted below the minimum it kept advertising
+  // "WELCOME10 applied" beside a vanished Discount row (browser-reproduced),
+  // and the code still submitted to a server INVALID_PROMO. The CURRENT bag
+  // state owns the message: below the minimum, quote the minimum instead.
+  const promoMinCents = promoCode ? findPromoMinimumCents(promoCode) : null;
+  const promoMsg =
+    promoCode && !promo
+      ? { ok: false, text: `${promoCode} needs a ${formatSGD(promoMinCents ?? 0)} minimum — add more to use it` }
+      : (applyMsg ?? (promoCode ? { ok: true, text: `${promoCode} applied` } : null));
 
   async function applyPromo() {
     const c = code.trim().toUpperCase();
@@ -55,10 +70,6 @@ export default function CartPage() {
     setCode("");
   }
 
-  // Totals preview client-side via the effectivePromo gate (Task 122 F-5:
-  // a below-minimum code must not display a discount the server refuses);
-  // checkout re-derives server-side (server is truth).
-  const promo = effectivePromo(promoCode, subtotalCents);
   const t = priceTotals({ subtotalCents, promo, deliveryMethod: "delivery" });
 
   if (lines.length === 0) {

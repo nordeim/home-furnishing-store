@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // The module is new (F-2): import AFTER the localStorage shim in setup.ts exists.
 // Red first — this suite defines the contract before the implementation lands.
 import { createLocalStore } from "@/lib/local-store";
-import { isValidCartPayload, isValidWishPayload } from "@/lib/cart-store";
+import { isValidCartPayload, isValidWishPayload, isValidPromoPayload } from "@/lib/cart-store";
 
 function key() {
   return `nordhem_test_${Math.random().toString(36).slice(2, 8)}`;
@@ -187,5 +187,31 @@ describe("createLocalStore (localStorage-backed external store)", () => {
       expect(isValidWishPayload(["a"])).toBe(true);
       expect(isValidWishPayload([])).toBe(true);
     });
+  });
+});
+
+
+// Task 123 F-13: the promo store accepted any string — a crafted 10k-char
+// nordhem_promo loaded into the store and rode to checkout until the
+// server's 32-char cap refused it. The persisted-state predicate now mirrors
+// the write boundary (promoCode <= 32).
+describe("promo payload validation (Task 123 F-13)", () => {
+  it("accepts null and codes within the write-boundary cap", () => {
+    expect(isValidPromoPayload(null)).toBe(true);
+    expect(isValidPromoPayload("WELCOME10")).toBe(true);
+    expect(isValidPromoPayload("A".repeat(32))).toBe(true);
+  });
+
+  it("rejects non-strings and over-cap codes (the checkout boundary cap mirrored)", () => {
+    expect(isValidPromoPayload(5)).toBe(false);
+    expect(isValidPromoPayload({})).toBe(false);
+    expect(isValidPromoPayload("A".repeat(33))).toBe(false);
+  });
+
+  it("a persisted over-cap promo degrades to null through the store contract", () => {
+    const k = key();
+    localStorage.setItem(k, JSON.stringify("X".repeat(40)));
+    const s = createLocalStore<string | null>(k, null, isValidPromoPayload);
+    expect(s.getSnapshot()).toBeNull();
   });
 });

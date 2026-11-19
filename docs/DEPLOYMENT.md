@@ -274,7 +274,7 @@ no fallback and genuinely require the live database:
 | `POST /api/orders/track` (order tracking) | Yes — fail-closed |
 | `POST /api/promotions/validate` | Partial — falls back to the static promo table |
 
-`GET /api/health` is the probe: `{"ok":true}` iff the database answers
+`GET /api/health` is the probe: `{"ok":true,"data":{"db":"up"}}` iff the database answers
 `select 1`, HTTP 500 otherwise. Monitor it; a 500 means the deployment has
 degraded to catalogue-only browsing.
 
@@ -336,7 +336,7 @@ server itself on :3100.
 Runtime probes against a running deployment:
 
 ```bash
-curl -s localhost:3000/api/health      # {"ok":true} — database answers
+curl -s localhost:3000/api/health      # {"ok":true,"data":{"db":"up"}} — database answers
 curl -s localhost:3000/api/products    # {"ok":true,"data":[…24 products…]}
 
 # promo boundary (min spend is inclusive: $150.00 exactly passes)

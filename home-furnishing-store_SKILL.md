@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 1.6.0
-last_updated: "2026-11-19 (Task 122: skipped-fix debt, crash-boundary truth, display/money honesty)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 117/117 unit · 72/72 e2e · cold build green (29 routes) · PostgreSQL 17 live-verified · counts pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
+version: 1.7.0
+last_updated: "2026-11-19 (Task 123: journey residue, promo-display truth, boundary/docs honesty)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 128/128 unit · 78/78 e2e · cold build green (29 routes) · PostgreSQL 17 live-verified · counts pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -12,7 +12,9 @@ project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 117/117 
 > after the Task 114 remediation, the Task 117 honesty/hardening cycle, the
 > Task 118 dev-hydration/lineage-drift cycle, the Task 119 server-truth/SEO
 > blanket cycle, the Task 120 API-boundary/atomic-checkout/docs-truth cycle,
-> and the Task 121 client-state/commerce-honesty/SSR-content cycle. `AGENTS.md` is the quick operator
+> the Task 121 client-state/commerce-honesty/SSR-content cycle, the Task 122
+> skipped-fix/crash-boundary/display-honesty cycle, and the Task 123
+> journey-residue/promo-display-truth/boundary-docs-honesty cycle. `AGENTS.md` is the quick operator
 > reference, the PAD is the full blueprint, and this skill is the
 > pattern/lesson layer an agent needs before touching the code. When code and
 > this document disagree, **the code wins** — then fix this document in the
@@ -85,8 +87,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 117/117
-npm run test:e2e                                               # 72/72 (live Postgres for the journey)
+npm run test                                                   # 128/128
+npm run test:e2e                                               # 78/78 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -536,6 +538,36 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
     stock, caps) needs a client-side display gate, or the UI advertises
     what the API will reject. `effectivePromo(code, subtotalCents)` is the
     pattern — one seam, both preview sites consume it, unit + e2e pinned.
+29. **A display gate is only half the fix — the message must agree
+    (Task 123 F-2).** The Task-122 F-5 gate hid the discount ROW below the
+    promo minimum, but the "CODE applied" MESSAGE kept advertising the
+    code (browser-reproduced: green "WELCOME10 applied" beside a vanished
+    Discount row, and the code still submitted to a server INVALID_PROMO).
+    Rule: when a gate hides a UI element, audit every sibling element that
+    claims the same state — message, badge, button copy — or the fix
+    ships its own contradiction. `findPromoMinimumCents` feeds the honest
+    "needs a $150.00 minimum" notice; the CURRENT bag state owns the
+    message, not the apply-moment transient.
+30. **The oldest spec in the suite is the least likely to follow its own
+    discipline (Task 123 F-1).** The flagship journey spec placed a real
+    order on every run with no cleanup while four younger siblings all
+    restored their DB state — the residue drained makan Tampines 24 → 20
+    across sessions and would have broken the journey's own checkout at
+    ~42 runs. Rule: when a suite-level discipline lands (gotcha #13),
+    sweep EVERY DB-touching spec — including the ones written before the
+    rule existed — and make RED-capable probes self-cleaning (a reverted
+    boundary turns a refusal spec into a writer).
+31. **Restored snapshots lose DDL and empty directories (Task 123
+    baseline).** The sandbox pgdata restore came back missing the Task-122
+    unique index (the fs snapshot predated the push — the F-12 e2e pin
+    failed at baseline) AND the initdb empty subdirectories (pg_notify,
+    pg_logical/snapshots…) that archivers skip. Rule: after any DB
+    restore, verify the SCHEMA (pg_indexes) against drizzle-kit's
+    expectation — not just the row counts — and recreate the empty PG
+    subdirectory set (pg_notify, pg_commit_ts, pg_dynshmem, pg_replslot,
+    pg_serial, pg_snapshots, pg_stat, pg_stat_tmp, pg_tblspc,
+    pg_twophase, pg_subtrans, pg_logical/{snapshots,mappings},
+    pg_multixact/{offsets,members}) before pg_ctl start.
 
 ## 13. Pitfalls to Avoid
 
@@ -668,5 +700,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (117) |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (72) |
+| Unit suite | `tests/unit/*.test.ts` (128) |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (78) |

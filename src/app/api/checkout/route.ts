@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { OrderRefusalError, placeOrder } from "@/lib/server-data";
-import { clampInt, isValidEmail, isValidPhone, isValidPostal } from "@/lib/utils";
+import { clampInt, isValidDeliverySlot, isValidEmail, isValidPhone, isValidPostal } from "@/lib/utils";
 import { createRateLimiter } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -81,6 +81,13 @@ export async function POST(req: Request) {
     const deliverySlot = String(body.deliverySlot ?? "Standard (3–5 days)");
     if (deliverySlot.length > 80)
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Choose one of the offered time slots." } }, { status: 422 });
+    // Task 123 F-3: length alone let crafted junk persist into customer-facing
+    // copy ("Arriving {slot}" on the confirmation + tracking pages). The slot
+    // must now be one the selected method actually offers (the shared
+    // DELIVERY_SLOTS map — the same contract the UI's <select> enforces).
+    const deliveryMethod = ["delivery", "click-collect", "express"].includes(String(body.deliveryMethod)) ? String(body.deliveryMethod) : "delivery";
+    if (!isValidDeliverySlot(deliveryMethod, deliverySlot))
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Choose one of the offered time slots." } }, { status: 422 });
     // Task 122 F-7: promoCode joins the capped fields (the DB would refuse
     // any unknown code anyway — this refuses oversized payloads at the
     // boundary before the round-trip).
@@ -94,7 +101,7 @@ export async function POST(req: Request) {
       phone,
       address,
       postal,
-      deliveryMethod: ["delivery", "click-collect", "express"].includes(String(body.deliveryMethod)) ? String(body.deliveryMethod) : "delivery",
+      deliveryMethod,
       deliverySlot,
       storeSlug,
       paymentMethod: ["card", "paynow", "grabpay", "atome"].includes(String(body.paymentMethod)) ? String(body.paymentMethod) : "card",

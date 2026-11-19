@@ -112,6 +112,21 @@ export async function getReviews(productId: number) {
   }
 }
 
+// Task 123 F-10: the rendered list is capped at 20 rows (a display cap), but
+// the JSON-LD reviewCount and the "Reviews (N)" heading must quote the TRUE
+// count — deriving them from the capped list silently understated every
+// product with more than 20 live reviews. Degrades to 0 like its sibling
+// read (the reviews section hides on outage either way).
+export async function getReviewCount(productId: number): Promise<number> {
+  await ensureSeed();
+  try {
+    const rows = await db.select({ n: sql<number>`count(*)::int` }).from(reviews).where(eq(reviews.productId, productId));
+    return rows[0]?.n ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function getInspirations() {
   await ensureSeed();
   try {

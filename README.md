@@ -44,7 +44,7 @@ charge") with real authentication explicitly deferred.
 | 🏠 **Inspiration rooms** | 6 shoppable room stories (BTO, makan nights, WFH corner…) linking to live PDPs |
 | 🧮 **Interactive tools** | Family points calculator, Business instant quote, buy-back estimator, room explorer + booking |
 | 🌱 **Full retail surface** | Offers, services, 3 stores, food, sustainability, help, search, wishlist |
-| ♿ **Accessibility** | Skip link, labels, focus rings, radiogroups/tablists, live regions, responsive to 360px |
+| ♿ **Accessibility** | Skip link, labels, focus rings, toggle-button groups (`role="group"` + `aria-pressed`), live regions, responsive to 360px |
 | 🛡️ **Degrade, never fail** | Static-catalogue fallback on every DB read; `/api/health` reports DB status |
 
 ## Architecture
@@ -164,12 +164,12 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 117 tests at the pure seams
+npm run test             # Vitest unit — 128 tests at the pure seams
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 72 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 78 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
@@ -244,40 +244,38 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 117 unit + 72 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120/121/122); counts pinned by tests/unit/docs-counts.test.ts |
+| Test suite | ✅ 128 unit + 78 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120/121/122/123); counts pinned by tests/unit/docs-counts.test.ts |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
 
-Current cycle (2026-11-19, Task 122): workspace-refresh re-audit (mobile-nav
-taxonomy re-verified clean at 390/1440 — no Tailwind v4 bug; all baseline
-gates green) that caught **the Task-121 F-10 SGT date fix being claimed but
-never implemented** (`sgTomorrowISO` now exists, unit-pinned — the Task-121
-"19 fixed" stage summary actually read 18 fixed + 1 disproven + 1 silently
-skipped; corrected forward in this cycle's worklog), **the F-4 safety net
-being unable to catch its own crash class** (CartProvider renders inside the
-root layout, above `error.tsx` — a `global-error.tsx` now bounds it, with
-reload-based recovery because module-poisoned state survives `reset()`),
-**shape validation being container-shallow** (`[null]`/`[42]` in
-`nordhem_cart_v1` still crashed or NaN'd every total — element-level
-validators now gate every line), **the cart/checkout promo preview ignoring
-the minimum-spend rule** (WELCOME10 kept showing its 10% on an $89 bag the
-server refuses — the `effectivePromo` gate aligns display with refusal),
-the order page rendering a confirmed order as "Items (0)" during an items
-query outage, `qty: null` coercing to a real qty-1 order, the checkout
-`promoCode`/`lines` payload being unbounded, reviews silently truncating
-(the refuse-never-truncate rule now spans every write boundary), the
-`inventory` table having no unique (product_id, store_slug) constraint, the
-pg pool having no connection/query timeout ("degrade, never fail" now has a
-time bound — browser-verified against a blackholed DB), `campaignEndLabel`
-being frozen at module load, the search page never syncing `?q=` to the URL,
-the inspiration index quoting the editorial budget as the shoppable total,
-the business-stepper dead minus at 0, the checkout summary omitting the GST
-line the cart shows, loosely-attributed hero discount copy, and the shop
-layout's hardcoded counts + stale architecture comment. Suite grew to
-117 unit + 72 e2e. Details in `worklog.md` and
-`docs/plans/2026-11-19-task122-remediation-plan.md`.
+Current cycle (2026-11-19, Task 123): workspace-refresh re-audit (mobile-nav
+taxonomy re-verified clean at 390/1440 — no Tailwind v4 bug; baseline gates
+green after re-pushing the Task-122 inventory unique index the restored
+sandbox snapshot had lost, and cleaning the journey-residue the pinned DB
+had accumulated) that caught **the flagship e2e journey leaving an order row
+plus its inventory decrement behind on every run** (a finally-cleanup now
+restores the DB; the suite runs residue-free), **the cart's promo message
+contradicting its own discount gate** ("WELCOME10 applied" persisted beside
+a vanished Discount row below the minimum — browser-reproduced; the notice
+now quotes the code's own minimum via `findPromoMinimumCents`), **the
+checkout `deliverySlot` boundary accepting any ≤80-char junk** (it now
+enforces the shared `DELIVERY_SLOTS` map the UI offers — the storeSlug
+whitelist pattern), **the search error box surviving a changed needle**
+(gated on the settled needle like the verdicts), **`/api/products` keyword
+recall diverging from the shop-SSR seam** (q=outdoor found nothing; the
+filter now matches categorySlug too), the promo code surviving order
+placement into the next bag (`clear()` drops it), the PDP review count
+saturating at the 20-row display cap (a true `count(*)` feeds the JSON-LD
+and heading), `/api/health` deviating from the every-route envelope
+contract, `orderNumber`'s date segment following UTC instead of SGT, the
+error-digest text failing WCAG AA contrast, the promo store accepting
+unbounded persisted strings (32-char predicate now mirrors the write
+boundary), and the docs claiming ARIA widget roles the code deliberately
+removed (the `role="group"` + `aria-pressed` stance is now what the docs
+say). Suite grew to 128 unit + 78 e2e. Details in `worklog.md` and
+`docs/plans/2026-11-19-task123-remediation-plan.md`.
 
 Previous cycle (Task 121): client-state robustness (localStorage shape
 validation + branded `error.tsx`), click-&-collect per-store stock honesty,

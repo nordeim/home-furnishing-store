@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, findPromo, effectivePromo, storeName } from "@/lib/catalog";
+import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, findPromo, effectivePromo, findPromoMinimumCents, storeName } from "@/lib/catalog";
 
 describe("catalogue invariants (seed + static fallback contract)", () => {
   it("ships the documented counts", () => {
@@ -88,6 +88,29 @@ describe("effectivePromo (the min-spend display gate — Task 122 F-5)", () => {
 
   it("is case-insensitive like findPromo", () => {
     expect(effectivePromo(" welcome10 ", 20000)).toEqual({ kind: "percent", value: 10 });
+  });
+});
+
+// Task 123 F-2: the cart's promo MESSAGE contradicted the effectivePromo
+// gate — below the minimum the green "CODE applied" status persisted while
+// the Discount row vanished (browser-reproduced). The honest notice needs
+// the code's minimum: findPromoMinimumCents exposes exactly that (pure seam,
+// PROMOS already carries minSubtotalCents).
+describe("findPromoMinimumCents (the below-minimum notice source — Task 123 F-2)", () => {
+  it("resolves each seeded code's minimum spend", () => {
+    expect(findPromoMinimumCents("WELCOME10")).toBe(15000);
+    expect(findPromoMinimumCents("MAKAN15")).toBe(40000);
+    expect(findPromoMinimumCents("FLAT20")).toBe(25000);
+  });
+
+  it("is case-insensitive and trims like findPromo", () => {
+    expect(findPromoMinimumCents(" welcome10 ")).toBe(15000);
+    expect(findPromoMinimumCents("makan15")).toBe(40000);
+  });
+
+  it("unknown codes return null (no minimum to quote)", () => {
+    expect(findPromoMinimumCents("NOT_A_CODE")).toBeNull();
+    expect(findPromoMinimumCents("")).toBeNull();
   });
 });
 

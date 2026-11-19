@@ -113,10 +113,13 @@ test.describe("SEO endpoints", () => {
 });
 
 test.describe("API envelope", () => {
-  test("health returns ok with the live DB", async ({ request }) => {
+  test("health returns the envelope with the live DB (Task 123 F-9)", async ({ request }) => {
+    // The probe used to be the one route deviating from the documented
+    // "envelope everywhere" contract (bare { ok: true }); it now speaks
+    // { ok, data } like every sibling. Consumers check the HTTP status only.
     const res = await request.get("/api/health");
     expect(res.ok()).toBeTruthy();
-    expect(await res.json()).toEqual({ ok: true });
+    expect(await res.json()).toEqual({ ok: true, data: { db: "up" } });
   });
 
   test("products API filters and sorts; envelope shape holds", async ({ request }) => {
@@ -127,6 +130,18 @@ test.describe("API envelope", () => {
     expect(json.data.every((p) => p.categorySlug === "dining")).toBe(true);
     const prices = json.data.map((p) => p.priceCents);
     expect([...prices].sort((a, b) => a - b)).toEqual(prices);
+  });
+
+  test("products API keyword recall matches the shop-SSR seam (Task 123 F-5)", async ({ request }) => {
+    // The API filter matched name/tagline/description/sku only, while the
+    // shop SSR seam (searchProducts) also matches categorySlug — verified
+    // live: q=outdoor returned 0 from the API while the shop grid returned
+    // the two balcony & outdoor products. One catalogue, one recall.
+    const res = await request.get("/api/products?q=outdoor");
+    const json = (await res.json()) as { ok: boolean; data: Array<{ slug: string }> };
+    expect(json.ok).toBe(true);
+    expect(json.data.length).toBe(2);
+    expect(json.data.map((p) => p.slug).sort()).toEqual(["monstera-planter-duo", "veranda-balcony-set"]);
   });
 
   test("checkout validates input (422 envelope)", async ({ request }) => {
@@ -244,6 +259,25 @@ test.describe("client resilience (fetch failure ≠ empty state)", () => {
 
 test.describe("bag → checkout → order journey (live DB)", () => {
   test("full journey with promo, order masking and tracking", async ({ page }) => {
+    // Task 123 F-1: this spec places a REAL order — it used to leave the row
+    // plus its inventory decrement behind on every run (gotcha #13), draining
+    // makan tampines 24→20 across sessions. The pre-spec stock is READ (never
+    // assumed) and restored with the probe-row delete in the finally below
+    // (the oversell spec's cleanup pattern).
+    const client = new Client({
+      connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+    });
+    await client.connect();
+    const makanRow = await client.query<{ id: number }>(
+      "select id from products where slug = 'makan-extendable-table'",
+    );
+    const makanId = makanRow.rows[0].id;
+    const origStock = await client.query<{ store_slug: string; quantity: number }>(
+      "select store_slug, quantity from inventory where product_id = $1",
+      [makanId],
+    );
+    let placedOrder: string | null = null;
+    try {
     // 1. PDP → add to bag
     await page.goto("/product/makan-extendable-table");
     await page.getByRole("button", { name: "Add to bag" }).click();
@@ -281,6 +315,7 @@ test.describe("bag → checkout → order journey (live DB)", () => {
     await expect(page.getByText("Blk 123 Tampines St 11")).toHaveCount(0);
 
     const orderUrl = page.url();
+    placedOrder = orderUrl.split("/order/")[1];
 
     // 6. Track the order with the matching email → timeline + items.
     await page.goto("/track-order");
@@ -293,6 +328,28 @@ test.describe("bag → checkout → order journey (live DB)", () => {
     // 7. Reload the bag — it cleared after checkout.
     await page.goto("/cart");
     await expect(page.getByRole("heading", { name: "Your bag is empty" })).toBeVisible();
+    // Task 123 F-6: the promo belongs to the order it was used on — clear()
+    // drops the persisted code with the lines, so the next bag starts clean.
+    // The store persists JSON.stringify(null) = "null" (the local-store
+    // contract) — parse before asserting (RED was "MAKAN15").
+    const persistedPromo = await page.evaluate(() => JSON.parse(localStorage.getItem("nordhem_promo") ?? "null"));
+    expect(persistedPromo).toBeNull();
+    } finally {
+      if (placedOrder) {
+        await client.query(
+          "delete from order_items where order_id in (select id from orders where order_number = $1)",
+          [placedOrder],
+        );
+        await client.query("delete from orders where order_number = $1", [placedOrder]);
+      }
+      for (const row of origStock.rows) {
+        await client.query(
+          "update inventory set quantity = $1 where product_id = $2 and store_slug = $3",
+          [row.quantity, makanId, row.store_slug],
+        );
+      }
+      await client.end();
+    }
   });
 });
 
@@ -477,7 +534,7 @@ test.describe("checkout stock honesty (Task 119)", () => {
           address: "Blk 1 Testing Rd #01-01",
           postal: "089001",
           deliveryMethod: "click-collect",
-          deliverySlot: "Click & Collect — today 2pm",
+          deliverySlot: "Today 2pm",
           storeSlug: "tampines",
           paymentMethod: "card",
           lines: [{ productId: pid, qty: 99 }],
@@ -747,7 +804,7 @@ test.describe("checkout API boundary (Task 120)", () => {
         address: "Blk 1 Testing Rd #01-01",
         postal: "089001",
         deliveryMethod: "click-collect",
-        deliverySlot: "Click & Collect — today 2pm",
+        deliverySlot: "Today 2pm",
         storeSlug: "tampines",
         paymentMethod: "card",
         lines: [{ productId: pid, qty: 1 }],
@@ -787,8 +844,11 @@ test.describe("checkout API boundary (Task 120)", () => {
 test.describe("PDP client-side navigation state (Task 121 F-3)", () => {
   test("related-product navigation resets reviews and BuyBox state to the new product", async ({ page }) => {
     // SOLBAKKEN carries 2 seeded reviews; its living-room sibling HAVBRIS has none.
+    // The count is regex-accepted (Task 123 F-11): a successful review POST on
+    // the pinned DB used to break this hard-count pin (gotcha #13's failure
+    // mode) — the author assertion below is the real content pin.
     await page.goto("/product/solbakken-3-seat-sofa");
-    await expect(page.getByRole("heading", { name: "Reviews (2)" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Reviews \(\d+\)$/ })).toBeVisible();
     await expect(page.getByText("Mei L.").first()).toBeVisible();
 
     // Dirty the BuyBox state so a stale carry-over is observable.
@@ -840,7 +900,7 @@ test.describe("click-&-collect store stock honesty (Task 121 F-2)", () => {
         address: "Blk 1 Testing Rd #01-01",
         postal: "089001",
         deliveryMethod: "click-collect",
-        deliverySlot: "Click & Collect — today 2pm",
+        deliverySlot: "Today 2pm",
         paymentMethod: "card",
         lines: [{ productId: pid, qty: 1 }],
       };
@@ -911,6 +971,43 @@ test.describe("PDP review-count honesty (Task 121 F-6)", () => {
   });
 });
 
+test.describe("PDP review-count saturation (Task 123 F-10)", () => {
+  test("reviewCount and the heading derive from the TRUE count, not the capped 20-row list", async ({ page }) => {
+    // getReviews caps the rendered LIST at 20 rows (a display cap), but the
+    // JSON-LD reviewCount and the "Reviews (N)" heading used reviews.length —
+    // both silently understated the truth beyond 20 live reviews. Insert 21
+    // probe rows for the quiet HAVBRIS and assert the honest 21 (today: 20).
+    const client = new Client({ connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db" });
+    await client.connect();
+    try {
+      const pidRow = await client.query<{ id: number }>("select id from products where slug = 'havbris-lounge-chair'");
+      const pid = pidRow.rows[0].id;
+      const before = await client.query<{ count: string }>("select count(*) as count from reviews where product_id = $1", [pid]);
+      const inserted = await client.query<{ id: number }>(
+        `insert into reviews (product_id, author, rating, title, body, verified)
+         select $1, 'Probe ' || g, 5, 'Probe title ' || g, 'Probe body ' || g, false
+         from generate_series(1, 21) as g returning id`,
+        [pid],
+      );
+      try {
+        await page.goto("/product/havbris-lounge-chair");
+        await expect(page.getByRole("heading", { name: "Reviews (21)" })).toBeVisible();
+        const jsonld = await productJsonLd(page);
+        const parsed = JSON.parse(jsonld ?? "null") as {
+          aggregateRating?: { reviewCount?: number };
+        };
+        expect(parsed.aggregateRating?.reviewCount).toBe(21);
+      } finally {
+        await client.query("delete from reviews where id = any($1::int[])", [inserted.rows.map((r) => r.id)]);
+      }
+      const after = await client.query<{ count: string }>("select count(*) as count from reviews where product_id = $1", [pid]);
+      expect(Number(after.rows[0].count)).toBe(Number(before.rows[0].count));
+    } finally {
+      await client.end();
+    }
+  });
+});
+
 test.describe("checkout storeSlug / deliverySlot boundary (Task 121 F-7)", () => {
   test("an unknown storeSlug is refused, not persisted as junk copy", async ({ request }) => {
     const res = await request.post("/api/checkout", {
@@ -922,7 +1019,7 @@ test.describe("checkout storeSlug / deliverySlot boundary (Task 121 F-7)", () =>
         address: "Blk 1 Testing Rd #01-01",
         postal: "089001",
         deliveryMethod: "click-collect",
-        deliverySlot: "Click & Collect — today 2pm",
+        deliverySlot: "Today 2pm",
         storeSlug: "not-a-real-store",
         paymentMethod: "card",
         lines: [{ productId: 1, qty: 1 }],
@@ -952,6 +1049,84 @@ test.describe("checkout storeSlug / deliverySlot boundary (Task 121 F-7)", () =>
     expect(res.status()).toBe(422);
     const body = (await res.json()) as { error?: { code?: string } };
     expect(body.error?.code).toBe("VALIDATION");
+  });
+});
+
+test.describe("checkout slot coherence (Task 123 F-3)", () => {
+  test("a cross-method or junk deliverySlot is refused, not persisted as copy", async ({ request }) => {
+    // Length alone (Task 121 F-7) let any <=80-char string ride onto the
+    // order and render as "Arriving {slot}" on the confirmation + tracking
+    // pages. The boundary now enforces the shared DELIVERY_SLOTS map — the
+    // same contract the UI's <select> offers.
+    const res = await request.post("/api/checkout", {
+      headers: { "x-forwarded-for": "10.9.123.9" },
+      data: {
+        email: "slot-coin-probe@nordhem.sg",
+        fullName: "Slot Coherence Probe",
+        phone: "+65 91234567",
+        address: "Blk 1 Testing Rd #01-01",
+        postal: "089001",
+        deliveryMethod: "express",
+        deliverySlot: "Junk slot that fits the length cap",
+        storeSlug: "tampines",
+        paymentMethod: "card",
+        lines: [{ productId: 1, qty: 1 }],
+      },
+    });
+    expect(res.status()).toBe(422);
+    const body = (await res.json()) as { error?: { code?: string } };
+    expect(body.error?.code).toBe("VALIDATION");
+    // RED-run safety net (gotcha #13): against a reverted boundary this spec
+    // PLACES a real order — delete it and restore the tampines decrement so
+    // the next GREEN run starts from a clean pinned DB.
+    if (res.status() === 201) {
+      const created = (body as unknown as { data?: { orderNumber?: string } }).data?.orderNumber;
+      if (created) {
+        const client = new Client({ connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db" });
+        await client.connect();
+        try {
+          await client.query("delete from order_items where order_id in (select id from orders where order_number = $1)", [created]);
+          await client.query("delete from orders where order_number = $1", [created]);
+          await client.query("update inventory set quantity = quantity + 1 where product_id = 1 and store_slug = 'tampines'");
+        } finally {
+          await client.end();
+        }
+      }
+    }
+  });
+
+  test("a method-coherent slot still places the order (the boundary does not over-refuse)", async ({ request }) => {
+    const res = await request.post("/api/checkout", {
+      headers: { "x-forwarded-for": "10.9.123.10" },
+      data: {
+        email: "slot-ok-probe@nordhem.sg",
+        fullName: "Slot Ok Probe",
+        phone: "+65 91234567",
+        address: "Blk 1 Testing Rd #01-01",
+        postal: "089001",
+        deliveryMethod: "express",
+        deliverySlot: "Next-day by 6pm",
+        storeSlug: "tampines",
+        paymentMethod: "card",
+        lines: [{ productId: 1, qty: 1 }],
+      },
+    });
+    expect(res.status()).toBe(201);
+    // The coherence spec places a REAL order — clean it up (gotcha #13).
+    const body = (await res.json()) as { data?: { orderNumber?: string } };
+    const orderNo = body.data?.orderNumber;
+    if (orderNo) {
+      const client = new Client({ connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db" });
+      await client.connect();
+      try {
+        await client.query("delete from order_items where order_id in (select id from orders where order_number = $1)", [orderNo]);
+        await client.query("delete from orders where order_number = $1", [orderNo]);
+        // productId 1 = SOLBAKKEN; delivery decrements tampines — restore.
+        await client.query("update inventory set quantity = quantity + 1 where product_id = 1 and store_slug = 'tampines'");
+      } finally {
+        await client.end();
+      }
+    }
   });
 });
 
@@ -990,6 +1165,54 @@ test.describe("search settle discipline (Task 121 F-1)", () => {
     // responsive double-DOM trap; scope to the page's own form.
     await page.locator("#main").getByRole("button", { name: "Search" }).click();
     await expect(page.getByRole("status")).toHaveText(/\d+ results? for “sofa”/, { timeout: 10_000 });
+  });
+});
+
+test.describe("search stale-error discipline (Task 123 F-4)", () => {
+  test("a failed search's error box hides once a new needle is typed", async ({ page }) => {
+    // The Task-121 F-1 discipline gated the RESULT verdicts on
+    // settledFor === needle, but the error box kept its own weaker gate
+    // (error && !loading): after a failed search, typing a new needle showed
+    // the OLD "We couldn't load results" box through the debounce + fetch
+    // window. Same treatment: a changed needle hides it until its own
+    // search settles.
+    await page.addInitScript(() => {
+      const w = window as unknown as { __freezeDebounce?: boolean };
+      w.__freezeDebounce = false;
+      const orig = window.setTimeout.bind(window);
+      window.setTimeout = ((fn: TimerHandler, timeout?: number, ...args: unknown[]) => {
+        if (w.__freezeDebounce && typeof timeout === "number" && timeout >= 200 && timeout <= 300) {
+          return orig(() => {}, 2_000_000_000);
+        }
+        return orig(fn, timeout, ...args);
+      }) as typeof window.setTimeout;
+    });
+    // Only the first needle's fetch fails; the second passes through.
+    await page.route("**/api/products**", (route) =>
+      route.request().url().includes("q=zzzfail") ? route.abort() : route.continue());
+
+    // Phase 1 — the first search genuinely fails: the error box must show.
+    await page.goto("/search?q=zzzfail");
+    const errorBox = page.locator("#main").getByRole("alert").filter({ hasText: /couldn.t load results/i });
+    await expect(errorBox).toBeVisible({ timeout: 10_000 });
+
+    // Phase 2 — freeze the debounce, type a new needle: through the whole
+    // pre-settle window the STALE error box must be hidden.
+    await page.evaluate(() => {
+      (window as unknown as { __freezeDebounce?: boolean }).__freezeDebounce = true;
+    });
+    // THREE "Search products" inputs exist (header + page form — the
+    // documented responsive double-DOM trap); scope to the page's own.
+    await page.locator("#main").getByLabel("Search products").fill("oak");
+    await page.waitForTimeout(400);
+    await expect(errorBox).toHaveCount(0);
+
+    // Phase 3 — unfreeze and submit: the new search settles cleanly.
+    await page.evaluate(() => {
+      (window as unknown as { __freezeDebounce?: boolean }).__freezeDebounce = false;
+    });
+    await page.locator("#main").getByRole("button", { name: "Search" }).click();
+    await expect(page.getByRole("status").filter({ hasText: /results? for/ })).toHaveText(/\d+ results? for “oak”/, { timeout: 10_000 });
   });
 });
 
@@ -1155,6 +1378,35 @@ test.describe("cart promo min-spend display gate (Task 122 F-5)", () => {
     await page.getByRole("button", { name: "Remove SOLBAKKEN 3-seat sofa" }).click();
     await expect(page.getByRole("heading", { name: /Your bag \(1\)/ })).toBeVisible();
     await expect(discountRow).toHaveCount(0);
+  });
+});
+
+test.describe("cart promo message honesty (Task 123 F-2)", () => {
+  test("below the minimum the notice explains — the stale 'applied' message must not survive", async ({ page }) => {
+    // The Task-122 F-5 gate hid the discount ROW, but the message half kept
+    // advertising the code: browser-reproduced — WELCOME10 on a $258 bag,
+    // decrease to $129 → "WELCOME10 applied — 10% off…" persisted beside a
+    // vanished Discount row, and the code still submitted to a server
+    // INVALID_PROMO at the Pay step. The current bag state must own the
+    // message: below the minimum, quote the minimum instead.
+    await page.goto("/product/solbakken-3-seat-sofa");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await page.goto("/product/katong-bedside-table");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await page.getByRole("link", { name: /Shopping bag, 2 items/ }).click();
+
+    // $1388 ≥ $150 → applies cleanly; both halves agree.
+    await page.getByLabel(/Promo code/i).fill("WELCOME10");
+    await page.getByRole("button", { name: "Apply" }).click();
+    await expect(page.getByText(/WELCOME10 applied/i)).toBeVisible();
+    await expect(page.getByText("Discount", { exact: true })).toBeVisible();
+
+    // Remove the sofa → $89 < $150: the row hides (F-5) AND the message
+    // must switch to the honest minimum notice (F-2) — never claim applied.
+    await page.getByRole("button", { name: "Remove SOLBAKKEN 3-seat sofa" }).click();
+    await expect(page.getByRole("heading", { name: /Your bag \(1\)/ })).toBeVisible();
+    await expect(page.getByText(/WELCOME10 applied/i)).toHaveCount(0);
+    await expect(page.getByText(/WELCOME10 needs a \$150\.00 minimum/i)).toBeVisible();
   });
 });
 

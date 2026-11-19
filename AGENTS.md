@@ -22,11 +22,11 @@ ORM + PostgreSQL.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
-| `npm run test` | Vitest unit suite (117 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
-| `npm run test:e2e` | Playwright e2e (72 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
+| `npm run test` | Vitest unit suite (128 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
+| `npm run test:e2e` | Playwright e2e (78 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
-The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–122):
+The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–123):
 `tests/unit` (9 files) + `tests/e2e` (mobile-navigation + storefront specs
 incl. the fetch-failure resilience pair, the API rate-limit pins, PDP badge
 dedupe, cart promo persistence, JSON-LD live-inventory + LOW_STOCK commerce
@@ -43,7 +43,16 @@ order), the checkout payload caps + qty:null drop, the reviews
 refuse-never-truncate rule, the inventory (product_id, store_slug) unique
 index, the business-stepper floor, the checkout GST line, the inspiration
 index pieces-total, the search URL sync, the hero discount attribution, and
-the db-pool degrade time-bound source pin). The predecessor's 73-unit/15-e2e dead
+the db-pool degrade time-bound source pin), and the Task-123 pins:
+`findPromoMinimumCents` + the cart promo-message honesty (the
+below-minimum notice replaces the stale "applied"), the checkout
+slot-coherence boundary (`DELIVERY_SLOTS`/`isValidDeliverySlot`), the
+journey finally-cleanup + promo-clear (`nordhem_promo` dies with the
+order it was used on), the API categorySlug recall parity, the search
+stale-error discipline, the PDP review-count saturation (true count(*)
+vs the capped 20-row list), `orderNumber`'s SGT date segment, the
+promo-store 32-char predicate, and the /api/health envelope alignment.
+The predecessor's 73-unit/15-e2e dead
 tree was retired with it — do not resurrect ely-beauty specs; pin new ones to
 this `src/`.
 
@@ -119,9 +128,12 @@ docs in the same commit as any test change (count-lockstep, no exceptions).
 13. **RED e2e runs leave DB residue.** A spec whose RED path places an order
    or inserts a row leaves that row behind (the GREEN path refuses it). The
    Task-122 cycle saw a RED-run probe review break the un-suspecting
-   Task-121 "Reviews (2)" pin. Clean between runs (the F-12 spec pattern:
-   track the inserted id, delete in `finally`) and check for residue when a
-   previously-green hard-count pin fails.
+   Task-121 "Reviews (2)" pin (regex-accepted since Task 123). Clean between
+   runs (the F-12 spec pattern: track the inserted id, delete in `finally`;
+   since Task 123 the flagship journey spec cleans up too — order row +
+   inventory restore — and every RED-capable probe carries its own
+   safety-net cleanup) and check for residue when a previously-green
+   hard-count pin fails.
 
 ## Inherited ely-beauty artifacts (historical, mostly retired in Task 114)
 
@@ -153,8 +165,8 @@ When adding tests, pin them to this `src/` — never resurrect ely-beauty specs.
 rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db" npm run build
 npm run typecheck
 npm run lint          # 0 errors expected (the 7-error lint debt was fixed in Task 114)
-npm run test          # 117/117 unit
-npm run test:e2e      # 72/72 e2e (needs a live Postgres for the checkout journey)
+npm run test          # 128/128 unit
+npm run test:e2e      # 78/78 e2e (needs a live Postgres for the checkout journey)
 ```
 
 There is no hosted CI; the local gate is the only gate.

@@ -4,8 +4,12 @@ import { useState } from "react";
 
 export interface ReviewVM { id: number; author: string; rating: number; title: string; body: string; verified: boolean; createdAt: string; }
 
-export function ReviewSection({ productId, initial }: { productId: number; initial: ReviewVM[] }) {
+export function ReviewSection({ productId, initial, total }: { productId: number; initial: ReviewVM[]; total?: number }) {
   const [list, setList] = useState<ReviewVM[]>(initial);
+  // Task 123 F-10: the heading quotes the TRUE review count (the server-side
+  // count(*) query), not the capped rendered list — defaults to the list
+  // length when no count is passed, and bumps with each successful POST.
+  const [count, setCount] = useState(total ?? initial.length);
   const [author, setAuthor] = useState("");
   const [rating, setRating] = useState(5);
   const [title, setTitle] = useState("");
@@ -32,6 +36,7 @@ export function ReviewSection({ productId, initial }: { productId: number; initi
       // client clock is only a fallback for a malformed response.
       const saved = json.data;
       setList((prev) => [{ ...saved, createdAt: saved.createdAt || new Date().toISOString() }, ...prev]);
+      setCount((c) => c + 1);
       setAuthor(""); setTitle(""); setBody(""); setRating(5);
       setMsg("Thanks — your review is live.");
       setMsgIsError(false);
@@ -45,7 +50,7 @@ export function ReviewSection({ productId, initial }: { productId: number; initi
 
   return (
     <section id="reviews" className="mt-12 scroll-mt-24">
-      <h2 className="text-[22px] font-black">Reviews ({list.length})</h2>
+      <h2 className="text-[22px] font-black">Reviews ({count})</h2>
       <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_380px]">
         <ul className="space-y-3">
           {list.length === 0 && <li className="rounded-xl bg-[#f5f3ee] p-6 text-[#5b5b5b]">No reviews yet — be the first to share how it fits your home.</li>}

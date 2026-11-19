@@ -36,7 +36,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
             or wishlist data may be damaged — clearing this site&apos;s saved data
             fixes that.
           </p>
-          {error.digest && <p className="mt-2 text-[12px] text-[#9a9a9a]">Ref: {error.digest}</p>}
+          {error.digest && <p className="mt-2 text-[12px] text-[#5b5b5b]">Ref: {error.digest}</p>}
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <button
               onClick={() => reset()}

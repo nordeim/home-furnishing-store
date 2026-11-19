@@ -178,6 +178,21 @@ export function effectivePromo(
   return subtotalCents >= promo.minSubtotalCents ? { kind: promo.kind, value: promo.value } : null;
 }
 
+/**
+ * Task 123 F-2: the minimum-spend figure behind the honest below-minimum
+ * notice. The cart's promo MESSAGE used to contradict the effectivePromo
+ * gate — below the minimum the green "CODE applied" status persisted while
+ * the Discount row vanished (browser-reproduced), and the code still
+ * submitted to a server INVALID_PROMO at the Pay step. The notice quotes the
+ * code's own minimum so the shopper knows exactly what to add. Pure display
+ * source only — the server re-validates at write time (ADR-005).
+ */
+export function findPromoMinimumCents(code: string): number | null {
+  const c = code.trim().toUpperCase();
+  const promo = PROMOS.find((p) => p.code === c);
+  return promo ? promo.minSubtotalCents : null;
+}
+
 export function productImage(p: { imageUrls: string[] }, i = 0): string {
   return p.imageUrls[i] ?? p.imageUrls[0] ?? "";
 }

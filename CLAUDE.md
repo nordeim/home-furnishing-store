@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-19 (Task 122: skipped-fix debt, crash-boundary truth, display/money honesty)
+last_updated: 2026-11-19 (Task 123: journey residue, promo-display truth, boundary/docs honesty)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -73,7 +73,7 @@ PostgreSQL (node-postgres) · ESLint 9 flat config.
 
 - `strict: true`; no `any` (use `unknown` + narrowing); early returns; small pure
   helpers in `src/lib/utils.ts` (`formatSGD`, `priceTotals`, `clampInt`,
-  `isValidEmail/Phone/Postal`, `stars`, `cn`).
+  `isValidEmail/Phone/Postal`, `stars`, `DELIVERY_SLOTS`, `isValidDeliverySlot`).
 - Path alias `@/*` → `./src/*`. `npm run typecheck` covers the app scope
   (`src/**`, `next.config.ts`) only — the inherited `tests/`/`scripts/` are from
   the predecessor repo and are not part of the app compile.
@@ -93,9 +93,11 @@ PostgreSQL (node-postgres) · ESLint 9 flat config.
 - Five shared components in `src/components/` (`Header`, `Footer`, `ProductCard`,
   `BuyBox`, `ReviewSection`); pages compose them — no component library (Shadcn/
   Radix/MUI) is installed; match the existing hand-rolled style.
-- Accessibility is a feature, not a garnish: skip link, `aria-label`s, `role=`
-  `"tablist"/"radiogroup"`, `aria-live` regions, visible focus rings, Escape-close
-  on the mobile drawer, responsive down to 360px.
+- Accessibility is a feature, not a garnish: skip link, `aria-label`s,
+  toggle-button groups (`role="group"` + `aria-pressed` — widget roles only
+  with the full APG keyboard pattern, the Task-119 stance), `aria-live`
+  regions, visible focus rings, Escape-close on the mobile drawer,
+  responsive down to 360px.
 - SEO surfaces are code: `robots.ts` disallows utility/personal routes, the
   sitemap lists indexable routes only (never both), PDPs carry canonical +
   OpenGraph + `schema.org/Product` JSON-LD, and `<html>` carries
@@ -127,15 +129,15 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`typecheck:tests` covers the test tree) |
-| `npm run test` | Vitest unit suite (117 tests, pure seams) |
-| `npm run test:e2e` | Playwright e2e (72 tests, production build on :3100) |
+| `npm run test` | Vitest unit suite (128 tests, pure seams) |
+| `npm run test:e2e` | Playwright e2e (78 tests, production build on :3100) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
 **Current state (Task 121):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 117 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 128 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
@@ -149,7 +151,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   with the fs-computed reality — count-lockstep is enforced across all five
   operator docs, not remembered). Node environment with a localStorage shim
   (`tests/unit/setup.ts`); no jsdom, no component rendering.
-- **E2E (Playwright, 72 tests)** against the **production build** (the webServer
+- **E2E (Playwright, 78 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
   hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
@@ -205,6 +207,21 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   process lifetime); the search page `replaceState`s `?q=` on submit/chip
   click; the inspiration index quotes the pieces total (not the editorial
   budget).
+- **Task-123 seams:** `findPromoMinimumCents(code)` feeds the cart's
+  below-minimum notice (the message half of the F-5 gate — "CODE applied"
+  never survives a subtotal that dropped under the minimum);
+  `DELIVERY_SLOTS`/`isValidDeliverySlot` in `utils.ts` is the shared
+  slot-contract seam (the checkout page's options and the API boundary's
+  whitelist); the checkout journey spec cleans up its order + inventory in
+  a `finally` (the suite runs residue-free against the pinned DB);
+  `clear()` drops the persisted promo with the lines;
+  `getReviewCount()` is a true `count(*)` (the rendered list stays capped
+  at 20 — a display cap, not a count cap); `orderNumber(now?)` derives its
+  date segment at SGT (UTC+8); the promo store's predicate mirrors the
+  32-char write boundary; `/api/health` speaks the standard envelope;
+  the API keyword filter matches `categorySlug` (one recall with the
+  shop-SSR seam); the search error box gates on `settledFor === needle`
+  like the verdicts.
 
 TDD is the default for logic changes: red → green → refactor, one seam at a
 time (`skills/tdd`). Bug fixes require a regression test that fails before the

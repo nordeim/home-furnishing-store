@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getAllProducts, getInventory, getProductBySlug, getReviews } from "@/lib/server-data";
+import { getAllProducts, getInventory, getProductBySlug, getReviewCount, getReviews } from "@/lib/server-data";
 import { formatSGD, stars, visibleBadges } from "@/lib/utils";
 import { CATEGORIES } from "@/lib/catalog";
 import { ProductCard } from "@/components/ProductCard";
@@ -35,7 +35,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const { slug } = await params;
   const p = await getProductBySlug(slug);
   if (!p) notFound();
-  const [stock, reviews, all] = await Promise.all([getInventory(p.id), getReviews(p.id), getAllProducts()]);
+  // reviewCount is the TRUE row count (Task 123 F-10) — the rendered list is
+  // capped at 20 rows (a display cap), but the heading and the JSON-LD
+  // reviewCount must never saturate with it.
+  const [stock, reviews, all, reviewCount] = await Promise.all([getInventory(p.id), getReviews(p.id), getAllProducts(), getReviewCount(p.id)]);
   const related = all.filter((x) => x.categorySlug === p.categorySlug && x.id !== p.id).slice(0, 4);
   // Breadcrumb label uses the category's display name, not the raw slug
   // (Task 119 F-16: "living" → "Living room"; CATEGORIES is the single map).
@@ -69,12 +72,12 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     // 2); with no live reviews the node is omitted entirely — never publish
     // an aggregateRating the page cannot back. ratingValue keeps the
     // catalogue average (the documented invented-content stance).
-    ...(reviews.length > 0
+    ...(reviewCount > 0
       ? {
           aggregateRating: {
             "@type": "AggregateRating",
             ratingValue: String(p.ratingAvg),
-            reviewCount: reviews.length,
+            reviewCount,
           },
         }
       : {}),
@@ -185,6 +188,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       <ReviewSection
         productId={p.id}
         initial={reviews.map((r) => ({ id: r.id, author: r.author, rating: r.rating, title: r.title ?? "", body: r.body ?? "", verified: r.verified, createdAt: String(r.createdAt) }))}
+            total={reviewCount}
       />
 
       {related.length > 0 && (

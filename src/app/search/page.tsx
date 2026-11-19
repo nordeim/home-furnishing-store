@@ -93,7 +93,12 @@ function SearchInner() {
         </div>
       )}
       {loading && <p className="mt-6 text-[#5b5b5b]" role="status">Searching…</p>}
-      {error && !loading && (
+      {/* Task 123 F-4: the error box gates on the settled needle exactly like
+          the result verdicts below — after a FAILED search, typing a new
+          needle used to keep the old "couldn't load results" box on screen
+          through the debounce + fetch window (loading is false during it). A
+          changed needle hides it until its own search settles. */}
+      {error && !loading && settledFor === needle && (
         <div className="mt-4 rounded-xl bg-[#fff4f4] p-10 text-center" role="alert">
           <p className="text-[18px] font-black text-[#a00008]">We couldn’t load results</p>
           <p className="mt-1 text-[#5b5b5b]">The catalogue service didn’t answer. Check your connection and try again.</p>

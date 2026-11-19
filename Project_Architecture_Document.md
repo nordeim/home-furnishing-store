@@ -1,4 +1,4 @@
-# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.7.0
+# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.8.0
 
 **Classification:** Internal Engineering Reference
 **Status:** DEFINITIVE, PRODUCTION-LOCKED BLUEPRINT
@@ -7,6 +7,71 @@
 **Audience:** Senior Engineers, Tech Leads, DevOps, and Onboarding Engineers (human and AI)
 **Rule:** Every architectural decision in this document traces to a specific rationale.
 Nothing is here "because it's popular."
+
+#### Revision Block — v1.8.0 (Task 123 — journey residue, promo-display truth, boundary/docs honesty)
+
+- `[REL]` **Flagship e2e journey residue closed (F-1)**: the bag → promo →
+  checkout → track spec placed a real order on every run and never cleaned
+  up — the pinned DB accumulated rows and the makan Tampines stock drained
+  24 → 20 across sessions (live-observed at this cycle's baseline: 8 stale
+  orders + the fresh one). The spec now reads its pre-run stock and restores
+  it + deletes the probe order in a `finally` (the oversell pattern); every
+  RED-capable probe carries its own safety-net cleanup; the "Reviews (2)"
+  hard pin became regex-accepted (F-11). The suite runs residue-free.
+- `[COR]` **Promo-display truth completed (F-2)**: the Task-122 F-5 gate hid
+  the discount row below the minimum, but the message half kept advertising
+  "WELCOME10 applied" beside it (browser-reproduced) and the code still
+  submitted to a server INVALID_PROMO. `findPromoMinimumCents()` (pure seam,
+  unit-pinned) feeds the cart's honest notice — "needs a $150.00 minimum —
+  add more to use it" — the current bag state owns the message.
+- `[SEC]` **Checkout slot-coherence boundary (F-3)**: `deliverySlot` was
+  length-checked only — any ≤80-char crafted string persisted into
+  customer-facing copy ("Arriving {slot}"). The SLOTS map moved to
+  `utils.ts` as the shared `DELIVERY_SLOTS` seam; the API validates
+  coherence with `isValidDeliverySlot` (the storeSlug whitelist pattern).
+  The four legacy e2e probes that carried a slot the UI never offers were
+  aligned to the real contract.
+- `[COR]` **Search stale-error discipline (F-4)**: the error box gated on
+  `error && !loading` while the verdicts gated on the settled needle — a
+  failed search's error box survived into the next needle's debounce window.
+  It now gates on `settledFor === needle` identically (frozen-debounce e2e
+  pin with route abort).
+- `[COR]` **API keyword recall parity (F-5)**: `/api/products` matched
+  name/tagline/description/sku only while the shop-SSR seam also matched
+  `categorySlug` — q=outdoor returned 0 from the API and 2 from the shop
+  grid. The filter now includes `categorySlug` (one catalogue, one recall).
+- `[UX]` **Promo dies with its order (F-6)**: `clear()` left `nordhem_promo`
+  persisted after checkout — the next bag silently re-applied the previous
+  order's code. `clear()` now drops the promo with the lines (e2e-pinned
+  inside the journey).
+- `[A11Y]` **Error-digest contrast (F-7)**: the "Ref: {digest}" line on both
+  crash boundaries used #9a9a9a on white (≈2.85:1) — now the #5b5b5b muted
+  token (the Task-120 floor).
+- `[DOC]` **Docs claim accuracy sweep (F-8)**: CLAUDE/README claimed
+  `radiogroup`/`tablist` widget roles the Task-119 stance deliberately
+  removed (zero in `src/`) and a `cn` helper that never existed — both now
+  state the real `role="group"` + `aria-pressed` posture and the real helper
+  list.
+- `[COR]` **Health envelope alignment (F-9)**: `/api/health` was the one
+  route deviating from the documented every-route envelope (bare
+  `{ ok: true }`) — it now returns `{ ok: true, data: { db: "up" } }` /
+  the DB_DOWN error envelope (consumers check HTTP status only).
+- `[COR]` **PDP review-count saturation (F-10)**: the rendered review list
+  caps at 20 rows, but the JSON-LD `reviewCount` and the "Reviews (N)"
+  heading derived from `reviews.length` — both understated the truth beyond
+  20 live reviews. `getReviewCount()` (true `count(*)`, degrade-to-0) feeds
+  both; the rendered LIST stays capped (a display cap, not a count cap);
+  e2e-pinned with 21 probe reviews + restore.
+- `[COR]` **Order-number SGT date (F-12)**: `orderNumber(now?)` derives its
+  date segment at UTC+8 (the `sgTomorrowISO` pattern) — Singapore-morning
+  order numbers carried the prior calendar day between 00:00–07:59 SGT.
+- `[SEC]` **Promo-store predicate (F-13)**: `isValidPromoPayload` mirrors
+  the checkout write boundary (≤32 chars) — a crafted 10k-char persisted
+  promo degraded to null instead of riding to checkout.
+- `[REG]` **Register updates (F-14)**: the delivery-decrement deferral row
+  now records the accounting-drift consequence explicitly (an aggregate
+  pass can floor the single decrement store — sold units never leave
+  stock); /search `autoFocus` recorded as an accepted search-page pattern.
 
 #### Revision Block — v1.7.0 (Task 122 — skipped-fix debt, crash-boundary truth, display/money honesty)
 
@@ -73,7 +138,7 @@ Nothing is here "because it's popular."
   the reference repo's cf-connecting-ip → rightmost-hop → "direct" grid),
   offers bundle slug curation, and the standing deferrals from prior
   registers.
-- `[SAN]` Gates: lint 0/0 · typechecks clean · **117 unit / 72 e2e** · cold
+- `[SAN]` Gates: lint 0/0 · typechecks clean · **128 unit / 78 e2e** · cold
   build green (29 routes). The docs-counts pin swept all five operator docs
   in the same commit. RED e2e runs leave DB residue (probe orders/reviews)
   — cleaned this cycle; the discipline is encoded in AGENTS.md gotcha #13.
@@ -150,7 +215,7 @@ Nothing is here "because it's popular."
   its RED spec immediately — the App Router remounts the page subtree on
   dynamic-param navigation. The spec stayed as a regression pin; no dead-key
   "fix" was added. Lesson encoded in SKILL.md #21.
-- `[SAN]` Gates: lint 0/0 · typechecks clean · **117 unit / 72 e2e** · cold
+- `[SAN]` Gates: lint 0/0 · typechecks clean · **128 unit / 78 e2e** · cold
   build green (29 routes). The docs-counts pin swept all five operator docs
   in the same commit.
 
@@ -363,7 +428,7 @@ non-app artifacts remain in the tree (§10).
 | DB driver | `pg` (node-postgres) | 8.20.0 | Pooled connections, `drizzle-orm/node-postgres` adapter |
 | Database | PostgreSQL | 15+ recommended | Relational catalogue/orders; `drizzle-kit push` for schema |
 | Lint | ESLint flat config + `eslint-config-next/core-web-vitals` | 9.39.4 | One linter, Next-aware rules |
-| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–122) — 117 unit + 72 e2e, all green (§7) |
+| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–123) — 128 unit + 78 e2e, all green (§7) |
 | Imagery | Pexels CDN | — | Licensed stock, zero local pipeline (ADR-007) |
 
 ### 1.3 Architecture Decision Records (ADRs)
@@ -861,8 +926,8 @@ auth is a design event, not a patch.
 
 | Category | Files | Status | Location |
 |----------|-------|--------|----------|
-| Unit (Vitest) | 9 files, 117 tests | ✅ Green — pure seams: `utils` money/validators + `familyVoucherCents` + `visibleBadges`, `catalog` invariants + `findPromo` + `storeName`, `local-store` external-store contract, `mask`, robots/sitemap SEO policy, env/compose/config + scan-guard lineage pins, `rate-limit` factory (Task 119), the `orderStepIndex` ladder seam (Task 120), **docs-counts pin** (Task 119; Task 120 extended it to the PAD — fails the run on any stale live-tense count claim in AGENTS/README/CLAUDE/SKILL/PAD) | `tests/unit/` |
-| E2E (Playwright) | 2 specs, 72 tests | ✅ Green — production build on `:3100`, pinned `DATABASE_URL`: mobile-navigation project (390×844), desktop storefront/commerce journeys (incl. the live-DB checkout round-trip), API boundary validation (422/400), wishlist/search fetch-failure resilience, JSON-LD live-inventory + LOW_STOCK 422 (Task 119, via direct pinned-DB manipulation with restore), the SEO metadata blanket (Task 119; Task 120 completed it for the six title-only routes and pinned the /family earn-rate), the checkout boundary set (Task 120: malformed-JSON 400, field-cap 422, concurrent last-unit oversell → exactly one 201/one 422 LOW_STOCK), and the a11y pins (focus indication, stepper floor, alert role) | `tests/e2e/` |
+| Unit (Vitest) | 9 files, 128 tests | ✅ Green — pure seams: `utils` money/validators + `familyVoucherCents` + `visibleBadges`, `catalog` invariants + `findPromo` + `storeName`, `local-store` external-store contract, `mask`, robots/sitemap SEO policy, env/compose/config + scan-guard lineage pins, `rate-limit` factory (Task 119), the `orderStepIndex` ladder seam (Task 120), **docs-counts pin** (Task 119; Task 120 extended it to the PAD — fails the run on any stale live-tense count claim in AGENTS/README/CLAUDE/SKILL/PAD) | `tests/unit/` |
+| E2E (Playwright) | 2 specs, 78 tests | ✅ Green — production build on `:3100`, pinned `DATABASE_URL`: mobile-navigation project (390×844), desktop storefront/commerce journeys (incl. the live-DB checkout round-trip), API boundary validation (422/400), wishlist/search fetch-failure resilience, JSON-LD live-inventory + LOW_STOCK 422 (Task 119, via direct pinned-DB manipulation with restore), the SEO metadata blanket (Task 119; Task 120 completed it for the six title-only routes and pinned the /family earn-rate), the checkout boundary set (Task 120: malformed-JSON 400, field-cap 422, concurrent last-unit oversell → exactly one 201/one 422 LOW_STOCK), and the a11y pins (focus indication, stepper floor, alert role) | `tests/e2e/` |
 | Type coverage | `tsconfig.tests.json` | ✅ `npm run typecheck:tests` (node + vitest/globals types) | repo root |
 
 The predecessor's 73-unit/15-e2e tree (ely-beauty imports, undeclared
@@ -894,8 +959,8 @@ the code, never to hit a number.
 rm -rf .next && DATABASE_URL=… npm run build   # cold build (cache can mask the scan-guard failure)
 npm run typecheck && npm run typecheck:tests  # app scope + test tree
 npm run lint                                   # 0 errors / 0 warnings
-npm run test                                   # 117/117 unit
-npm run test:e2e                               # 72/72 e2e (live Postgres for the journey)
+npm run test                                   # 128/128 unit
+npm run test:e2e                               # 78/78 e2e (live Postgres for the journey)
 # runtime smoke of touched routes against `npm run start`
 ```
 
@@ -959,7 +1024,7 @@ npm run dev                       # http://localhost:3000
 | `npm run dev` / `build` / `start` | root | Dev / cold production build / serve |
 | `npm run lint` | root | ESLint (flat; `skills/` ignored) |
 | `npm run typecheck` / `typecheck:tests` | root | App-scope / test-tree `tsc --noEmit` |
-| `npm run test` / `test:e2e` | root | Vitest unit (117) / Playwright e2e (72, production build on :3100) |
+| `npm run test` / `test:e2e` | root | Vitest unit (128) / Playwright e2e (78, production build on :3100) |
 | `npx drizzle-kit push` | root | Apply `src/db/schema.ts` |
 | `python3 docs/ssh_git_wrapper_v3.py --key-file K --remote git@github.com:nordeim/home-furnishing-store.git` | repo | Verified SSH push to main (see the runbook) |
 
@@ -1075,9 +1140,22 @@ Clone over HTTPS; push over SSH through the wrapper with the mandatory
 | ~~INFO~~ | Hero/offers "Up to 24% off …" loosely attributed | The max (24%, NORDLYS lamp) led with extendable dining tables — the one member with NO deal | **Fixed (Task 122)** — honest attribution (lighting, cookware, essentials); e2e-pinned |
 | ~~INFO~~ | Shop layout hardcoded "24 … 8" counts + stale "client component" comment + filter-copy drift | Catalogue-edit drift; architecture comment lied since F-17 | **Fixed (Task 122)** — derived from PRODUCTS/CATEGORIES; comment + copy corrected |
 | INFO | Rate-limiter `clientIp` keys on the spoofable `x-forwarded-for` first hop | Header rotation defeats the 20/min buckets when directly exposed | **Accepted (Task 122 register)** — single-trusted-proxy posture; upgrade path documented (cf-connecting-ip → rightmost hop → "direct") |
+| ~~MEDIUM~~ | Flagship e2e journey left an order row + inventory decrement on every run | The pinned DB accumulated 8 stale orders across sessions; makan Tampines drained 24 → 20; ~42 runs would break the journey's own checkout | **Fixed (Task 123 F-1)** — finally-cleanup (order delete + stock restore); every RED-capable probe self-cleans; "Reviews (2)" hard pin regex-accepted |
+| ~~MEDIUM~~ | Cart promo message contradicted the effectivePromo gate below the minimum | "WELCOME10 applied" persisted beside a vanished Discount row; the code still submitted to a server INVALID_PROMO (browser-reproduced) | **Fixed (Task 123 F-2)** — `findPromoMinimumCents` + the honest minimum notice; unit + e2e pinned |
+| ~~LOW~~ | Checkout `deliverySlot` accepted any ≤80-char string (length-checked only) | Crafted junk persisted into "Arriving {slot}" customer copy | **Fixed (Task 123 F-3)** — shared `DELIVERY_SLOTS` seam + `isValidDeliverySlot` whitelist at the boundary |
+| ~~LOW~~ | Search error box survived a changed needle (weaker gate than the verdicts) | Stale "couldn't load results" through the new search's debounce window | **Fixed (Task 123 F-4)** — gates on `settledFor === needle`; frozen-debounce e2e pin |
+| ~~LOW~~ | `/api/products` keyword filter omitted `categorySlug` (recall ≠ shop-SSR seam) | q=outdoor returned 0 from the API, 2 from the shop grid | **Fixed (Task 123 F-5)** — filter includes `categorySlug`; e2e-pinned |
+| ~~LOW~~ | Promo code survived order placement (`clear()` emptied lines only) | The next bag silently re-applied the previous order's code | **Fixed (Task 123 F-6)** — `clear()` drops the promo; pinned inside the journey |
+| ~~LOW~~ | Error-digest "Ref:" line at #9a9a9a on white (≈2.85:1) | WCAG AA fail on both crash boundaries | **Fixed (Task 123 F-7)** — #5b5b5b muted token |
+| ~~LOW~~ | CLAUDE/README claimed `radiogroup`/`tablist` roles + a `cn` helper that do not exist | Docs self-contradicted the Task-119 ARIA stance; a future agent would reintroduce unimplemented widget semantics | **Fixed (Task 123 F-8)** — docs now state the group/aria-pressed posture and the real helper list |
+| ~~LOW~~ | `/api/health` deviated from the documented every-route envelope | The one route breaking the "envelope everywhere" contract | **Fixed (Task 123 F-9)** — standard envelope; e2e pin updated |
+| ~~LOW~~ | PDP reviewCount + "Reviews (N)" heading saturated at the 20-row display cap | Both understated the truth beyond 20 live reviews | **Fixed (Task 123 F-10)** — `getReviewCount()` true count(*); e2e-pinned with 21 probe reviews |
+| ~~INFO~~ | `orderNumber()` date segment derived at UTC, not SGT | Order numbers minted 00:00–07:59 SGT carried the prior calendar day | **Fixed (Task 123 F-12)** — UTC+8 derivation, unit-pinned at fixed instants |
+| ~~INFO~~ | `nordhem_promo` store predicate accepted unbounded strings | A crafted 10k-char value rode to checkout until the server cap refused it | **Fixed (Task 123 F-13)** — `isValidPromoPayload` (≤32, mirrors the write boundary); unit-pinned |
+| INFO | `/search` input uses `autoFocus` | Auto-focus on navigation can disorient screen-reader users | Accepted (Task 123 F-14b) — common search-page pattern; recorded in the a11y ledger |
 | ~~INFO~~ | "ends 28 Dec" went stale Dec 29–31 (computed as current-year) | Banner advertised a past end date | **Fixed (Task 121)** — `campaignEnd` rolls to next year; unit-pinned ×3 |
 | LOW | Read-only API GETs (`/api/products`, GET `/api/reviews`, `/api/health`) are unthrottled and uncached | Demo-scope accepted risk (a limiter on the catalogue GET would contaminate the e2e suite's shared "local" bucket) | Open — documented (register row; POST surfaces are limited) |
-| LOW | `placeOrder` decrements delivery orders from the `storeSlug || "tampines"` store only | Delivery orders drain one store's Click & Collect stock (best-effort demo decrement) | Open — documented (redistributing decrements is feature work) |
+| LOW | `placeOrder` decrements delivery orders from the `storeSlug || "tampines"` store only | Delivery orders drain one store's Click & Collect stock (best-effort demo decrement). Accounting drift made explicit (Task 123 F-14a): the availability check is island-wide while the decrement floors one row — a delivery order for N units against a store holding < N passes the aggregate check and floors that row (the sold remainder never leaves stock) | Open — documented (redistributing decrements is feature work) |
 | LOW | Wishlist fetches the full catalogue (`/api/products`) then filters client-side | Fine at the 24-product demo scale; a `?slugs=` param would be the fix at real scale | Open — documented |
 | INFO | PDP `aggregateRating`/`ratingCount` are catalogue fiction while the visible review list is live DB rows (e.g. "412 reviews" beside 2 rows); per-product warranty claims (12/25-yr) vs the generic trio cell | Demo-grade invented-content stance (same class as invented product names) | Documented — the invented-content decision covers it; the universal trio cell was reworded (Task 118) to claim only documented facts |
 
@@ -1130,8 +1208,8 @@ re-verified in-browser on the dead-DB path ($1,200/yr → $60 vouchers) —
 | `src/app/product/[slug]/page.tsx` | ~122 | PDP: metadata, gallery, stock/aisle, reviews, related |
 | `src/app/api/checkout/route.ts` | ~62 | Validation, rate limit, `placeOrder` delegation, envelope |
 | `src/components/Header.tsx` | ~180 | Utility strip, search, store picker (external store), category nav, mobile drawer (Escape-close) |
-| `tests/unit/` | 9 files | 117 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges, catalog, local-store, mask, robots/sitemap, env/compose/config + scan-guard pins) |
-| `tests/e2e/` | 2 specs | 72 Playwright tests: mobile-navigation (390×844), storefront/commerce journeys, API boundary validation, fetch-failure resilience |
+| `tests/unit/` | 9 files | 128 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges/DELIVERY_SLOTS/orderNumber-SGT, catalog incl. findPromoMinimumCents, local-store incl. the promo predicate, mask, robots/sitemap, env/compose/config + scan-guard pins) |
+| `tests/e2e/` | 2 specs | 78 Playwright tests: mobile-navigation (390×844), storefront/commerce journeys, API boundary validation, fetch-failure resilience, slot coherence, review-count truth |
 | `src/components/ProductCard.tsx` | ~92 | Card + `Rating`; wishlist/add-to-bag affordances |
 | `docs/implementation-plan.md` | 42 | Stack decision record, deviations ledger, acceptance criteria |
 | `docs/reference-investigation.md` | 45 | Reference-site evidence (Verified/Reasoned/Assumed/Unknown) |

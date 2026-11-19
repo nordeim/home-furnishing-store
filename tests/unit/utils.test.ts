@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex, campaignEnd, campaignEndLabel, sgTomorrowISO, sortProductList } from "@/lib/utils";
+import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex, campaignEnd, campaignEndLabel, sgTomorrowISO, sortProductList, DELIVERY_SLOTS, isValidDeliverySlot } from "@/lib/utils";
 
 describe("formatSGD", () => {
   // The currency symbol depends on the node build's ICU data ($ vs S$) — assert
@@ -90,12 +90,55 @@ describe("clampInt", () => {
   });
 });
 
-describe("orderNumber", () => {
-  it("matches NH-YYYYMMDD-XXXXXX with today's date", () => {
+describe("orderNumber (SGT date segment — Task 123 F-12)", () => {
+  it("matches NH-YYYYMMDD-XXXXXX with today's SGT date", () => {
     const n = orderNumber();
-    const today = new Date();
-    const ymd = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}`;
+    const sgt = new Date(Date.now() + 8 * 3_600_000);
+    const ymd = `${sgt.getFullYear()}${String(sgt.getMonth() + 1).padStart(2, "0")}${String(sgt.getDate()).padStart(2, "0")}`;
     expect(n).toMatch(new RegExp(`^NH-${ymd}-[A-Z0-9]{6}$`));
+  });
+
+  it("a UTC-evening instant (SGT past midnight) carries the SGT calendar day", () => {
+    // 2026-11-19T16:30:00Z = 2026-11-20 00:30 SGT — the UTC date is the 19th,
+    // the SGT date is the 20th; the segment must follow the store's locale
+    // (the sgTomorrowISO class: order numbers minted 00:00–07:59 SGT used to
+    // carry the prior calendar day).
+    const n = orderNumber(new Date("2026-11-19T16:30:00Z"));
+    expect(n).toMatch(/^NH-20261120-[A-Z0-9]{6}$/);
+  });
+
+  it("a UTC-morning instant stays on the same SGT day", () => {
+    const n = orderNumber(new Date("2026-11-19T02:30:00Z"));
+    expect(n).toMatch(/^NH-20261119-[A-Z0-9]{6}$/);
+  });
+});
+
+// Task 123 F-3: the checkout boundary enforces the UI's own slot contract —
+// a crafted payload could persist any ≤80-char string into customer-facing
+// copy ("Arriving {slot}" on the confirmation + tracking pages). The SLOTS
+// map moved here from checkout/page.tsx (single source); isValidDeliverySlot
+// is the whitelist the route applies (the storeSlug pattern).
+describe("DELIVERY_SLOTS + isValidDeliverySlot (Task 123 F-3)", () => {
+  it("carries the three fulfilment methods and their offered slots", () => {
+    expect(Object.keys(DELIVERY_SLOTS).sort()).toEqual(["click-collect", "delivery", "express"]);
+    expect(DELIVERY_SLOTS.delivery).toContain("Standard (3–5 days)");
+    expect(DELIVERY_SLOTS["click-collect"]).toEqual(["Today 2pm", "Tomorrow 10am"]);
+    expect(DELIVERY_SLOTS.express).toEqual(["Next-day by 6pm"]);
+  });
+
+  it("accepts a method-coherent slot (what the UI sends)", () => {
+    expect(isValidDeliverySlot("delivery", "Standard (3–5 days)")).toBe(true);
+    expect(isValidDeliverySlot("delivery", "Evening (6–9pm)")).toBe(true);
+    expect(isValidDeliverySlot("delivery", "Weekend morning")).toBe(true);
+    expect(isValidDeliverySlot("express", "Next-day by 6pm")).toBe(true);
+    expect(isValidDeliverySlot("click-collect", "Today 2pm")).toBe(true);
+  });
+
+  it("refuses cross-method and junk slots (what only a crafted client sends)", () => {
+    expect(isValidDeliverySlot("express", "Standard (3–5 days)")).toBe(false);
+    expect(isValidDeliverySlot("delivery", "Junk slot")).toBe(false);
+    expect(isValidDeliverySlot("express", "")).toBe(false);
+    expect(isValidDeliverySlot("click-collect", "Next-day by 6pm")).toBe(false);
   });
 });
 

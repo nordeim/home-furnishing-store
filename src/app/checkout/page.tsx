@@ -5,18 +5,14 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useCart } from "@/lib/cart-store";
 import { effectivePromo } from "@/lib/catalog";
-import { formatSGD, priceTotals } from "@/lib/utils";
+import { DELIVERY_SLOTS, formatSGD, priceTotals } from "@/lib/utils";
 
 type Method = "delivery" | "click-collect" | "express";
 
-// Slot options derive from the selected fulfilment method (Task 119 F-22): the
-// static list used to offer "Standard (3–5 days)" even on Express orders, and
-// the mismatched slot was persisted verbatim onto the order.
-const SLOTS: Record<Method, string[]> = {
-  delivery: ["Standard (3–5 days)", "Evening (6–9pm)", "Weekend morning"],
-  "click-collect": ["Today 2pm", "Tomorrow 10am"],
-  express: ["Next-day by 6pm"],
-};
+// Slot options derive from the selected fulfilment method (Task 119 F-22) and
+// live in the SHARED seam src/lib/utils.ts (Task 123 F-3): the checkout API
+// validates submissions against the same map, so a crafted client cannot
+// persist a slot the UI would never offer.
 
 export default function CheckoutPage() {
   const { lines, subtotalCents, promoCode, clear } = useCart();
@@ -101,7 +97,7 @@ export default function CheckoutPage() {
                 honest semantics (Tab-reachable, correctly announced). */}
             <div className="mt-3 grid gap-2 sm:grid-cols-3" role="group" aria-label="Delivery method">
               {([["delivery", "Delivery", "From $12 · free $200+"], ["click-collect", "Click & Collect", "Free · ready in 2 hrs"], ["express", "Express", "Next-day · $29"]] as Array<[Method, string, string]>).map(([v, title, sub]) => (
-                <button type="button" key={v} aria-pressed={method === v} onClick={() => { setMethod(v); set("slot", SLOTS[v][0]); }}
+                <button type="button" key={v} aria-pressed={method === v} onClick={() => { setMethod(v); set("slot", DELIVERY_SLOTS[v][0]); }}
                   className={`rounded-xl border-2 p-4 text-left focus-ring ${method === v ? "border-[#0058a3] bg-[#f0f6fc]" : "border-[#eee]"}`}>
                   <span className="block font-black">{title}</span><span className="text-[13px] text-[#5b5b5b]">{sub}</span>
                 </button>
@@ -115,7 +111,7 @@ export default function CheckoutPage() {
               </label>
               <label className="text-[13px] font-bold">Time slot
                 <select value={form.slot} onChange={(e) => set("slot", e.target.value)} className={input}>
-                  {SLOTS[method].map((s) => <option key={s}>{s}</option>)}
+                  {DELIVERY_SLOTS[method].map((s) => <option key={s}>{s}</option>)}
                 </select>
               </label>
             </div>

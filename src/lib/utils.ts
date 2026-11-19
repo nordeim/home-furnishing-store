@@ -75,11 +75,34 @@ export function orderStepIndex(status: string): number {
   return 0;
 }
 
-export function orderNumber(): string {
-  const d = new Date();
-  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+// Task 123 F-12: the date segment derives at SGT (UTC+8) — between 00:00 and
+// 07:59 SGT the server's UTC date is still "yesterday", so Singapore-morning
+// order numbers carried the prior calendar day. Same class as sgTomorrowISO
+// (pure UTC+8 arithmetic, unit-pinnable); the format is unchanged.
+export function orderNumber(now: Date = new Date()): string {
+  const SGT_OFFSET_MS = 8 * 60 * 60 * 1000;
+  const sgt = new Date(now.getTime() + SGT_OFFSET_MS);
+  const ymd = `${sgt.getFullYear()}${String(sgt.getMonth() + 1).padStart(2, "0")}${String(sgt.getDate()).padStart(2, "0")}`;
   const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
   return `NH-${ymd}-${rand}`;
+}
+
+// Task 123 F-3: the checkout slot contract, shared by the page (the <select>
+// options) and the API boundary (the whitelist). A crafted payload could
+// persist any ≤80-char string into customer-facing copy ("Arriving
+// {slot}"); the boundary now enforces what the UI itself offers — the
+// storeSlug whitelist pattern (Task 121 F-7).
+export const DELIVERY_SLOTS: Record<string, string[]> = {
+  delivery: ["Standard (3–5 days)", "Evening (6–9pm)", "Weekend morning"],
+  "click-collect": ["Today 2pm", "Tomorrow 10am"],
+  express: ["Next-day by 6pm"],
+};
+
+export function isValidDeliverySlot(method: string, slot: string): boolean {
+  // Unknown methods coerce to the delivery set upstream (the route's
+  // deliveryMethod whitelist) — mirror that here so the two seams agree.
+  const allowed = DELIVERY_SLOTS[method] ?? DELIVERY_SLOTS.delivery;
+  return allowed.includes(slot);
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;

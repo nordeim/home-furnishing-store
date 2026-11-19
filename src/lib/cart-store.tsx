@@ -60,6 +60,14 @@ export function isValidWishPayload(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((s) => typeof s === "string");
 }
 
+// Task 123 F-13: the promo store's predicate accepted any string — a crafted
+// 10k-char nordhem_promo rode to checkout until the server's 32-char cap
+// refused it. The persisted-state contract mirrors the write boundary
+// (checkout route: promoCode <= 32) so junk degrades to null at load.
+export function isValidPromoPayload(v: unknown): v is string | null {
+  return v === null || (typeof v === "string" && v.length <= 32);
+}
+
 // One external store per persisted key. useSyncExternalStore handles the
 // server/client hydration split natively (getServerSnapshot → fallback during
 // SSR/hydration, client snapshot after mount) — the reason this replaced the
@@ -73,7 +81,7 @@ export function isValidWishPayload(v: unknown): v is string[] {
 // reach CartProvider's lines.reduce and crash every route at render.
 const linesStore = createLocalStore<CartLine[]>(CART_KEY, [], isValidCartPayload);
 const wishStore = createLocalStore<string[]>(WISH_KEY, [], isValidWishPayload);
-const promoStore = createLocalStore<string | null>(PROMO_KEY, null, (v) => v === null || typeof v === "string");
+const promoStore = createLocalStore<string | null>(PROMO_KEY, null, isValidPromoPayload);
 
 function addLine(line: Omit<CartLine, "qty">, qty = 1) {
   linesStore.set((prev) => {
@@ -99,7 +107,14 @@ const actions = {
   add: addLine,
   setQty: setLineQty,
   remove: (productId: number) => linesStore.set((prev) => prev.filter((l) => l.productId !== productId)),
-  clear: () => linesStore.set([]),
+  // Task 123 F-6: clear() empties the WHOLE bag state — a promo code belongs
+  // to the order it was used on. Leaving nordhem_promo persisted made the
+  // next bag silently re-apply the previous order's code (and its discount
+  // row) the moment it crossed the minimum.
+  clear: () => {
+    linesStore.set([]);
+    promoStore.set(null);
+  },
   setPromo: (code: string | null) => promoStore.set(code),
   toggleWish: (slug: string) =>
     wishStore.set((prev) => (prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug])),
