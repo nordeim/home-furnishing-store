@@ -8,7 +8,11 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const q = (url.searchParams.get("q") ?? "").toLowerCase();
+    // Task 128 F-5: trim the needle like the searchProducts seam does
+    // (q.trim().toLowerCase()) — one recall definition, one normalization.
+    // A padded needle (" solbakken ") used to miss words that START a field
+    // (no leading space in the haystack) while /search found them.
+    const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
     const cat = url.searchParams.get("cat") ?? "all";
     const sort = url.searchParams.get("sort") ?? "featured";
     // Task 127 F-3: ?max= is a whole-dollar price cap — Number() coercion

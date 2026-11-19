@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { formatSGD } from "@/lib/utils";
+import { formatSGD, TRADE_RATE } from "@/lib/utils";
 
 const UNITS = [
   { id: "desk", label: "Workstation (desk + chair)", cents: 77800 },
@@ -19,7 +19,7 @@ export default function BusinessPage() {
     () => UNITS.reduce((a, u) => a + u.cents * (qty[u.id] ?? 0), 0),
     [qty],
   );
-  const trade = useMemo(() => Math.round(subtotal * 0.12), [subtotal]);
+  const trade = useMemo(() => Math.round(subtotal * TRADE_RATE), [subtotal]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
@@ -52,7 +52,7 @@ export default function BusinessPage() {
           <h2 className="font-black">Instant trade estimate</h2>
           <dl className="mt-3 space-y-2 text-[14px]">
             <div className="flex justify-between"><dt className="text-white/70">List total</dt><dd>{formatSGD(subtotal)}</dd></div>
-            <div className="flex justify-between text-[#8fe388]"><dt>Trade saving (12%)</dt><dd>−{formatSGD(trade)}</dd></div>
+            <div className="flex justify-between text-[#8fe388]"><dt>Trade saving ({Math.round(TRADE_RATE * 100)}%)</dt><dd>−{formatSGD(trade)}</dd></div>
             <div className="flex justify-between border-t border-white/15 pt-3 text-[19px] font-black"><dt>Estimate</dt><dd>{formatSGD(subtotal - trade)}</dd></div>
           </dl>
           {sent ? (

@@ -21,6 +21,11 @@ export async function POST(req: Request) {
     // Malformed payload is a client error, not a server fault.
     return NextResponse.json({ ok: false, error: { code: "BAD_REQUEST", message: "Expected a JSON body." } }, { status: 400 });
   }
+  // Task 128 F-1: a valid-JSON NON-OBJECT body (`null`) is the same
+  // client-fault class — the property reads below are TypeErrors on it
+  // (a 500 for a client fault). Guard the shape beside the parse guard.
+  if (typeof body !== "object" || body === null)
+    return NextResponse.json({ ok: false, error: { code: "BAD_REQUEST", message: "Expected a JSON body." } }, { status: 400 });
   try {
     // Task 126 F-5: TYPE-strict, mirroring the checkout (Task-124 F-5) and
     // reviews-POST (Task-125 F-2) stance — the old String() coercions let a

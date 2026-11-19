@@ -6,8 +6,8 @@ import { Client } from "pg";
 import { gotoHydrated } from "./helpers";
 // Task 124 F-14: the sitemap count derives from the catalogue constants (the
 // unit suite's approach) — a hardcoded 42 broke on the first catalogue edit.
-import { CATEGORIES, INSPIRATIONS, PRODUCTS, catalogMaxDiscountPercent } from "../../src/lib/catalog";
-import { GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS } from "../../src/lib/utils";
+import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, catalogMaxDiscountPercent } from "../../src/lib/catalog";
+import { GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, FAMILY_VOUCHER_CENTS, FAMILY_POINTS_PER_VOUCHER, FAMILY_POINTS_PER_DOLLAR } from "../../src/lib/utils";
 
 // Task 126 F-3: the max-discount pins derive from the catalogue (the same
 // seam the hero/strip/offers copy interpolates) — a catalogue edit
@@ -226,6 +226,16 @@ test.describe("API envelope", () => {
     const capsJson = (await caps.json()) as { ok: boolean; data: Array<{ slug: string }> };
     expect(capsJson.ok).toBe(true);
     expect(capsJson.data.length).toBe(2);
+    // Task 128 F-5: the seam TRIMS the needle too — the searchProducts seam
+    // (q.trim().toLowerCase()) and the search page both trim, but this route
+    // didn't: a padded needle like " solbakken " (the word starts the product
+    // NAME, so no leading space exists in the haystack) returned 0 here while
+    // the same text via /search returned the product. One recall, one
+    // normalization (browser-verified live at audit: 1 vs 0).
+    const padded = await request.get("/api/products?q=%20solbakken%20");
+    const paddedJson = (await padded.json()) as { ok: boolean; data: Array<{ slug: string }> };
+    expect(paddedJson.ok).toBe(true);
+    expect(paddedJson.data.map((p) => p.slug)).toEqual(["solbakken-3-seat-sofa"]);
   });
 
   test("checkout validates input (422 envelope)", async ({ request }) => {
@@ -314,6 +324,41 @@ test.describe("API envelope", () => {
       expect(r.ok, `${r.path} envelope ok flag`).toBe(false);
     }
   });
+
+  test("valid-JSON NON-OBJECT bodies are 400 client errors, not 500s (Task 128 F-1)", async ({ page }) => {
+    // `null` (and on checkout any primitive) parses as valid JSON but is not
+    // a JSON object: the boundaries used to crash on the first `field in body`
+    // / property access and surface a 500 "failed on our side" for a pure
+    // client fault. Browser-verified live at audit: null → 500 on all four
+    // POST routes; 5 → 500 on checkout ("email" in 5 is a TypeError). The
+    // shape guard belongs beside the parse guard — same client-fault class.
+    // Raw bytes from the browser (the malformed-JSON spec's discipline).
+    await page.goto("/");
+    const statuses = await page.evaluate(async () => {
+      const out: Array<{ path: string; body: string; status: number; code: string | null }> = [];
+      const probes: Array<{ path: string; body: string }> = [
+        { path: "/api/checkout", body: "null" },
+        { path: "/api/checkout", body: "5" },
+        { path: "/api/reviews", body: "null" },
+        { path: "/api/promotions/validate", body: "null" },
+        { path: "/api/orders/track", body: "null" },
+      ];
+      for (const probe of probes) {
+        const res = await fetch(probe.path, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: probe.body,
+        });
+        const json = (await res.json()) as { error?: { code?: string } };
+        out.push({ path: probe.path, body: probe.body, status: res.status, code: json.error?.code ?? null });
+      }
+      return out;
+    });
+    for (const r of statuses) {
+      expect(r.status, `${r.path} body ${r.body} must be a 400, never a 500`).toBe(400);
+      expect(r.code, `${r.path} body ${r.body} envelope code`).toBe("BAD_REQUEST");
+    }
+  });
 });
 
 test.describe("client resilience (fetch failure ≠ empty state)", () => {
@@ -373,7 +418,7 @@ test.describe("bag → checkout → order journey (live DB)", () => {
     const specStart = new Date(Date.now() - 60_000);
     try {
     // 1. PDP → add to bag
-    await page.goto("/product/makan-extendable-table");
+    await gotoHydrated(page, "/product/makan-extendable-table");
     await page.getByRole("button", { name: "Add to bag" }).click();
     await expect(page.getByRole("button", { name: /Added to bag/ })).toBeVisible();
 
@@ -412,7 +457,7 @@ test.describe("bag → checkout → order journey (live DB)", () => {
     placedOrder = orderUrl.split("/order/")[1];
 
     // 6. Track the order with the matching email → timeline + items.
-    await page.goto("/track-order");
+    await gotoHydrated(page, "/track-order");
     await page.getByLabel(/Order number/i).fill(orderUrl.split("/order/")[1]);
     await page.getByLabel(/Email used at checkout/i).fill("journey@nordhem.sg");
     await page.getByRole("button", { name: /Track order/i }).click();
@@ -517,7 +562,7 @@ test.describe("a11y: focus, steppers and announcements (Task 120)", () => {
     // like every contact field on the same page.
     await gotoHydrated(page, "/product/katong-bedside-table");
     await page.getByRole("button", { name: "Add to bag" }).click();
-    await page.goto("/checkout");
+    await gotoHydrated(page, "/checkout");
     await page.getByRole("button", { name: /Card$/ }).click();
     await expect(page.getByLabel("Card number")).toHaveAttribute("autocomplete", "cc-number");
     await expect(page.getByLabel("Expiry")).toHaveAttribute("autocomplete", "cc-exp");
@@ -774,17 +819,40 @@ test.describe("SEO metadata blanket (Task 119)", () => {
     }
   });
 
+  test("the offers banner's FLAT20 copy derives from the PROMOS row (Task 128 F-3)", async ({ page }) => {
+    // Task 127 F-4 derived the banner from the same PROMOS row the cards
+    // render; Task 128 F-3 adds the pin — editing the promo self-corrects
+    // banner and pin together (the "copy and pins together" claim, now true).
+    await page.goto("/offers");
+    const flat20 = PROMOS.find((p) => p.code === "FLAT20");
+    expect(flat20, "the FLAT20 promo exists in the catalogue").toBeDefined();
+    await expect(page.getByRole("heading", { name: "Festive market offers" })).toBeVisible();
+    await expect(page.locator("main")).toContainText(
+      `FLAT20${flat20 ? ` for $${flat20.value / 100} off orders over $${flat20.minSubtotalCents / 100}.` : ""}`
+    );
+  });
+
   test("family metadata matches the page's own earn-rate math (Task 120 F-4)", async ({ page }) => {
     // Task 120 F-4: the /family route layout claimed "earn 5 points per $10
     // spent" while the page copy AND calculator compute 10 points per $1 —
     // a 20× contradiction between the crawler-facing claim and the product,
     // plus a "members-only workshops" promise the surface does not have.
     // The SERP description must agree with the calculator it sits above.
+    // Task 128 F-3/F-9: the pins now DERIVE from the same constants the page
+    // and layout interpolate — a rate edit self-corrects copy and pins
+    // together (the Task-124 F-14 pattern; the Task-127 claim becomes true).
     await page.goto("/family");
     const desc = (await page.locator('meta[name="description"]').getAttribute("content")) ?? "";
-    expect(desc).toContain("10 points");
+    expect(desc).toContain(`${FAMILY_POINTS_PER_DOLLAR} points per $1`);
     expect(desc).not.toContain("5 points per $10");
     expect(desc.toLowerCase()).not.toContain("workshop");
+    // Task 128 F-3: the voucher rule derives too (voucher + earn rate).
+    expect(desc).toContain(`$${FAMILY_VOUCHER_CENTS / 100} voucher for every ${FAMILY_POINTS_PER_VOUCHER.toLocaleString("en-SG")} points`);
+    // And the VISIBLE page copy carries the same derived rule — the copy the
+    // calculator sits above must agree with the metadata beside it.
+    await expect(page.locator("body")).toContainText(
+      `${FAMILY_POINTS_PER_DOLLAR} points per $1 — $${FAMILY_VOUCHER_CENTS / 100} voucher every ${FAMILY_POINTS_PER_VOUCHER.toLocaleString("en-SG")} pts`
+    );
   });
 
   test("inspiration detail ships generated metadata", async ({ page }) => {
@@ -941,20 +1009,29 @@ test.describe("checkout API boundary (Task 120)", () => {
     // Task 120 F-3: email/fullName/address carried minimum-length checks only
     // (the reviews route slices 60/120/2000 — checkout sliced nothing), so a
     // 300-char address was persisted verbatim by an unauthenticated writer.
-    const res = await request.post("/api/checkout", {
-      headers: { "x-forwarded-for": "10.9.121.3" },
-      data: {
-        email: "caps-probe@nordhem.sg",
-        fullName: "Caps Probe",
-        phone: "+65 91234567",
-        address: `Blk 1 Testing Rd #01-01 ${"A".repeat(300)}`,
-        postal: "089001",
-        lines: [{ productId: 1, qty: 1 }],
-      },
-    });
-    const body = (await res.json()) as { error?: { code?: string } };
-    expect(res.status()).toBe(422);
-    expect(body.error?.code).toBe("VALIDATION");
+    // Task 128 F-7: this was the one write-capable refusal spec without a
+    // RED-run net — a regressed cap boundary would place a REAL order
+    // (caps-probe@nordhem.sg + a tampines decrement) and strand it in the
+    // pinned DB. The net runs in finally (a net after a failed expect is
+    // dead code — the Task-126 F-2 lesson).
+    try {
+      const res = await request.post("/api/checkout", {
+        headers: { "x-forwarded-for": "10.9.121.3" },
+        data: {
+          email: "caps-probe@nordhem.sg",
+          fullName: "Caps Probe",
+          phone: "+65 91234567",
+          address: `Blk 1 Testing Rd #01-01 ${"A".repeat(300)}`,
+          postal: "089001",
+          lines: [{ productId: 1, qty: 1 }],
+        },
+      });
+      const body = (await res.json()) as { error?: { code?: string } };
+      expect(res.status()).toBe(422);
+      expect(body.error?.code).toBe("VALIDATION");
+    } finally {
+      await deleteProbeOrders("caps-probe@nordhem.sg");
+    }
   });
 
   test("two concurrent last-unit orders: exactly one wins, one 422 LOW_STOCK", async ({ request }) => {
@@ -1488,7 +1565,7 @@ test.describe("click-&-collect temporal honesty (Task 124 F-8)", () => {
     await page.clock.setFixedTime(new Date("2026-11-19T15:00:00Z")); // 23:00 SGT
     await gotoHydrated(page, "/product/katong-bedside-table");
     await page.getByRole("button", { name: "Add to bag" }).click();
-    await page.goto("/checkout");
+    await gotoHydrated(page, "/checkout");
     await page.getByRole("button", { name: /Click & Collect/ }).click();
     const options = await page.getByLabel("Time slot").locator("option").allTextContents();
     expect(options).toEqual(["Tomorrow 10am"]);
@@ -1498,7 +1575,7 @@ test.describe("click-&-collect temporal honesty (Task 124 F-8)", () => {
     await page.clock.setFixedTime(new Date("2026-11-19T02:00:00Z")); // 10:00 SGT
     await gotoHydrated(page, "/product/katong-bedside-table");
     await page.getByRole("button", { name: "Add to bag" }).click();
-    await page.goto("/checkout");
+    await gotoHydrated(page, "/checkout");
     await page.getByRole("button", { name: /Click & Collect/ }).click();
     const options = await page.getByLabel("Time slot").locator("option").allTextContents();
     expect(options).toEqual(["Today 2pm", "Tomorrow 10am"]);
@@ -1509,7 +1586,7 @@ test.describe("checkout form error placement (Task 121 F-12)", () => {
   test("a contact-field error surfaces above the form, not inside the Payment section", async ({ page }) => {
     await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
     await page.getByRole("button", { name: "Add to bag" }).click();
-    await page.goto("/checkout");
+    await gotoHydrated(page, "/checkout");
     await page.getByLabel("Full name").fill("Error Probe");
     await page.getByLabel("Phone").fill("+65 91234567");
     await page.getByLabel("Postal code").fill("089001");
@@ -1547,7 +1624,7 @@ test.describe("checkout fulfilment method switch (Task 121 F-20 pin)", () => {
     await page.clock.setFixedTime(new Date("2026-11-19T02:00:00Z")); // 10:00 SGT
     await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
     await page.getByRole("button", { name: "Add to bag" }).click();
-    await page.goto("/checkout");
+    await gotoHydrated(page, "/checkout");
     const slot = page.getByLabel("Time slot");
     await expect(slot).toHaveValue("Standard (3–5 days)");
     await page.getByRole("button", { name: /Click & Collect/ }).click();
@@ -1579,7 +1656,7 @@ test.describe("shop loading announcement (Task 121 F-13)", () => {
       await page.waitForTimeout(600);
       await route.continue();
     });
-    await page.goto("/shop");
+    await gotoHydrated(page, "/shop");
     // Trigger a client-side refetch (keyword filter) to expose the skeletons.
     await page.getByLabel("Filter products by keyword").fill("sofa");
     await expect(page.getByRole("status")).toBeVisible();
@@ -1635,6 +1712,24 @@ test.describe("shop SSR content (Task 121 F-17)", () => {
     await expect(page.getByRole("link", { name: "SOLBAKKEN 3-seat sofa" })).toHaveCount(0);
     await context.close();
   });
+
+  test("the shop strip's GST rate and free-delivery threshold derive from the constants (Task 128 F-3)", async ({ browser }) => {
+    // Task 127 F-4 derived the copy; Task 128 F-3 adds the pin — the Task-127
+    // claim "the GST + family e2e pins derive" now covers the shop pair too
+    // (metadata + visible strip). A threshold or rate edit self-corrects copy
+    // and pins together instead of rotting silently.
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    await page.goto("/shop");
+    const strip = page.locator("main p").filter({ hasText: /products · prices include/ });
+    await expect(strip.first()).toContainText(
+      `prices include ${Math.round(GST_RATE * 100)}% GST · free delivery over $${FREE_DELIVERY_THRESHOLD_CENTS / 100}`
+    );
+    // The SERP-facing metadata derives the same pair.
+    const desc = (await page.locator('meta[name="description"]').getAttribute("content")) ?? "";
+    expect(desc).toContain(`prices include ${Math.round(GST_RATE * 100)}% GST, free delivery over $${FREE_DELIVERY_THRESHOLD_CENTS / 100}`);
+    await context.close();
+  });
 });
 
 test.describe("home social preview (Task 121 F-18)", () => {
@@ -1658,7 +1753,7 @@ test.describe("cart promo min-spend display gate (Task 122 F-5)", () => {
     // hide it from the preview the moment the subtotal falls below the min.
     await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
     await page.getByRole("button", { name: "Add to bag" }).click();
-    await page.goto("/product/katong-bedside-table");
+    await gotoHydrated(page, "/product/katong-bedside-table");
     await page.getByRole("button", { name: "Add to bag" }).click();
     await page.getByRole("link", { name: /Shopping bag, 2 items/ }).click();
     await expect(page.getByRole("heading", { name: /Your bag \(2\)/ })).toBeVisible();
@@ -1686,7 +1781,7 @@ test.describe("cart promo message honesty (Task 123 F-2)", () => {
     // message: below the minimum, quote the minimum instead.
     await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
     await page.getByRole("button", { name: "Add to bag" }).click();
-    await page.goto("/product/katong-bedside-table");
+    await gotoHydrated(page, "/product/katong-bedside-table");
     await page.getByRole("button", { name: "Add to bag" }).click();
     await page.getByRole("link", { name: /Shopping bag, 2 items/ }).click();
 
@@ -1719,7 +1814,7 @@ test.describe("cart promo message honesty (Task 123 F-2)", () => {
       ]));
       localStorage.setItem("nordhem_promo", JSON.stringify("BOGUSCODE"));
     });
-    await page.goto("/cart");
+    await gotoHydrated(page, "/cart");
     await expect(page.getByRole("heading", { name: /Your bag \(1\)/ })).toBeVisible();
     await expect(page.getByText(/\$0\.00 minimum/i)).toHaveCount(0);
     await expect(page.getByText(/BOGUSCODE isn.t a valid code/i)).toBeVisible();
@@ -2194,7 +2289,7 @@ test.describe("checkout slot clock coherence (Task 125 F-6)", () => {
     await page.clock.setFixedTime(new Date("2026-11-19T05:59:00Z")); // 13:59 SGT
     await gotoHydrated(page, "/product/katong-bedside-table");
     await page.getByRole("button", { name: "Add to bag" }).click();
-    await page.goto("/checkout");
+    await gotoHydrated(page, "/checkout");
     await page.getByRole("button", { name: /Click & Collect/ }).click();
     const slot = page.getByLabel("Time slot");
     await expect(slot).toHaveValue("Today 2pm");
@@ -2372,7 +2467,7 @@ test.describe("checkout idempotency (Task 126 F-1)", () => {
     // submitting TWICE must reuse the same key (the double-click window).
     await gotoHydrated(page, "/product/hdb-kitchen-trolley");
     await page.getByRole("button", { name: "Add to bag" }).click();
-    await page.goto("/checkout");
+    await gotoHydrated(page, "/checkout");
 
     const state: { captured: Array<{ idempotencyKey?: string }> } = { captured: [] };
     await page.route("**/api/checkout", async (route) => {
@@ -2466,7 +2561,9 @@ test.describe("SEO completion: twitter card, OG dimensions, priceValidUntil (Tas
     // Every catalogue + hero image URL pins h=627&w=1200 (catalog.ts IMG map)
     // — declaring the dimensions is TRUE and lets crawlers pre-render the
     // card without fetching the image.
-    for (const path of ["/", "/product/solbakken-3-seat-sofa"]) {
+    // Task 128 F-8: the inspiration detail pages join the pin — the
+    // declaration was the missing piece of the Task-126 F-8 rollout.
+    for (const path of ["/", "/product/solbakken-3-seat-sofa", "/inspiration/2-room-flexi-bto-tampines"]) {
       await page.goto(path);
       await expect(page.locator('meta[property="og:image:width"]'), path).toHaveAttribute("content", "1200");
       await expect(page.locator('meta[property="og:image:height"]'), path).toHaveAttribute("content", "627");

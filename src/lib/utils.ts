@@ -135,10 +135,14 @@ export function orderStepIndex(status: string): number {
 // 07:59 SGT the server's UTC date is still "yesterday", so Singapore-morning
 // order numbers carried the prior calendar day. Same class as sgTomorrowISO
 // (pure UTC+8 arithmetic, unit-pinnable); the format is unchanged.
+// Task 128 F-4: the calendar fields read via getUTC* — the LOCAL getters
+// re-interpreted the shifted instant in the server's own TZ (a UTC−5 server
+// minted "yesterday" for the first 13 SGT hours; the campaignEnd Task-127
+// F-7 fix of the identical pattern). Pure arithmetic, no server-TZ reads.
 export function orderNumber(now: Date = new Date()): string {
   const SGT_OFFSET_MS = 8 * 60 * 60 * 1000;
   const sgt = new Date(now.getTime() + SGT_OFFSET_MS);
-  const ymd = `${sgt.getFullYear()}${String(sgt.getMonth() + 1).padStart(2, "0")}${String(sgt.getDate()).padStart(2, "0")}`;
+  const ymd = `${sgt.getUTCFullYear()}${String(sgt.getUTCMonth() + 1).padStart(2, "0")}${String(sgt.getUTCDate()).padStart(2, "0")}`;
   const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
   return `NH-${ymd}-${rand}`;
 }
@@ -204,6 +208,16 @@ export function stars(rating: number): { full: number; half: boolean; empty: num
 /** Family programme rule (as printed on /family): $5 voucher per 1,000 pts. */
 export const FAMILY_VOUCHER_CENTS = 500;
 export const FAMILY_POINTS_PER_VOUCHER = 1000;
+// Task 128 F-9: the earn-rate half of the rule — the /family calculator
+// (Math.floor(spend * 10)) and three copy/metadata sites hand-copied "10
+// points per $1" while the voucher half derived. One rate edit must
+// self-correct calculator AND copy together (the Task-127 F-4 class).
+export const FAMILY_POINTS_PER_DOLLAR = 10;
+
+/** Business programme rule (as printed on /business): 12% trade discount. */
+// Task 128 F-9: same derivation class — the calculator (subtotal * 0.12)
+// and the "Trade saving (12%)" line were a hand-copied pair.
+export const TRADE_RATE = 0.12;
 
 export function familyVoucherCents(points: number): number {
   if (!Number.isFinite(points) || points <= 0) return 0;

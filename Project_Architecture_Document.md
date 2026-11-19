@@ -1,4 +1,4 @@
-# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.12.0
+# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.13.0
 
 **Classification:** Internal Engineering Reference
 **Status:** DEFINITIVE, PRODUCTION-LOCKED BLUEPRINT
@@ -7,6 +7,82 @@
 **Audience:** Senior Engineers, Tech Leads, DevOps, and Onboarding Engineers (human and AI)
 **Rule:** Every architectural decision in this document traces to a specific rationale.
 Nothing is here "because it's popular."
+
+#### Revision Block — v1.13.0 (Task 128 — body-shape guards, recall parity, derived-pin completion)
+
+- `[COR]` **Valid-JSON NON-OBJECT bodies crashed all four POST boundaries to a
+  500 (F-1, MEDIUM — the cycle's only user-visible defect)**: `req.json()`
+  parses `null` (and, on checkout, any primitive) cleanly, but the first
+  `field in body` / property access on it is a TypeError — the outer catch
+  answered a pure client fault with 500 "failed on our side" copy
+  (browser-verified live at audit: `null` → 500 on checkout/reviews/track/
+  promo-validate; `5` → 500 on checkout). The shape guard now sits beside
+  the Task-120 parse guard (400 BAD_REQUEST; checkout also refuses array
+  bodies — they used to limp to a 422 "bag" of nothing).
+- `[TST]` **The Task-127 F-9 gotoHydrated conversion was incomplete (F-2,
+  MEDIUM)**: 13 interaction-first bare `page.goto` sites remained in
+  storefront.spec.ts (12 found by the audit + one /cart site its sweep
+  missed, re-identified mechanically this cycle) while three docs claimed
+  the interaction-first discipline was "true for both files" — the
+  method-switch family converted only each test's FIRST navigation and left
+  mid-test full navigations bare. All 13 converted (GREEN-on-arrival); the
+  claim is now true without rewording (34 gotoHydrated call sites).
+- `[REL]` **Derived-pin completion (F-3, LOW)**: the Task-127 claim "the GST
+  + family e2e pins derive" was half false — the family voucher, shop $200
+  and offers FLAT20 pins did not exist (the code derived; nothing pinned
+  it). Three pins added, all deriving from the imported constants/PROMOS
+  row — a rate/threshold edit self-corrects copy and pins together.
+- `[COR]` **`orderNumber`'s server-local calendar (F-4, LOW)**: the one SGT
+  seam still reading LOCAL getters on the shifted instant (its own comment
+  claimed "pure UTC+8 arithmetic") — the campaignEnd Task-127 F-7 fix of
+  the identical pattern, one seam over. getUTC* swap; the fixed-instant
+  pins become TZ-independent.
+- `[COR]` **Recall-needle parity (F-5, LOW)**: `/api/products?q=`
+  lowercased but never trimmed while searchProducts and /search trim — a
+  padded needle missed words that START a field (browser-verified:
+  `?q=%20solbakken%20` → 0 vs `?q=solbakken` → 1; mid-sentence words
+  coincide-match, hiding the divergence). One recall definition now has
+  one normalization.
+- `[MNT]` **Seam wiring + the Footer year (F-6/F-11, LOW)**: the checkout
+  route inlined the idempotency-key regex while `IDEMPOTENCY_KEY_RE` sat
+  exported-but-unimported (a shape edit would keep every unit green while
+  the boundary enforced the old shape — now imported + fs-pinned), and the
+  Footer's copyright year was the last bare server-local calendar read in
+  `src/` (now the SGT clock).
+- `[SEC]` **Test-residue parity completion (F-7, LOW)**: the overlong-fields
+  refusal spec was the one write-capable checkout spec without a RED-run
+  net — wrapped in `try/finally { deleteProbeOrders }` (a regressed cap
+  boundary would have stranded a real order + tampines decrement).
+- `[SEO]` **OG-dimension completion (F-8, LOW)**: `inspiration/[slug]`
+  shipped `og:image` without declared dimensions (home + PDP declare
+  1200×627; every catalogue IMG url pins h=627&w=1200 — the declaration
+  was simply absent, browser-confirmed). Declared + the og pin's route
+  list extended to an inspiration page.
+- `[DSE]` **Earn/trade-rate derivation (F-9, LOW)**: the family earn rate
+  (10 pts/$, calculator + 3 copy/metadata sites) and the business trade
+  rate (12%, calculator + copy) were hand-copied pairs — the adjacent
+  cluster of the Task-127 F-4 drift class. `FAMILY_POINTS_PER_DOLLAR` +
+  `TRADE_RATE` now drive math and copy together.
+- `[TST]` **Producer-side store-key pin (F-12, LOW)**: PERSISTED_STORAGE_KEYS
+  was pinned at its CONSUMERS (both crash boundaries) but nothing tied the
+  `createLocalStore` producers to the list — a fifth store with a new key
+  would leave the recovery buttons partially ineffective with no failing
+  test. fs-pin added (literal AND constant keys resolved).
+- `[REG]` **Register updates**: the whole-number magnitude bound (absurd
+  digit strings pass `/^\d+$/` and degrade to 200 `[]` via the documented
+  read-fallback — the un-deferral path is a `Number.isSafeInteger` bound →
+  422) and the journey's hardcoded `$679.15`/`"1299.00"` expectations
+  (self-alerting: they fail LOUDLY on a catalogue edit, unlike the silent
+  rot class) recorded as accepted residues. One reference-agent claim
+  DISPROVEN by direct read (rate-limit.ts "corruption" — the line is
+  clean; typecheck + 161-unit green corroborated). Standing deferrals
+  unchanged (TRUST_PROXY, CSP, jsdom, delivery-decrement redistribution,
+  store-picker wiring, React cache(), health-503, token codemod, bundle
+  curation, unthrottled GETs).
+- `[SAN]` Gates: lint 0/0 · typechecks clean · **163 unit / 111 e2e** ·
+  cold build green · zero DB residue after the full suite (verified by
+  direct SQL against the seed formula) · counts pinned across all five
+  operator docs.
 
 #### Revision Block — v1.12.0 (Task 127 — boundary-type parity, replay ownership, derived-copy completion)
 
@@ -765,7 +841,7 @@ non-app artifacts remain in the tree (§10).
 | DB driver | `pg` (node-postgres) | 8.20.0 | Pooled connections, `drizzle-orm/node-postgres` adapter |
 | Database | PostgreSQL | 15+ recommended | Relational catalogue/orders; `drizzle-kit push` for schema |
 | Lint | ESLint flat config + `eslint-config-next/core-web-vitals` | 9.39.4 | One linter, Next-aware rules |
-| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–127) — 161 unit + 108 e2e, all green (§7) |
+| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–128) — 163 unit + 111 e2e, all green (§7) |
 | Imagery | Pexels CDN | — | Licensed stock, zero local pipeline (ADR-007) |
 
 ### 1.3 Architecture Decision Records (ADRs)
@@ -1296,8 +1372,8 @@ the code, never to hit a number.
 rm -rf .next && DATABASE_URL=… npm run build   # cold build (cache can mask the scan-guard failure)
 npm run typecheck && npm run typecheck:tests  # app scope + test tree
 npm run lint                                   # 0 errors / 0 warnings
-npm run test                                   # 161/161 unit
-npm run test:e2e                               # 108/108 e2e (live Postgres for the journey)
+npm run test                                   # 163/163 unit
+npm run test:e2e                               # 111/111 e2e (live Postgres for the journey)
 # runtime smoke of touched routes against `npm run start`
 ```
 
@@ -1361,7 +1437,7 @@ npm run dev                       # http://localhost:3000
 | `npm run dev` / `build` / `start` | root | Dev / cold production build / serve |
 | `npm run lint` | root | ESLint (flat; `skills/` ignored) |
 | `npm run typecheck` / `typecheck:tests` | root | App-scope / test-tree `tsc --noEmit` |
-| `npm run test` / `test:e2e` | root | Vitest unit (161) / Playwright e2e (108, production build on :3100) |
+| `npm run test` / `test:e2e` | root | Vitest unit (163) / Playwright e2e (111, production build on :3100) |
 | `npx drizzle-kit push` | root | Apply `src/db/schema.ts` |
 | `python3 docs/ssh_git_wrapper_v3.py --key-file K --remote git@github.com:nordeim/home-furnishing-store.git` | repo | Verified SSH push to main (see the runbook) |
 
@@ -1547,8 +1623,8 @@ re-verified in-browser on the dead-DB path ($1,200/yr → $60 vouchers) —
 | `src/app/product/[slug]/page.tsx` | ~204 | PDP: metadata, gallery, stock/aisle, reviews, related |
 | `src/app/api/checkout/route.ts` | ~130 | Validation, rate limit, `placeOrder` delegation, envelope |
 | `src/components/Header.tsx` | ~180 | Utility strip, search, store picker (external store), category nav, mobile drawer (Escape-close) |
-| `tests/unit/` | 9 files | 161 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges/DELIVERY_SLOTS/orderNumber-SGT, catalog incl. findPromoMinimumCents, local-store incl. the promo predicate, mask, robots/sitemap, env/compose/config + scan-guard pins) |
-| `tests/e2e/` | 2 specs | 108 Playwright tests: mobile-navigation (iPhone-13 emulation, 390×844), storefront/commerce journeys, API boundary validation, fetch-failure resilience, slot coherence, review-count truth |
+| `tests/unit/` | 9 files | 163 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges/DELIVERY_SLOTS/orderNumber-SGT, catalog incl. findPromoMinimumCents, local-store incl. the promo predicate, mask, robots/sitemap, env/compose/config + scan-guard pins) |
+| `tests/e2e/` | 2 specs | 111 Playwright tests: mobile-navigation (iPhone-13 emulation, 390×844), storefront/commerce journeys, API boundary validation, fetch-failure resilience, slot coherence, review-count truth |
 | `src/components/ProductCard.tsx` | ~92 | Card + `Rating`; wishlist/add-to-bag affordances |
 | `docs/implementation-plan.md` | 42 | Stack decision record, deviations ledger, acceptance criteria |
 | `docs/reference-investigation.md` | 45 | Reference-site evidence (Verified/Reasoned/Assumed/Unknown) |

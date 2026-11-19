@@ -243,4 +243,33 @@ describe("PERSISTED_STORAGE_KEYS seam (Task 126 F-6)", () => {
       expect(src, boundary).not.toContain('"nordhem_cart_v1"');
     }
   });
+
+  it("every createLocalStore key in src/ is a member of the list (Task 128 F-12)", () => {
+    // Task 126 F-6 pinned the CONSUMERS (the boundaries); this pins the
+    // PRODUCERS — a fifth persisted store created with a new key (literal or
+    // constant) without adding it to PERSISTED_STORAGE_KEYS leaves the
+    // recovery buttons partially ineffective with no failing test. The
+    // seam's "by construction" claim is now actually enforced (the
+    // SITE_ORIGIN fs-pin precedent).
+    const read = (p: string) => fs.readFileSync(path.resolve(import.meta.dirname, "../../", p), "utf8");
+    // The producers are the call sites: cart-store.tsx (3 stores, constant
+    // keys) and Header.tsx (1 store, literal key). local-store.ts only
+    // defines the factory — a call site added THERE joins this list too.
+    const producers = ["src/lib/cart-store.tsx", "src/components/Header.tsx"];
+    // First arg is either a literal or a module const defined in the same file
+    // (cart-store: const CART_KEY = "nordhem_cart_v1").
+    const callRe = /createLocalStore(?:<[^>]*>)?\(\s*("[^"]+"|[A-Z][A-Z0-9_]*)/g;
+    for (const producer of producers) {
+      const src = read(producer);
+      const args = [...src.matchAll(callRe)].map((m) => m[1]);
+      expect(args.length, `${producer} mints at least one store`).toBeGreaterThan(0);
+      for (const arg of args) {
+        const key = arg.startsWith('"')
+          ? arg.slice(1, -1)
+          : src.match(new RegExp(`const ${arg} = "([^"]+)"`))?.[1];
+        expect(key, `${producer} first arg ${arg} resolves to a key literal`).toBeDefined();
+        expect(PERSISTED_STORAGE_KEYS, `${producer} key "${key}"`).toContain(key);
+      }
+    }
+  });
 });

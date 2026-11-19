@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex, campaignEnd, campaignEndLabel, sgTomorrowISO, sortProductList, DELIVERY_SLOTS, isValidDeliverySlot, availableDeliverySlots, jsonLdScript, IDEMPOTENCY_KEY_RE, mintIdempotencyKey } from "@/lib/utils";
+import { readFileSync } from "node:fs";
 
 describe("formatSGD", () => {
   // The currency symbol depends on the node build's ICU data ($ vs S$) — assert
@@ -476,5 +477,17 @@ describe("idempotency key seam (Task 126 F-1)", () => {
     } finally {
       Object.defineProperty(globalThis, "crypto", { value: original, configurable: true });
     }
+  });
+
+  it("the checkout route consumes the exported seam, not an inlined regex (Task 128 F-6)", () => {
+    // The route used to inline /^[A-Za-z0-9-]{8,64}$/ while the pins above
+    // tested the CONSTANT — a future edit to IDEMPOTENCY_KEY_RE would keep
+    // every unit green while the boundary enforced the old shape (client
+    // mints per the new shape → silently dropped → dedupe silently off).
+    // fs-pin (the SITE_ORIGIN precedent): the route must import the seam and
+    // carry no inline key-shape literal of its own.
+    const route = readFileSync("src/app/api/checkout/route.ts", "utf8");
+    expect(route).toContain("IDEMPOTENCY_KEY_RE");
+    expect(route).not.toMatch(/\[A-Za-z0-9-\]/);
   });
 });

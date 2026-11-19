@@ -164,12 +164,12 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 161 tests at the pure seams
+npm run test             # Vitest unit — 163 tests at the pure seams
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 108 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 111 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
@@ -244,11 +244,40 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 161 unit + 108 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120/121/122/123/124/125/126/127); counts pinned by tests/unit/docs-counts.test.ts |
+| Test suite | ✅ 163 unit + 111 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120/121/122/123/124/125/126/127/128); counts pinned by tests/unit/docs-counts.test.ts |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
+
+Current cycle (2026-11-19, Task 128): workspace-refresh re-audit (mobile-nav
+taxonomy re-verified clean at 390/1440 incl. the F-7 param-close regression
+check — no Tailwind v4 bug; hydration live-verified; baseline gates green at
+161/108 with zero DB residue — the PG snapshot needed its initdb runtime
+subdirectories restored AGAIN, the SKILL lesson-31 class, fourth cycle
+running) that caught **the valid-JSON non-object body crash** (`null` —
+and on checkout any primitive — parsed cleanly but TypeError'd the first
+property read into a 500 "failed on our side" for a pure client fault;
+browser-verified on all four POST routes; the 400 shape guard now sits
+beside the parse guard), **the incomplete gotoHydrated conversion** (13
+interaction-first bare gotos remained in the storefront spec — including a
+/cart site both sweeps missed — while three docs claimed the discipline was
+complete; all converted, zero remain), **the recall-needle trim gap**
+(`?q=%20solbakken%20` returned 0 where `?q=solbakken` returned 1 — the API
+needle wasn't trimmed like the search seam), **the missing derived pins**
+(the Task-127 "GST + family pins derive" claim was half false — the family
+voucher, shop strip and offers FLAT20 pins now exist and derive), plus
+**orderNumber's server-local calendar** (getUTC* swap — the campaignEnd
+pattern one seam over), **the unimported IDEMPOTENCY_KEY_RE seam**
+(inlined regex in the route + fs-pin), **the un-netted overlong-fields
+spec** (finally + deleteProbeOrders), **the inspiration og:image
+dimensions** (the Task-126 F-8 rollout's missing piece), **the earn/trade
+rate constants** (FAMILY_POINTS_PER_DOLLAR + TRADE_RATE drive calculator
+and copy together), and the **producer-side store-key fs-pin**
+(createLocalStore keys ⊆ PERSISTED_STORAGE_KEYS). One reference-agent
+claim DISPROVEN by direct read (rate-limit.ts "corruption" — the line is
+clean). Suite grew to 163 unit + 111 e2e. Details in `worklog.md` and
+`docs/plans/2026-11-19-task128-remediation-plan.md`.
 
 Current cycle (2026-11-19, Task 127): workspace-refresh re-audit (mobile-nav
 taxonomy re-verified clean at 390/1440 incl. the F-7 param-close regression
@@ -278,7 +307,7 @@ operator-doc sites still named the removed package). The storefront spec's
 21 interaction-first blocks now navigate through gotoHydrated (the claim
 was true for the mobile spec only). Two audit findings rejected with
 evidence (the qty clamp IS the documented contract; DEPLOYMENT.md already
-sequences the schema push). Suite grew to 161 unit + 108 e2e. Details in
+sequences the schema push). Suite grew to 163 unit + 111 e2e. Details in
 `worklog.md` and `docs/plans/2026-11-19-task127-remediation-plan.md`.
 
 Current cycle (2026-11-19, Task 126): workspace-refresh re-audit (mobile-nav

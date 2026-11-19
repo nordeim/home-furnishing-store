@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { OrderRefusalError, placeOrder } from "@/lib/server-data";
-import { clampInt, isValidDeliverySlot, isValidEmail, isValidPhone, isValidPostal } from "@/lib/utils";
+import { clampInt, IDEMPOTENCY_KEY_RE, isValidDeliverySlot, isValidEmail, isValidPhone, isValidPostal } from "@/lib/utils";
 import { clientIp, createRateLimiter } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +24,14 @@ export async function POST(req: Request) {
     } catch {
       return NextResponse.json({ ok: false, error: { code: "BAD_REQUEST", message: "Please send a valid request body." } }, { status: 400 });
     }
+    // Task 128 F-1: valid-JSON NON-OBJECT bodies are the same client-fault
+    // class as malformed JSON — `null` (and any primitive) parses cleanly but
+    // is not a record, and the first `field in body` below is a TypeError on
+    // them (a 500 "failed on our side" for a client fault, browser-verified).
+    // An array body is refused here too: it limped to a 422 downstream as a
+    // "bag" of nothing; it is not a JSON object and gets the 400 parse class.
+    if (typeof body !== "object" || body === null || Array.isArray(body))
+      return NextResponse.json({ ok: false, error: { code: "BAD_REQUEST", message: "Please send a valid request body." } }, { status: 400 });
     // Field caps (Task 120 F-3): minimum-length checks alone left email,
     // fullName and address unbounded — unauthenticated writes persisted
     // verbatim. Order fields are REFUSED, never silently truncated (a
@@ -46,8 +54,12 @@ export async function POST(req: Request) {
     // exactly as before). Extracted early (Task 127 F-5) so the canonical
     // replay can bypass the empty-bag refusal below — a post-success
     // resubmit carries an already-cleared bag.
+    // Task 128 F-6: the route consumes the EXPORTED seam (utils.ts) — the
+    // inlined literal could drift from IDEMPOTENCY_KEY_RE while the unit pin
+    // (which tests the constant, not the route) stayed green, silently
+    // disabling dedupe for keys minted under the new shape.
     const idempotencyKey =
-      typeof body.idempotencyKey === "string" && /^[A-Za-z0-9-]{8,64}$/.test(body.idempotencyKey)
+      typeof body.idempotencyKey === "string" && IDEMPOTENCY_KEY_RE.test(body.idempotencyKey)
         ? body.idempotencyKey
         : null;
     const email = String(body.email ?? "").trim();

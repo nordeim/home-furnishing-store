@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 2.1.0
-last_updated: "2026-11-19 (Task 127: boundary-type parity, replay ownership, derived-copy completion)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 161/161 unit · 108/108 e2e · cold build green · PostgreSQL 17 live-verified · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
+version: 2.2.0
+last_updated: "2026-11-19 (Task 128: body-shape guards, recall parity, derived-pin completion)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 163/163 unit · 111/111 e2e · cold build green · PostgreSQL 17 live-verified · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -17,6 +17,9 @@ project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 161/161 
 > journey-residue/promo-display-truth/boundary-docs-honesty cycle, and the
 > Task 124 docs-truth-completion/settle-discipline/boundary-strictness
 > cycle, and the Task 125 test-integrity/boundary-parity/identity-origin-seams
+> cycle, and the Task 126 idempotent-checkout/test-residue-parity/derived-copy
+> cycle, and the Task 127 boundary-type-parity/replay-ownership/derived-copy
+> cycle, and the Task 128 body-shape-guard/recall-parity/derived-pin
 > cycle. `AGENTS.md` is the quick operator
 > reference, the PAD is the full blueprint, and this skill is the
 > pattern/lesson layer an agent needs before touching the code. When code and
@@ -90,8 +93,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 161/161
-npm run test:e2e                                               # 108/108 (live Postgres for the journey)
+npm run test                                                   # 163/163
+npm run test:e2e                                               # 111/111 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -711,6 +714,30 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
     on any other server) and its ISO-date consumers must render the SGT
     CALENDAR date (en-CA YYYY-MM-DD), never the UTC slice.
 
+45. **A parse guard proves the body PARSES, not that it is a record
+    (Task 128 F-1).** `req.json()` inside a try/catch answers only the
+    JSON-syntax question; `null`, `5`, `"x"` and `true` are all VALID
+    JSON — and the first `"field" in body` / `body.field` on them is a
+    TypeError that the outer catch reports as a 500 "failed on our
+    side" for a pure client fault (browser-verified on all four POST
+    routes). The shape guard (`typeof body === "object" && body !==
+    null && !Array.isArray(body)`) belongs BESIDE the parse guard, in
+    the same client-fault 400 class — and arrays need the decision too
+    (they parse, they are objects, but they are not the record the
+    boundary's field reads assume).
+
+46. **A docs claim about pins must be verified against the PINS, not
+    the code (Task 128 F-2/F-3).** Task 127's summary said "the GST +
+    family e2e pins derive" and "the interaction-first specs navigate
+    through gotoHydrated" — both HALF true: the code derived with zero
+    family/shop/offers pins to catch its rot, and 13 interaction-first
+    gotos (including a /cart site two sweeps missed) still raced
+    hydration bare. Claims about test coverage rot exactly like counts;
+    re-derive them mechanically each cycle (grep the pins, re-scan
+    goto-followed-by-interaction) instead of trusting the prose — and
+    prefer making the claim true (add the pins, convert the gotos) over
+    rewording it.
+
 ## 13. Pitfalls to Avoid
 
 - Adding state/auth/payment SDKs without a decision record (ADR-006 deferrals
@@ -842,5 +869,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (161) |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (108) |
+| Unit suite | `tests/unit/*.test.ts` (163) |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (111) |

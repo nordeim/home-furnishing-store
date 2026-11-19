@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { GST_RATE } from "@/lib/utils";
 
+// Task 128 F-11: the copyright year derives on the UTC+8 clock — the last
+// bare server-local calendar read in src/ (orderNumber/campaignEnd
+// discipline; an SGT new-year would otherwise lag the server TZ by hours).
+const SGT_YEAR = () => new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear();
+
 const COLS: Array<{ title: string; links: Array<{ href: string; label: string }> }> = [
   {
     title: "Shop",
@@ -68,7 +73,7 @@ export function Footer() {
           </nav>
         </div>
         <div className="mt-10 flex flex-col gap-2 border-t border-[#e5e1d8] pt-6 text-[12px] text-[#5b5b5b] sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} NORDHEM Singapore Pte. Ltd. · Concept demo storefront inspired by Scandinavian retail patterns. All product names, copy and prices are fictional.</p>
+          <p>© {SGT_YEAR()} NORDHEM Singapore Pte. Ltd. · Concept demo storefront inspired by Scandinavian retail patterns. All product names, copy and prices are fictional.</p>
           <p>Prices include {Math.round(GST_RATE * 100)}% GST · 365-day returns</p>
         </div>
       </div>

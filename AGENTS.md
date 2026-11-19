@@ -22,11 +22,11 @@ ORM + PostgreSQL.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
-| `npm run test` | Vitest unit suite (161 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
-| `npm run test:e2e` | Playwright e2e (108 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
+| `npm run test` | Vitest unit suite (163 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
+| `npm run test:e2e` | Playwright e2e (111 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
-The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–126):
+The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–128):
 `tests/unit` (9 files) + `tests/e2e` (mobile-navigation + storefront specs
 incl. the fetch-failure resilience pair, the API rate-limit pins, PDP badge
 dedupe, cart promo persistence, JSON-LD live-inventory + LOW_STOCK commerce
@@ -133,7 +133,34 @@ products/promotions/inspirations all insert BEFORE inventory, so the
 products+inventory early return can never skip them; see the plan's AUD-3).
 The predecessor's 73-unit/15-e2e dead
 tree was retired with it — do not resurrect ely-beauty specs; pin new ones to
-this `src/`.
+this `src/`. And the Task-128 pins: the **body-shape guard on every POST
+boundary** (a valid-JSON NON-OBJECT body — `null`, and on checkout any
+primitive — parsed cleanly but crashed the first `field in body` / property
+read to a 500 "failed on our side" for a pure client fault, browser-verified;
+the 400 shape guard now sits beside the Task-120 parse guard on all four
+routes, arrays included on checkout), the **recall-needle trim** on
+/api/products (`?q=%20solbakken%20` used to return 0 where `?q=solbakken`
+returned 1 — one recall definition, one normalization, e2e-pinned), the
+**derived-pin completion** (the family voucher rule + the shop GST/threshold
+strip + the offers FLAT20 banner now carry e2e pins that interpolate the
+constants — a rate edit self-corrects copy and pins together, the Task-127
+claim made true), the **orderNumber getUTC\* swap** (the one SGT seam still
+reading server-LOCAL getters — the campaignEnd F-7 pattern one seam over),
+the **IDEMPOTENCY_KEY_RE import + fs-pin** (the route's inlined regex could
+drift from the exported seam while the unit pin stayed green), the
+**overlong-fields finally net** (the one write-capable refusal spec without
+a RED-run cleanup), the **inspiration og:image dimensions** (the Task-126
+F-8 rollout's missing piece, og-pin route list extended), the **earn/trade
+rate constants** (FAMILY_POINTS_PER_DOLLAR + TRADE_RATE drive calculator
+AND copy — the family/business halves of the Task-127 F-4 class), the
+**Footer SGT year** (the last bare server-local calendar read in src/), and
+the **producer-side store-key fs-pin** (every createLocalStore key — literal
+or constant — must be a member of PERSISTED_STORAGE_KEYS). The storefront
+spec's interaction-first coverage is now complete: 34 gotoHydrated call
+sites, zero interaction-first bare gotos (mechanically re-verified — the
+Task-127 conversion had left 13, including a /cart site both sweeps
+under-counted). One reference-agent claim was DISPROVEN by direct read
+(rate-limit.ts "corruption" — the line is clean).
 
 **Test counts are documentation claims, pinned by test** (Task 119):
 `tests/unit/docs-counts.test.ts` fs-computes the real counts and fails the run
@@ -248,8 +275,8 @@ When adding tests, pin them to this `src/` — never resurrect ely-beauty specs.
 rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db" npm run build
 npm run typecheck
 npm run lint          # 0 errors expected (the 7-error lint debt was fixed in Task 114)
-npm run test          # 161/161 unit
-npm run test:e2e      # 108/108 e2e (needs a live Postgres for the checkout journey)
+npm run test          # 163/163 unit
+npm run test:e2e      # 111/111 e2e (needs a live Postgres for the checkout journey)
 ```
 
 There is no hosted CI; the local gate is the only gate.

@@ -25,7 +25,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       type: "website",
       siteName: "NORDHEM Singapore",
       url: `${SITE}/inspiration/${room.slug}`,
-      images: [{ url: room.imageUrl, alt: room.title }],
+      // Task 128 F-8: declare the true dimensions like home + PDP do — every
+      // catalogue IMG url pins h=627&w=1200 (verified); the declaration was
+      // the missing piece of the Task-126 F-8 rollout.
+      images: [{ url: room.imageUrl, alt: room.title, width: 1200, height: 627 }],
     },
   };
 }

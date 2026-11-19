@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-19 (Task 127: boundary-type parity, replay ownership, derived-copy completion)
+last_updated: 2026-11-19 (Task 128: body-shape guards, recall parity, derived-pin completion)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -129,15 +129,15 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`typecheck:tests` covers the test tree) |
-| `npm run test` | Vitest unit suite (161 tests, pure seams) |
-| `npm run test:e2e` | Playwright e2e (108 tests, production build on :3100) |
+| `npm run test` | Vitest unit suite (163 tests, pure seams) |
+| `npm run test:e2e` | Playwright e2e (111 tests, production build on :3100) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
-**Current state (Tasks 114–127, extended this cycle):** a NORDHEM-native suite is wired into the gates.
+**Current state (Tasks 114–128, extended this cycle):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 161 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 163 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
@@ -151,7 +151,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   with the fs-computed reality — count-lockstep is enforced across all five
   operator docs, not remembered). Node environment with a localStorage shim
   (`tests/unit/setup.ts`); no jsdom, no component rendering.
-- **E2E (Playwright, 108 tests)** against the **production build** (the webServer
+- **E2E (Playwright, 111 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
   hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
@@ -330,6 +330,26 @@ fix and passes after.
   carries plain `&` (JSX entities do NOT decode inside `{`…`}` — the
   Task-126 regression class); and the storefront spec's interaction-first
   blocks navigate through `gotoHydrated` like the mobile spec's.
+- **Task-128 seams:** every POST boundary guards the JSON body's SHAPE
+  beside its parse guard (`null` — and on checkout any primitive/array —
+  is a 400 BAD_REQUEST, never a TypeError 500 for a client fault);
+  `/api/products` trims the `q` needle (one recall definition, one
+  normalization — padded needles used to miss field-starting words);
+  `orderNumber` reads `getUTC*` fields (the SGT discipline, TZ-pure on any
+  server); the checkout route consumes the exported `IDEMPOTENCY_KEY_RE`
+  (fs-pinned — no inlined key-shape literal in the route); the inspiration
+  detail pages declare their og:image 1200×627 like home/PDP;
+  `FAMILY_POINTS_PER_DOLLAR` and `TRADE_RATE` drive the family/business
+  calculators AND their copy (the earn/trade halves of the Task-127 F-4
+  derivation class); the Footer year derives on the SGT clock (the last
+  bare server-local calendar read); every `createLocalStore` key (literal
+  or constant) is fs-pinned as a member of `PERSISTED_STORAGE_KEYS`; and
+  the family voucher / shop strip / offers FLAT20 copy carries e2e pins
+  that derive from the same constants the pages interpolate (a rate edit
+  self-corrects copy and pins together — the Task-127 claim now true).
+  The storefront spec's interaction-first coverage is complete: zero bare
+  interaction-first gotos remain (34 gotoHydrated call sites), and every
+  write-capable refusal spec carries its RED-run `finally` net.
 
 - **`main` branch only** — no feature branches (operator contract).
 - Conventional Commits, atomic units (`fix:`, `feat:`, `docs:` — history uses
