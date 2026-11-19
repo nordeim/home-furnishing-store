@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 
+import { SITE_ORIGIN } from "@/lib/utils";
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
@@ -12,6 +13,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/cart", "/checkout", "/track-order", "/order/", "/wishlist", "/search", "/api/"],
       },
     ],
-    sitemap: "https://nordhem.sg/sitemap.xml",
+    sitemap: `${SITE_ORIGIN}/sitemap.xml`,
   };
 }

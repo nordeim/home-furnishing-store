@@ -1,11 +1,12 @@
 import type { MetadataRoute } from "next";
 import { PRODUCTS, INSPIRATIONS } from "@/lib/catalog";
 
+import { SITE_ORIGIN } from "@/lib/utils";
 // Indexable static routes only. Cart/checkout/track-order/wishlist/search are
 // robots-disallowed utility surfaces (see robots.ts) and never belong in a
 // sitemap; /order/[number] is email-scoped and personal.
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = "https://nordhem.sg";
+  const base = SITE_ORIGIN;
   // Task 121 F-9: no lastModified — a timestamp that always equals "now"
   // (the build/request time) is pure noise that erodes the lastmod signal;
   // these URLs have no honest mtime source, so they ship bare.

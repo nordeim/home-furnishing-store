@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { STORES } from "@/lib/catalog";
 
+import { SITE_ORIGIN } from "@/lib/utils";
 export const metadata = {
   title: "Our stores",
   description:
@@ -11,7 +12,7 @@ export const metadata = {
     description: "Three NORDHEM stores on one island — Tampines, Jurong and Alexandra.",
     type: "website",
     siteName: "NORDHEM Singapore",
-    url: "https://nordhem.sg/stores",
+    url: `${SITE_ORIGIN}/stores`,
   },
 };
 

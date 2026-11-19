@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { OrderRefusalError, placeOrder } from "@/lib/server-data";
 import { clampInt, isValidDeliverySlot, isValidEmail, isValidPhone, isValidPostal } from "@/lib/utils";
-import { createRateLimiter } from "@/lib/rate-limit";
+import { clientIp, createRateLimiter } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,7 @@ const limiter = createRateLimiter({ limit: 20, windowMs: 60_000 });
 
 export async function POST(req: Request) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+    const ip = clientIp(req.headers); // rightmost XFF hop (Task 125 G-2)
     if (limiter.throttled(ip)) {
       return NextResponse.json({ ok: false, error: { code: "RATE_LIMIT", message: "Too many attempts. Please wait a minute." } }, { status: 429, headers: { "Retry-After": String(limiter.retryAfterSec(ip)) } });
     }

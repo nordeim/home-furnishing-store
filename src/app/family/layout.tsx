@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import { SITE_ORIGIN } from "@/lib/utils";
 // /family is a client page (interactive voucher calculator) — this route
 // layout carries its SEO metadata (Task 119: sitemap-indexed client pages
 // previously published no title of their own).
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
       "Earn 10 points per $1 spent and a $5 voucher for every 1,000 points — free to join.",
     type: "website",
     siteName: "NORDHEM Singapore",
-    url: "https://nordhem.sg/family",
+    url: `${SITE_ORIGIN}/family`,
   },
 };
 

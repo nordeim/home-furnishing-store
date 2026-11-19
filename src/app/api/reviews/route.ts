@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { getReviews } from "@/lib/server-data";
 import { products, reviews } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { createRateLimiter } from "@/lib/rate-limit";
+import { clientIp, createRateLimiter } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+    const ip = clientIp(req.headers); // rightmost XFF hop (Task 125 G-2)
     if (limiter.throttled(ip)) {
       return NextResponse.json({ ok: false, error: { code: "RATE_LIMIT", message: "Too many attempts. Please wait a minute." } }, { status: 429, headers: { "Retry-After": String(limiter.retryAfterSec(ip)) } });
     }
@@ -34,26 +34,37 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: { code: "BAD_REQUEST", message: "Expected a JSON body." } }, { status: 400 });
     }
 
-    const productId = Math.floor(Number(body.productId));
-    const rating = Math.floor(Number(body.rating));
+    // Task 125 F-2: TYPE-strict, mirroring the checkout boundary's Task-124
+    // F-5 stance. The old Number()/String() coercions let crafted TYPES
+    // persist junk: Number(true)===1, Number([3])===3, Number("5")===5, and
+    // String(1e19) is a 20-char "name" that sails past the ≤60 cap. Non-number
+    // productId/rating and non-string author/title/body are client errors now.
+    const productId = body.productId;
+    const rating = body.rating;
     // Task 122 F-11: REFUSE overlong fields, never silently truncate — the
     // checkout route's Task-120 rule, now applied consistently across write
     // boundaries. A sliced 3000-char review is the user's words mangled into
     // a "valid" row; the client maxLengths (60/120/2000) match these caps.
-    const author = String(body.author ?? "").trim();
     // Positive-integer productId: a non-existent or negative id is a client
     // error (422), not an FK-crash 500. The existence check closes the gap the
     // comment always claimed: an unknown-but-positive id used to reach the
     // insert and fail as a Postgres FK violation (500).
-    if (!Number.isInteger(productId) || productId <= 0 || !(rating >= 1 && rating <= 5) || author.length < 2) {
+    if (
+      typeof productId !== "number" || !Number.isInteger(productId) || productId <= 0 ||
+      typeof rating !== "number" || !Number.isInteger(rating) || rating < 1 || rating > 5 ||
+      typeof body.author !== "string" || body.author.trim().length < 2 ||
+      !(typeof body.title === "string" || body.title == null) ||
+      !(typeof body.body === "string" || body.body == null)
+    ) {
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Please add your name and a 1–5 star rating." } }, { status: 422 });
     }
+    const author = body.author.trim();
     const known = await db.select({ id: products.id }).from(products).where(eq(products.id, productId)).limit(1);
     if (known.length === 0) {
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "That product does not exist." } }, { status: 422 });
     }
-    const title = String(body.title ?? "").trim();
-    const text = String(body.body ?? "").trim();
+    const title = (typeof body.title === "string" ? body.title : "").trim();
+    const text = (typeof body.body === "string" ? body.body : "").trim();
     if (author.length > 60 || title.length > 120 || text.length > 2000) {
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "One or more fields are too long — keep the name under 60, the headline under 120 and the review under 2000 characters." } }, { status: 422 });
     }

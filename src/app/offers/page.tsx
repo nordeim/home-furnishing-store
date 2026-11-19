@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getAllProducts } from "@/lib/server-data";
-import { formatSGD } from "@/lib/utils";
+import { formatSGD, SITE_ORIGIN } from "@/lib/utils";
 import { ProductCard } from "@/components/ProductCard";
 import { PROMOS } from "@/lib/catalog";
 import { campaignEndLabel } from "@/lib/utils";
@@ -9,14 +9,14 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Offers & Last chance",
   description:
-    "Up to 24% off dining, decor and sleep across the NORDHEM catalogue — plus one promo code per order. Festive market offers refreshed with the season.",
+    "Up to 24% off lighting, decor and everyday essentials across the NORDHEM catalogue — plus one promo code per order. Festive market offers refreshed with the season.",
   alternates: { canonical: "/offers" },
   openGraph: {
     title: "Offers & Last chance · NORDHEM Singapore",
-    description: "Up to 24% off dining, decor and sleep — one promo code per order.",
+    description: "Up to 24% off lighting, decor and everyday essentials — one promo code per order.",
     type: "website",
     siteName: "NORDHEM Singapore",
-    url: "https://nordhem.sg/offers",
+    url: `${SITE_ORIGIN}/offers`,
   },
 };
 

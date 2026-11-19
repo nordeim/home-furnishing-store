@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getAllProducts, getInspirations } from "@/lib/server-data";
 import type { ProductRow } from "@/lib/server-data";
-import { formatSGD } from "@/lib/utils";
+import { formatSGD, SITE_ORIGIN } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ export const metadata = {
     description: "Real Singapore homes — BTOs, condos and rentals styled with the NORDHEM range.",
     type: "website",
     siteName: "NORDHEM Singapore",
-    url: "https://nordhem.sg/inspiration",
+    url: `${SITE_ORIGIN}/inspiration`,
   },
 };
 

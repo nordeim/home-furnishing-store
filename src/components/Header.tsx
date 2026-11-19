@@ -70,7 +70,10 @@ export function Header() {
               link is a shrink-0 sibling that can never clip. */}
           <p className="min-w-0 truncate">
             <span className="mr-2 inline-block rounded-sm bg-[#ffdb00] px-1.5 py-0.5 font-bold text-black">NEW</span>
-            Festive market is on — up to 24% off dining & decor
+            {/* Task 125 F-4: honest attribution (dining's max is −17%; the
+                −24% is NORDLYS lighting, WOKHEY cookware −23%, PANDAN decor
+                −21%) — the hero's Task-122 F-19 set, mirrored. */}
+            Festive market is on — up to 24% off lighting, cookware & decor
           </p>
           <Link href="/offers" className="shrink-0 underline underline-offset-2 focus-ring rounded">Shop offers</Link>
           <nav className="hidden items-center gap-4 md:flex" aria-label="Utility">
@@ -174,15 +177,19 @@ export function Header() {
       {/* mobile drawer */}
       {open && (
         <div className="border-t border-[#eee] bg-white px-4 py-4 lg:hidden">
+          {/* Task 125 F-7: drawer links close on click — the pathname guard
+              below never fires for param-only navigations (/shop?cat=a →
+              /shop?cat=b keeps usePathname() at "/shop"), so the drawer
+              stayed open over the re-filtered grid. */}
           <div className="grid gap-1">
-            <Link href="/shop" className="rounded-lg px-3 py-2.5 font-bold hover:bg-[#f5f3ee]">Shop all products</Link>
+            <Link href="/shop" onClick={() => setOpen(false)} className="rounded-lg px-3 py-2.5 font-bold hover:bg-[#f5f3ee]">Shop all products</Link>
             {CATEGORIES.map((c) => (
-              <Link key={c.slug} href={`/shop?cat=${c.slug}`} className="rounded-lg px-3 py-2.5 hover:bg-[#f5f3ee]">{c.name}</Link>
+              <Link key={c.slug} href={`/shop?cat=${c.slug}`} onClick={() => setOpen(false)} className="rounded-lg px-3 py-2.5 hover:bg-[#f5f3ee]">{c.name}</Link>
             ))}
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[#eee] pt-3 text-sm">
             {TOP_LINKS.map((l) => (
-              <Link key={l.href} href={l.href} className="rounded-lg bg-[#f5f3ee] px-3 py-2.5 font-semibold">{l.label}</Link>
+              <Link key={l.href} href={l.href} onClick={() => setOpen(false)} className="rounded-lg bg-[#f5f3ee] px-3 py-2.5 font-semibold">{l.label}</Link>
             ))}
           </div>
         </div>

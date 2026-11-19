@@ -22,8 +22,8 @@ ORM + PostgreSQL.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
-| `npm run test` | Vitest unit suite (138 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
-| `npm run test:e2e` | Playwright e2e (89 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
+| `npm run test` | Vitest unit suite (145 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
+| `npm run test:e2e` | Playwright e2e (97 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
 The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–124):
@@ -67,7 +67,23 @@ identity-based finally cleanup (email + spec-start window — a post-201
 assertion failure strands the row no longer). One Task-124 finding was
 DISPROVEN by browser evidence (the crafted `nordhem_store` blank-select
 claim — React renders the first option as the fallback; the spec stayed as
-a pin, no code change).
+a pin, no code change) — and the Task-125 pins: the F-20 method-switch
+spec's clock pin (a temporal seam landed under it in Task 124 and
+time-bombed the pin — honest-RED via a temporary 23:00 SGT pin), the
+reviews POST TYPE-strictness (rating/author/body crafted TYPES refused —
+the Task-124 F-5 posture mirrored at the last coercing boundary), the
+track/promo field caps (order number ≤32, email ≤254, code ≤32 — the
+checkout cap discipline), the `clientIp` rightmost-XFF derivation (the
+leftmost hop was client-forgeable), the security-header set +
+`x-powered-by` absence, the header-strip discount attribution, the
+tightened /offers metadata attribution pin, the checkout slot
+clock-coherence payload pin (display and submitted slot must agree across
+the 14:00 SGT cutoff — intercepted-POST capture, no DB write), the drawer
+param-navigation close, the derived home/planning-tools/shop metadata
+counts, the `jsonLdScript` U+2028/U+2029 escape seam, the SITE_ORIGIN
+fs-pin (no raw origin literal in src/app), the web manifest + app icon,
+and the hydration sentinel (`html[data-hydrated]` + the gotoHydrated
+gate).
 The predecessor's 73-unit/15-e2e dead
 tree was retired with it — do not resurrect ely-beauty specs; pin new ones to
 this `src/`.
@@ -131,9 +147,12 @@ docs in the same commit as any test change (count-lockstep, no exceptions).
    while the banner host is `localhost` and the `/_next/hmr` websocket is
    dropped — the page renders but **never hydrates** (drawer/cart/search
    dead; zero console errors). `next.config.ts` pins
-   `allowedDevOrigins: ["127.0.0.1"]` (Task 118); the e2e suite is blind to
-   this (it boots the production build, which has no HMR), and the pin in
-   `tests/unit/env-example.test.ts` fails if the entry is removed.
+   `allowedDevOrigins: ["127.0.0.1"]` (Task 118); the e2e suite boots the
+   production build (no HMR) but is no longer blind to hydration itself —
+   CartProvider stamps `html[data-hydrated]` on mount and the
+   interaction-first specs navigate through `gotoHydrated` (Task 125 G-5),
+   with the sentinel pinned. The `tests/unit/env-example.test.ts` pin still
+   fails if the entry is removed.
 12. **Error boundaries are placement-sensitive.** `src/app/error.tsx` catches
    PAGE-subtree crashes only — anything rendered inside the ROOT LAYOUT
    itself (`CartProvider` and the persisted-state stores) crashes THROUGH it
@@ -181,8 +200,8 @@ When adding tests, pin them to this `src/` — never resurrect ely-beauty specs.
 rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db" npm run build
 npm run typecheck
 npm run lint          # 0 errors expected (the 7-error lint debt was fixed in Task 114)
-npm run test          # 138/138 unit
-npm run test:e2e      # 89/89 e2e (needs a live Postgres for the checkout journey)
+npm run test          # 145/145 unit
+npm run test:e2e      # 97/97 e2e (needs a live Postgres for the checkout journey)
 ```
 
 There is no hosted CI; the local gate is the only gate.

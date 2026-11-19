@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { SITE_ORIGIN } from "@/lib/utils";
 export const metadata = {
   title: "Help & contact",
   description:
@@ -10,7 +11,7 @@ export const metadata = {
     description: "How can we help? Delivery, returns, promo codes and tracking answers, plus phone and email contact.",
     type: "website",
     siteName: "NORDHEM Singapore",
-    url: "https://nordhem.sg/help",
+    url: `${SITE_ORIGIN}/help`,
   },
 };
 

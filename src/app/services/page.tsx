@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { SITE_ORIGIN } from "@/lib/utils";
 export const metadata = {
   title: "Services — delivery, assembly & planning",
   description:
@@ -10,7 +11,7 @@ export const metadata = {
     description: "We deliver, assemble, plan — you relax. Island-wide delivery, assembly and home design services.",
     type: "website",
     siteName: "NORDHEM Singapore",
-    url: "https://nordhem.sg/services",
+    url: `${SITE_ORIGIN}/services`,
   },
 };
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { CATEGORIES, PRODUCTS } from "@/lib/catalog";
 
+import { SITE_ORIGIN } from "@/lib/utils";
 // The /shop page is a server component that SSRs the filtered grid (Task 121
 // F-17) with an interactive client inner (ShopInner) for filter/sort changes.
 // This layout stays the server surface carrying its SEO metadata (Task 119
@@ -12,8 +13,10 @@ import { CATEGORIES, PRODUCTS } from "@/lib/catalog";
 // total (the drift class the home page's "24 products" line hunts).
 export const metadata: Metadata = {
   title: "Shop all furniture",
+  // Task 125 F-12: the category-name enumeration derives too — a rename or a
+  // ninth category must not leave the prose contradicting its own counts.
   description:
-    `Browse the full NORDHEM catalogue: ${PRODUCTS.length} furniture and furnishing products across ${CATEGORIES.length} room categories — living, bedroom, dining, kitchen, workspace, kids, outdoor and decor. Filter by room, keyword and price, sort by rating, price or popularity — prices include 9% GST, free delivery over $200.`,
+    `Browse the full NORDHEM catalogue: ${PRODUCTS.length} furniture and furnishing products across ${CATEGORIES.length} room categories — ${CATEGORIES.map((c) => c.name.toLowerCase()).join(", ")}. Filter by room, keyword and price, sort by rating, price or popularity — prices include 9% GST, free delivery over $200.`,
   alternates: { canonical: "/shop" },
   openGraph: {
     title: "Shop all furniture · NORDHEM Singapore",
@@ -21,7 +24,7 @@ export const metadata: Metadata = {
       `Browse ${PRODUCTS.length} furniture and furnishing products across ${CATEGORIES.length} room categories — filter by room, keyword and price.`,
     type: "website",
     siteName: "NORDHEM Singapore",
-    url: "https://nordhem.sg/shop",
+    url: `${SITE_ORIGIN}/shop`,
   },
 };
 

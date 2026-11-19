@@ -28,6 +28,17 @@ export default function CheckoutPage() {
   const promo = effectivePromo(promoCode, subtotalCents);
   const t = priceTotals({ subtotalCents, promo, deliveryMethod: method });
 
+  // Task 125 F-6: a slot held in state can leave the available set when the
+  // clock crosses its own cutoff (click-collect "Today 2pm" after 14:00 SGT)
+  // — the controlled select then DISPLAYS the first remaining option while
+  // the payload still carries the stale slot. Adjust-during-render (the
+  // Header prevPathname pattern): reset a held slot the moment it leaves
+  // the offered set, so display and submission always agree. Every method
+  // always offers at least one slot, so this converges in one render.
+  if (method === "click-collect" && !availableDeliverySlots(method).includes(form.slot)) {
+    set("slot", availableDeliverySlots(method)[0]);
+  }
+
   function set(k: keyof typeof form, v: string) {
     setForm((f) => ({ ...f, [k]: v }));
   }

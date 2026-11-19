@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { trackOrder } from "@/lib/server-data";
-import { createRateLimiter } from "@/lib/rate-limit";
+import { createRateLimiter, clientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 const limiter = createRateLimiter({ limit: 20, windowMs: 60_000 });
 
 export async function POST(req: Request) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  const ip = clientIp(req.headers); // rightmost XFF hop (Task 125 G-2)
   if (limiter.throttled(ip)) {
     return NextResponse.json({ ok: false, error: { code: "RATE_LIMIT", message: "Too many attempts. Please wait a minute." } }, { status: 429, headers: { "Retry-After": String(limiter.retryAfterSec(ip)) } });
   }
@@ -22,7 +22,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: { code: "BAD_REQUEST", message: "Expected a JSON body." } }, { status: 400 });
   }
   try {
-    const found = await trackOrder(String(body.orderNumber ?? ""), String(body.email ?? ""));
+    // Task 125 F-3: mirror the checkout cap discipline (Task 120 F-3) — the
+    // PII-lookup boundary accepted unbounded strings into the parameterized
+    // lookup. Order numbers are NH-YYYYMMDD-XXXXXX (17 chars) → cap at 32;
+    // emails cap at 254 (the checkout shape).
+    const orderNumber = String(body.orderNumber ?? "");
+    const email = String(body.email ?? "");
+    if (orderNumber.length > 32 || email.length > 254) {
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Order number or email is too long." } }, { status: 422 });
+    }
+    const found = await trackOrder(orderNumber, email);
     if (!found) {
       return NextResponse.json({ ok: false, error: { code: "NOT_FOUND", message: "No order matches that number and email." } }, { status: 404 });
     }

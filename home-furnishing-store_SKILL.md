@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 1.8.0
-last_updated: "2026-11-19 (Task 124: docs-truth completion, settle discipline, boundary strictness)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 138/138 unit · 89/89 e2e · cold build green (29 routes) · PostgreSQL 17 live-verified · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
+version: 1.9.0
+last_updated: "2026-11-19 (Task 125: test integrity, boundary parity, identity/origin seams)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 145/145 unit · 97/97 e2e · cold build green (30 routes incl. icon + manifest) · PostgreSQL 17 live-verified · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -16,6 +16,7 @@ project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 138/138 
 > skipped-fix/crash-boundary/display-honesty cycle, the Task 123
 > journey-residue/promo-display-truth/boundary-docs-honesty cycle, and the
 > Task 124 docs-truth-completion/settle-discipline/boundary-strictness
+> cycle, and the Task 125 test-integrity/boundary-parity/identity-origin-seams
 > cycle. `AGENTS.md` is the quick operator
 > reference, the PAD is the full blueprint, and this skill is the
 > pattern/lesson layer an agent needs before touching the code. When code and
@@ -89,8 +90,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 138/138
-npm run test:e2e                                               # 89/89 (live Postgres for the journey)
+npm run test                                                   # 145/145
+npm run test:e2e                                               # 97/97 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -609,6 +610,40 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
     is not just drift risk, it is audit blindness; extract the seam and the
     pins write the bug reports the audit missed.
 
+36. **When a seam becomes temporal, every pin touching it becomes temporal
+    too (Task 125 F-1).** Task-124 F-8 made the click-collect slot options
+    clock-sensitive — and the Task-121 method-switch spec asserting that
+    exact set kept running on the real clock. The suite's green runs had
+    simply all happened before 14:00 SGT; the first post-cutoff run would
+    have gone red with zero code change (AGENTS' "the local gate is the
+    only gate" makes that a commit blocker). Rule: when a behavior gains a
+    time axis, grep every existing assertion over that behavior and pin
+    the clock the same way the new seam's own specs do — and prove the
+    bomb honestly by running one pinned past the boundary before pinning
+    before it.
+
+37. **The leftmost XFF hop is the client's own forgery (Task 125 G-2).**
+    Four routes read `x-forwarded-for.split(",")[0]` — the FIRST hop is
+    written by whoever sent the request, so a direct-deploy client rotates
+    its own rate-limit buckets by sending changing fake XFF values; only
+    the RIGHTMOST hop is the one the nearest proxy appended. Rule:
+    rate-limit identity derives through one shared seam (`clientIp`),
+    takes the rightmost hop, and falls back to one shared "direct" bucket
+    — and when a real proxy fronts the app, strip ITS hop there, not in
+    four routes.
+
+38. **A controlled select lies about its value when the option set
+    shrinks (Task 125 F-6).** With `form.slot` holding "Today 2pm" and
+    the clock crossing the cutoff, the options dropped it — the browser
+    displayed the first remaining option while React state (and the POSTed
+    payload) still carried the stale slot. The divergence is invisible to
+    any display-only assertion: the pin must capture what the server
+    RECEIVES (intercepted-POST payload), not what the select renders.
+    Rule: display/state agreement needs a payload-level pin, and a held
+    value that leaves its legal set must be re-derived during render (the
+    adjust-during-render pattern covers clock crossings, not just method
+    switches).
+
 ## 13. Pitfalls to Avoid
 
 - Adding state/auth/payment SDKs without a decision record (ADR-006 deferrals
@@ -740,5 +775,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (138) |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (89) |
+| Unit suite | `tests/unit/*.test.ts` (145) |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (97) |

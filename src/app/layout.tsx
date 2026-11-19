@@ -5,6 +5,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { CartProvider } from "@/lib/cart-store";
 
+import { SITE_ORIGIN, jsonLdScript } from "@/lib/utils";
 export const metadata: Metadata = {
   title: {
     default: "NORDHEM Singapore — Furniture & Home Furnishing",
@@ -12,7 +13,7 @@ export const metadata: Metadata = {
   },
   description:
     "Scandinavian-designed furniture for Singapore homes: sofas, beds, dining, kitchens, workspaces and more. Delivery island-wide, Click & Collect at Tampines, Jurong and Alexandra.",
-  metadataBase: new URL("https://nordhem.sg"),
+  metadataBase: new URL(SITE_ORIGIN),
 };
 
 // Site-level structured data (Task 119 F-26): Organization + WebSite with
@@ -24,17 +25,17 @@ const siteJsonLd = {
     {
       "@type": "Organization",
       name: "NORDHEM Singapore",
-      url: "https://nordhem.sg/",
+      url: `${SITE_ORIGIN}/`,
     },
     {
       "@type": "WebSite",
       name: "NORDHEM Singapore",
-      url: "https://nordhem.sg/",
+      url: `${SITE_ORIGIN}/`,
       // Task 121 F-14: the comment claimed a "catalogue search pointer" that
       // the node never carried — the search page backs this action for real.
       potentialAction: {
         "@type": "SearchAction",
-        target: "https://nordhem.sg/search?q={search_term_string}",
+        target: `${SITE_ORIGIN}/search?q={search_term_string}`,
         "query-input": "required name=search_term_string",
       },
     },
@@ -47,7 +48,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className="bg-white text-[#111111] antialiased">
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd).replace(/</g, "\\u003c") }}
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(siteJsonLd) }}
         />
         <CartProvider>
           <a

@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-19 (Task 124: docs-truth completion, settle discipline, boundary strictness)
+last_updated: 2026-11-19 (Task 125: test integrity, boundary parity, identity/origin seams)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -129,15 +129,15 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`typecheck:tests` covers the test tree) |
-| `npm run test` | Vitest unit suite (138 tests, pure seams) |
-| `npm run test:e2e` | Playwright e2e (89 tests, production build on :3100) |
+| `npm run test` | Vitest unit suite (145 tests, pure seams) |
+| `npm run test:e2e` | Playwright e2e (97 tests, production build on :3100) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
-**Current state (Tasks 114–123, extended this cycle):** a NORDHEM-native suite is wired into the gates.
+**Current state (Tasks 114–125, extended this cycle):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 138 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 145 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
@@ -151,7 +151,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   with the fs-computed reality — count-lockstep is enforced across all five
   operator docs, not remembered). Node environment with a localStorage shim
   (`tests/unit/setup.ts`); no jsdom, no component rendering.
-- **E2E (Playwright, 89 tests)** against the **production build** (the webServer
+- **E2E (Playwright, 97 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
   hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
@@ -242,6 +242,26 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   by email + spec-start window (a post-201 assertion failure used to strand
   the row); product cards show stars without the invented seed
   `ratingCount`.
+- **Task-125 seams:** `clientIp(headers)` in `rate-limit.ts` is the ONE
+  rate-limit identity (rightmost XFF hop → shared `"direct"` bucket — the
+  leftmost hop the four routes used to take is the client-forgeable form);
+  `jsonLdScript(data)` in `utils.ts` is the ONE ld+json serialization
+  (`<` + U+2028 + U+2029 escaped — legal-in-JSON line terminators that
+  break the script element); `SITE_ORIGIN` in `utils.ts` is the ONE origin
+  (fs-pinned: no raw literal in `src/app`); the reviews POST boundary is
+  TYPE-strict like checkout (crafted `rating: true` / numeric-author
+  payloads are 422s, never persisted junk); track/promo-validate cap their
+  string fields (order number ≤32, email ≤254, code ≤32); the checkout page
+  resets a held slot that leaves `availableDeliverySlots(method)` during
+  render (the clock crossing its own cutoff can no longer make the select
+  display "Tomorrow 10am" while POSTing "Today 2pm"); the mobile drawer
+  closes on click (param-only navigations kept it open — the pathname guard
+  never fired); home/planning-tools/shop metadata derive their counts and
+  category names from the catalogue; `next.config.ts` ships the platform
+  security-header set with `poweredByHeader: false`; `app/icon.svg` +
+  `app/manifest.ts` give the site an icon and installable metadata; and
+  CartProvider stamps `html[data-hydrated]` with the e2e specs gating on it
+  (`tests/e2e/helpers.ts` `gotoHydrated`).
 
 TDD is the default for logic changes: red → green → refactor, one seam at a
 time (`skills/tdd`). Bug fixes require a regression test that fails before the

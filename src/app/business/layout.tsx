@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import { SITE_ORIGIN } from "@/lib/utils";
 // /business is a client page (instant quote calculator) — this route layout
 // carries its SEO metadata (Task 119).
 export const metadata: Metadata = {
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
       "Pick modular units, get an instant trade estimate and book a consultation.",
     type: "website",
     siteName: "NORDHEM Singapore",
-    url: "https://nordhem.sg/business",
+    url: `${SITE_ORIGIN}/business`,
   },
 };
 

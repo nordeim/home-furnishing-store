@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAllProducts, getInspirations } from "@/lib/server-data";
-import { formatSGD } from "@/lib/utils";
+import { formatSGD, SITE_ORIGIN } from "@/lib/utils";
 import { ProductCard } from "@/components/ProductCard";
 import type { ProductRow } from "@/lib/server-data";
 
 export const dynamic = "force-dynamic";
 
-const SITE = "https://nordhem.sg";
+const SITE = SITE_ORIGIN;
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;

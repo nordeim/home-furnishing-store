@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
+import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import { createLocalStore } from "@/lib/local-store";
 
@@ -123,6 +123,16 @@ const actions = {
 const CartContext = createContext<CartState | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
+  // Task 125 G-5: the hydration sentinel. Stamped by the root client
+  // boundary's mount effect — the e2e suite can wait on it instead of
+  // racing the client bundle (Playwright's actionability checks do NOT
+  // cover React hydration; a pre-hydration click silently no-ops). Direct
+  // DOM mutation, not setState (the set-state-in-effect rule is not
+  // engaged); the provider never unmounts, so no cleanup is needed.
+  useEffect(() => {
+    document.documentElement.dataset.hydrated = "true";
+  }, []);
+
   const lines = useSyncExternalStore(linesStore.subscribe, linesStore.getSnapshot, linesStore.getServerSnapshot);
   const wishlist = useSyncExternalStore(wishStore.subscribe, wishStore.getSnapshot, wishStore.getServerSnapshot);
   const promoCode = useSyncExternalStore(promoStore.subscribe, promoStore.getSnapshot, promoStore.getServerSnapshot);

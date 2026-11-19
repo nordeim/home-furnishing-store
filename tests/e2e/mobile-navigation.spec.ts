@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { gotoHydrated } from "./helpers";
 
 // Mobile navigation seam (390×844). Taxonomy classes A–H from the Tailwind v4
 // skill §9.3: the drawer must open (A), be visible (B), not clipped (C), not
@@ -7,7 +8,9 @@ import { expect, test } from "@playwright/test";
 
 test.describe("mobile navigation", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
+    // Task 125 G-5: route interaction-first navigation through the
+    // hydration gate — the burger click used to race the client bundle.
+    await gotoHydrated(page, "/");
     await page.setViewportSize({ width: 390, height: 844 });
   });
 
@@ -40,6 +43,21 @@ test.describe("mobile navigation", () => {
     // Auto-close on route change (pathname effect → adjust-during-render).
     await expect(burger).toHaveAttribute("aria-expanded", "false");
     await expect(burger).toHaveAccessibleName("Open menu");
+  });
+
+  test("drawer auto-closes on search-param-only navigation (Task 125 F-7)", async ({ page }) => {
+    // The close guard compares usePathname() only — a category tap while
+    // already on /shop keeps the pathname at "/shop", so the drawer stayed
+    // open over the re-filtered grid (browser-reproduced at audit). The
+    // drawer links close on click now, covering param-only navigations.
+    await gotoHydrated(page, "/shop?cat=bedroom");
+    const burger = page.locator("header button[aria-expanded]");
+    await burger.click();
+    await expect(burger).toHaveAttribute("aria-expanded", "true");
+    await page.getByRole("banner").getByRole("link", { name: "Dining", exact: true }).first().click();
+    await expect(page).toHaveURL(/\/shop\?cat=dining/);
+    await expect(page.getByRole("heading", { name: "Dining", level: 1 })).toBeVisible();
+    await expect(burger).toHaveAttribute("aria-expanded", "false");
   });
 
   test("Escape closes the drawer (a11y §9.4)", async ({ page }) => {

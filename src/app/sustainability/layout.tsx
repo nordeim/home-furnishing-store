@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import { SITE_ORIGIN } from "@/lib/utils";
 // /sustainability is a client page (interactive buy-back estimator) — this
 // route layout carries its SEO metadata (Task 119).
 export const metadata: Metadata = {
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
       "Furniture buy-back, As-Is corners and repair-friendly design.",
     type: "website",
     siteName: "NORDHEM Singapore",
-    url: "https://nordhem.sg/sustainability",
+    url: `${SITE_ORIGIN}/sustainability`,
   },
 };
 

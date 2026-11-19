@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { createRateLimiter } from "@/lib/rate-limit";
+import { clientIp, createRateLimiter } from "@/lib/rate-limit";
 
 /**
  * The shared fixed-window limiter factory (Task 119). Before this seam the
@@ -67,4 +67,28 @@ test("size() reflects the live key count (tests/ops observability)", () => {
   expect(lim.size()).toBe(0);
   lim.throttled("ip-a");
   expect(lim.size()).toBe(1);
+});
+
+/**
+ * Task 125 G-2: the client-IP derivation seam. The four POST routes used to
+ * inline `x-forwarded-for.split(",")[0]` — the LEFTMOST hop, which is exactly
+ * the client-forgeable form (a direct-deploy client rotates its own
+ * rate-limit buckets by sending changing fake XFF values). The shared
+ * derivation takes the RIGHTMOST hop (the value the nearest proxy appended)
+ * and falls back to a shared "direct" bucket when no proxy header exists.
+ */
+test("clientIp: takes the rightmost x-forwarded-for hop, not the forgeable leftmost", () => {
+  const h = new Headers({ "x-forwarded-for": "1.2.3.4, 5.6.7.8" });
+  expect(clientIp(h)).toBe("5.6.7.8");
+});
+
+test("clientIp: a single-hop value passes through unchanged (the e2e identity pattern)", () => {
+  const h = new Headers({ "x-forwarded-for": "10.9.125.2" });
+  expect(clientIp(h)).toBe("10.9.125.2");
+});
+
+test("clientIp: absent or empty header falls back to the shared direct bucket", () => {
+  expect(clientIp(new Headers())).toBe("direct");
+  expect(clientIp(new Headers({ "x-forwarded-for": "" }))).toBe("direct");
+  expect(clientIp(new Headers({ "x-forwarded-for": "  " }))).toBe("direct");
 });

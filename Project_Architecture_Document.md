@@ -1,4 +1,4 @@
-# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.9.0
+# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.10.0
 
 **Classification:** Internal Engineering Reference
 **Status:** DEFINITIVE, PRODUCTION-LOCKED BLUEPRINT
@@ -7,6 +7,84 @@
 **Audience:** Senior Engineers, Tech Leads, DevOps, and Onboarding Engineers (human and AI)
 **Rule:** Every architectural decision in this document traces to a specific rationale.
 Nothing is here "because it's popular."
+
+#### Revision Block — v1.10.0 (Task 125 — test integrity, boundary parity, identity/origin seams)
+
+- `[REL]` **The time-bombed method-switch pin (F-1)**: the Task-121 F-20
+  e2e spec asserted the click-collect slot set with the REAL clock while
+  Task-124 F-8 made that exact set clock-sensitive — any post-14:00-SGT
+  run went red with zero code change (the baseline green runs simply
+  happened before the cutoff). Honest-RED via a temporary 23:00 SGT pin
+  (both assertions failed exactly as predicted); the spec now pins 10:00
+  SGT like its F-8 siblings. Lesson: when a seam becomes temporal, every
+  pin that touches it becomes temporal too.
+- `[SEC]` **Reviews POST type-strictness (F-2)**: `Number(true)===1` and
+  `String(1e19)`-as-name persisted crafted junk at the last coercing
+  write boundary — the checkout Task-124 F-5 posture mirrored (non-number
+  productId/rating and non-string author/title/body → 422, never a row);
+  the probe carries identity-keyed cleanup.
+- `[SEC]` **Track/promo field caps (F-3)**: order number ≤32, email ≤254,
+  promo code ≤32 — the checkout cap discipline mirrored at the PII-lookup
+  pair (unbounded strings previously reached the parameterized lookups).
+- `[SEC]` **Rate-limit identity (G-2)**: `clientIp(headers)` in
+  `rate-limit.ts` is the ONE derivation — rightmost XFF hop → shared
+  `"direct"` bucket. The four routes' inline leftmost-hop reads were the
+  client-forgeable form (a direct-deploy client rotates its own buckets
+  by sending changing fake XFF values); homenest session-6's fix ported.
+- `[SEC]` **Platform security headers (G-1)**: `next.config.ts` now ships
+  nosniff / X-Frame-Options DENY / Referrer-Policy /
+  Permissions-Policy (camera, microphone, geolocation, payment locked
+  out) / HSTS, with `poweredByHeader: false` — e2e-pinned on a page AND
+  an API route (the `x-powered-by` absence included).
+- `[COR]` **Discount-attribution completion (F-4/F-5)**: the header strip
+  and the /offers metadata kept attributing the catalogue's max (−24%,
+  NORDLYS lighting) to dining (max −17%) after the Task-122 F-19 hero
+  fix — both now carry the honest lighting/cookware/decor set, and the
+  offers pin holds the ATTRIBUTION (regex tightened), not just the
+  number.
+- `[COR]` **Slot clock-coherence (F-6)**: a checkout opened before 14:00
+  SGT could display "Tomorrow 10am" (controlled-select fallback) while
+  POSTing the already-past "Today 2pm" after any post-cutoff re-render.
+  Adjust-during-render reset when the held slot leaves
+  `availableDeliverySlots(method)`; the e2e pin captures the intercepted
+  POST payload (no DB write) and asserts display/payload agreement.
+- `[COR]` **Drawer param-navigation (F-7)**: browser-reproduced — a
+  category tap from `/shop?cat=bedroom` kept the drawer open over the
+  re-filtered grid (the close guard compares pathname only). The drawer
+  links close on click; the pathname guard stays for browser-nav.
+- `[COR]` **Origin/JSON-LD single-sourcing (G-3/G-4)**: `SITE_ORIGIN`
+  (utils.ts) replaces the literal in 17 files (fs-pinned: no raw literal
+  in `src/app`); `jsonLdScript()` escapes `<`, U+2028 and U+2029 (the
+  line terminators legal in JSON strings that break script elements) —
+  both JSON-LD sites wired, unit-pinned with hostile payloads.
+- `[COR]` **Metadata derivation (F-8/F-10/F-12)**: home ("N products
+  across N room categories"), planning-tools ("N shoppable room
+  stories") and the shop category-name enumeration derive from the
+  catalogue constants (the Task-122 F-13 pattern completed); the home
+  pin derives too.
+- `[FEA]` **Web manifest + app icon (G-6)**: `app/icon.svg` (brand
+  wordmark chip) + `app/manifest.ts` — every browser's /favicon.ico
+  404'd before; both resolve and are linked, e2e-pinned.
+- `[TST]` **Hydration sentinel (G-5)**: CartProvider stamps
+  `html[data-hydrated]` on mount; `tests/e2e/helpers.ts` `gotoHydrated`
+  gates interaction-first navigation; the sentinel is pinned on /, /shop
+  and a PDP. Gotcha #11's "the e2e suite is blind to this" admission is
+  retired. The mobile project now runs `devices["iPhone 13"]` (G-7) —
+  same 390×844 viewport plus touch, DPR 3 and a real UA, so
+  hover-gated Tailwind v4 variants render the way phones hit them.
+- `[DOC]` **§11 truth fix (F-9/F-11)**: the key-files table's rotted
+  "11 Drizzle tables" row (actual: 9 since Task 120's dead-table
+  retirement) and stale line counts corrected; CLAUDE's task-range
+  header updated.
+- `[REG]` **Register additions**: CSP via proxy.ts deferred (needs the
+  per-request-nonce + `await connection()` prerender discipline — the
+  homenest trap log recorded with it); jsdom component-test layer
+  deferred (the e2e coverage is strong; the one candidate pin is covered
+  by the settle specs).
+- `[SAN]` Gates: lint 0/0 · typechecks clean · **145 unit / 97 e2e** ·
+  cold build 30 routes (icon + manifest routes added) · zero DB residue
+  after the full suite (verified by direct SQL) · counts pinned across
+  all five operator docs.
 
 #### Revision Block — v1.9.0 (Task 124 — docs-truth completion, settle discipline, boundary strictness)
 
@@ -498,7 +576,7 @@ non-app artifacts remain in the tree (§10).
 | DB driver | `pg` (node-postgres) | 8.20.0 | Pooled connections, `drizzle-orm/node-postgres` adapter |
 | Database | PostgreSQL | 15+ recommended | Relational catalogue/orders; `drizzle-kit push` for schema |
 | Lint | ESLint flat config + `eslint-config-next/core-web-vitals` | 9.39.4 | One linter, Next-aware rules |
-| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–124) — 138 unit + 89 e2e, all green (§7) |
+| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–125) — 145 unit + 97 e2e, all green (§7) |
 | Imagery | Pexels CDN | — | Licensed stock, zero local pipeline (ADR-007) |
 
 ### 1.3 Architecture Decision Records (ADRs)
@@ -1029,8 +1107,8 @@ the code, never to hit a number.
 rm -rf .next && DATABASE_URL=… npm run build   # cold build (cache can mask the scan-guard failure)
 npm run typecheck && npm run typecheck:tests  # app scope + test tree
 npm run lint                                   # 0 errors / 0 warnings
-npm run test                                   # 138/138 unit
-npm run test:e2e                               # 89/89 e2e (live Postgres for the journey)
+npm run test                                   # 145/145 unit
+npm run test:e2e                               # 97/97 e2e (live Postgres for the journey)
 # runtime smoke of touched routes against `npm run start`
 ```
 
@@ -1094,7 +1172,7 @@ npm run dev                       # http://localhost:3000
 | `npm run dev` / `build` / `start` | root | Dev / cold production build / serve |
 | `npm run lint` | root | ESLint (flat; `skills/` ignored) |
 | `npm run typecheck` / `typecheck:tests` | root | App-scope / test-tree `tsc --noEmit` |
-| `npm run test` / `test:e2e` | root | Vitest unit (138) / Playwright e2e (89, production build on :3100) |
+| `npm run test` / `test:e2e` | root | Vitest unit (145) / Playwright e2e (97, production build on :3100) |
 | `npx drizzle-kit push` | root | Apply `src/db/schema.ts` |
 | `python3 docs/ssh_git_wrapper_v3.py --key-file K --remote git@github.com:nordeim/home-furnishing-store.git` | repo | Verified SSH push to main (see the runbook) |
 
@@ -1140,6 +1218,8 @@ Clone over HTTPS; push over SSH through the wrapper with the mandatory
 | LOW | `docs/ssh_git_wrapper_v3.py` default remote still `nordeim/ely-beauty` | A wrapper run without `--remote` pushes to the wrong repo | Open (override documented everywhere; changing the default touches a live operator tool) |
 | LOW | `drizzle.config.json` hardcodes a local dev URL | Surprises on remote DBs | Open — documented in README/.env.example |
 | INFO | Auth + real payments deferred by decision (ADR-006); reviews unauthenticated; per-process rate limiter weak behind multi-instance LB | Demo-scope accepted risks | Documented; revisit before any production use |
+| INFO | No Content-Security-Policy (G-8, Task 125): homenest ships a per-request-nonce CSP via `proxy.ts`; adopting one here requires the `await connection()` discipline on every statically prerendered hydrating page (a prerendered page + per-request nonce = silent non-hydration — the homenest trap log) | Hardening headroom, not an open vuln (no inline event handlers, no third-party scripts, Pexels img-src only) | **Deferred (v1.10.0)** — the platform header set (G-1) landed as the 80% win; revisit CSP only with the connection() discipline |
+| INFO | No jsdom component-test layer (G-9, Task 125): timer/state seams (e.g. the search debounce cleanup) are e2e-pinned but not unit-pinned | Test-layer depth, not coverage | **Deferred (v1.10.0)** — the settle-discipline specs cover the behavior end-to-end; a jsdom layer is a new test tier to maintain |
 | ~~INFO~~ | Display pricing rules duplicated (`priceTotals` helper vs inline magic numbers in `placeOrder`) | Drift risk between display and truth | **Fixed (Task 117)** — `placeOrder` imports `GST_RATE` / `FREE_DELIVERY_THRESHOLD_CENTS` / `STANDARD_` / `EXPRESS_DELIVERY_FEE_CENTS` from `utils.ts`; behaviour pinned by the exact-value e2e journey |
 | INFO | `nordhem_promo` persisted format changed raw → JSON in the Task 114 store refactor | One-time cosmetic migration: a returning visitor re-applies their promo once | Documented in `cart-store.tsx` |
 | ~~HIGH~~ | Dev server never hydrated when opened via `http://127.0.0.1:3000` (Next 16 `allowedDevOrigins` drops the `/_next/hmr` websocket; the RSC client then discards the inline flight payload — page renders, drawer/cart/search dead, zero console errors) | Every 127.0.0.1 consumer of the dev server (agent-browser, curl probes, Playwright's default baseURL habit) saw a dead-interactive page; invisible to all gates (e2e boots the production build, which has no HMR) | **Fixed (Task 118)** — `allowedDevOrigins: ["127.0.0.1"]` in `next.config.ts`; hydration probe RED → GREEN; full drawer taxonomy re-verified on dev; unit-pinned by `tests/unit/env-example.test.ts` |
@@ -1265,21 +1345,21 @@ re-verified in-browser on the dead-DB path ($1,200/yr → $60 vouchers) —
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `src/lib/server-data.ts` | ~244 | All DB reads/writes, seed, fallbacks, promo validation, `placeOrder` money truth, tracking |
+| `src/lib/server-data.ts` | ~312 | All DB reads/writes, seed, fallbacks, promo validation, `placeOrder` money truth, tracking |
 | `src/lib/catalog.ts` | ~142 | Static catalogue: 24 products, 8 categories, 3 stores, 6 rooms, 3 promos (seed + fallback) |
-| `src/lib/utils.ts` | ~98 | Pure helpers: `formatSGD`, `priceTotals`, validators, `orderNumber`, `clampInt`, `stars` |
-| `src/lib/cart-store.tsx` | ~110 | The one client store: three `local-store` external stores via `useSyncExternalStore` + `useCart` context |
-| `src/lib/local-store.ts` | ~75 | localStorage-backed external-store factory (subscribe/getSnapshot/getServerSnapshot/set) — the set-state-in-effect remedy |
-| `src/lib/mask.ts` | ~14 | `maskEmail` — PII policy for the public order page |
-| `src/db/schema.ts` | ~178 | 11 Drizzle tables + row types |
-| `src/db/index.ts` | ~25 | Pooled client, `DATABASE_URL` fail-fast guard, globalThis singleton |
+| `src/lib/utils.ts` | ~250 | Pure helpers: `formatSGD`, `priceTotals`, validators, `orderNumber`, `clampInt`, `stars` |
+| `src/lib/cart-store.tsx` | ~168 | The one client store: three `local-store` external stores via `useSyncExternalStore` + `useCart` context |
+| `src/lib/local-store.ts` | ~89 | localStorage-backed external-store factory (subscribe/getSnapshot/getServerSnapshot/set) — the set-state-in-effect remedy |
+| `src/lib/mask.ts` | ~16 | `maskEmail` — PII policy for the public order page |
+| `src/db/schema.ts` | ~162 | 9 Drizzle tables + row types |
+| `src/db/index.ts` | ~33 | Pooled client, `DATABASE_URL` fail-fast guard, globalThis singleton |
 | `src/app/globals.css` | ~85 | Tailwind v4 `@theme` tokens, candidate-scan guard, utility classes |
-| `src/app/page.tsx` | ~237 | Home page composition (hero, rooms, bestsellers, deals, stores, brand) |
-| `src/app/product/[slug]/page.tsx` | ~122 | PDP: metadata, gallery, stock/aisle, reviews, related |
-| `src/app/api/checkout/route.ts` | ~62 | Validation, rate limit, `placeOrder` delegation, envelope |
+| `src/app/page.tsx` | ~281 | Home page composition (hero, rooms, bestsellers, deals, stores, brand) |
+| `src/app/product/[slug]/page.tsx` | ~204 | PDP: metadata, gallery, stock/aisle, reviews, related |
+| `src/app/api/checkout/route.ts` | ~130 | Validation, rate limit, `placeOrder` delegation, envelope |
 | `src/components/Header.tsx` | ~180 | Utility strip, search, store picker (external store), category nav, mobile drawer (Escape-close) |
-| `tests/unit/` | 9 files | 138 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges/DELIVERY_SLOTS/orderNumber-SGT, catalog incl. findPromoMinimumCents, local-store incl. the promo predicate, mask, robots/sitemap, env/compose/config + scan-guard pins) |
-| `tests/e2e/` | 2 specs | 89 Playwright tests: mobile-navigation (390×844), storefront/commerce journeys, API boundary validation, fetch-failure resilience, slot coherence, review-count truth |
+| `tests/unit/` | 9 files | 145 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges/DELIVERY_SLOTS/orderNumber-SGT, catalog incl. findPromoMinimumCents, local-store incl. the promo predicate, mask, robots/sitemap, env/compose/config + scan-guard pins) |
+| `tests/e2e/` | 2 specs | 97 Playwright tests: mobile-navigation (iPhone-13 emulation, 390×844), storefront/commerce journeys, API boundary validation, fetch-failure resilience, slot coherence, review-count truth |
 | `src/components/ProductCard.tsx` | ~92 | Card + `Rating`; wishlist/add-to-bag affordances |
 | `docs/implementation-plan.md` | 42 | Stack decision record, deviations ledger, acceptance criteria |
 | `docs/reference-investigation.md` | 45 | Reference-site evidence (Verified/Reasoned/Assumed/Unknown) |

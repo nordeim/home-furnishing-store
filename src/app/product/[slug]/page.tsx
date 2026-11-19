@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAllProducts, getInventory, getProductBySlug, getReviewCount, getReviews } from "@/lib/server-data";
-import { formatSGD, stars, visibleBadges } from "@/lib/utils";
+import { formatSGD, stars, visibleBadges, SITE_ORIGIN, jsonLdScript } from "@/lib/utils";
 import { CATEGORIES } from "@/lib/catalog";
 import { ProductCard } from "@/components/ProductCard";
 import { BuyBox } from "@/components/BuyBox";
@@ -10,7 +10,7 @@ import { ReviewSection } from "@/components/ReviewSection";
 
 export const dynamic = "force-dynamic";
 
-const SITE = "https://nordhem.sg";
+const SITE = SITE_ORIGIN;
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -97,7 +97,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
       <nav aria-label="Breadcrumb" className="text-[13px] text-[#5b5b5b]">
         <Link href="/" className="hover:underline">Home</Link> ·{" "}

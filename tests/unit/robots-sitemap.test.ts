@@ -70,3 +70,30 @@ describe("sitemap.xml", () => {
     }
   });
 });
+
+// Task 125 G-4: the origin literal has ONE home. It used to be hardcoded in
+// 17 files (metadataBase, robots, sitemap, canonicals, OG urls, JSON-LD) — a
+// domain move was a 17-file sweep no test could catch. Every src/app file
+// must compose from SITE_ORIGIN; the raw literal survives only in
+// src/lib/utils.ts (and this file's expectation).
+describe("site origin single-sourcing", () => {
+  it("no raw https://nordhem.sg literal in src/app — compose from SITE_ORIGIN", async () => {
+    const { readdir, readFile } = await import("node:fs/promises");
+    const path = await import("node:path");
+    const appDir = path.resolve(__dirname, "../../src/app");
+    const offenders: string[] = [];
+
+    async function walk(dir: string): Promise<void> {
+      for (const ent of await readdir(dir, { withFileTypes: true })) {
+        const full = path.join(dir, ent.name);
+        if (ent.isDirectory()) await walk(full);
+        else if (/\.(ts|tsx|css)$/.test(ent.name)) {
+          const text = await readFile(full, "utf8");
+          if (text.includes("https://nordhem.sg")) offenders.push(path.relative(appDir, full));
+        }
+      }
+    }
+    await walk(appDir);
+    expect(offenders, `raw origin literal in: ${offenders.join(", ")}`).toEqual([]);
+  });
+});

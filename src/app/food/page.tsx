@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { formatSGD } from "@/lib/utils";
+import { formatSGD, SITE_ORIGIN } from "@/lib/utils";
 
 export const metadata = {
   title: "Restaurant & Bistro",
@@ -11,7 +11,7 @@ export const metadata = {
     description: "Swedish-inspired restaurant and bistro at every NORDHEM store.",
     type: "website",
     siteName: "NORDHEM Singapore",
-    url: "https://nordhem.sg/food",
+    url: `${SITE_ORIGIN}/food`,
   },
 };
 

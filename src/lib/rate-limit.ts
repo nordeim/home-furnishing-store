@@ -10,8 +10,26 @@
  *
  * Scope: in-process (documented single-node limitation — no shared store, so
  * multi-instance deployments throttle per instance). Keyed by the caller's
- * extracted identity (routes pass the x-forwarded-for first hop or "local").
+ * extracted identity via the shared clientIp() derivation below.
  */
+
+/**
+ * Task 125 G-2: the one client-IP derivation. The four POST routes used to
+ * inline `x-forwarded-for.split(",")[0]` — the LEFTMOST hop, which is exactly
+ * the client-forgeable form: a direct-deploy client rotates its own
+ * rate-limit buckets by sending changing fake XFF values. Take the RIGHTMOST
+ * hop instead (the value the nearest proxy appended — never controlled by
+ * the client alone), and fall back to one shared "direct" bucket when no
+ * proxy header exists. When a real trusted proxy fronts this app, prepend
+ * its private hop-stripping before this seam (homenest session-6 pattern).
+ */
+export function clientIp(headers: Headers): string {
+  const xff = headers.get("x-forwarded-for");
+  if (!xff) return "direct";
+  const hops = xff.split(",").map((h) => h.trim()).filter((h) => h.length > 0);
+  if (hops.length === 0) return "direct";
+  return hops[hops.length - 1];
+}
 
 export interface RateLimiter {
   /** Record a request; true = over the limit → respond 429. */

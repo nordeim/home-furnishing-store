@@ -1,5 +1,29 @@
 /** Shared pure helpers: money (integer cents), formatting, pricing rules. */
 
+/**
+ * Task 125 G-4: the ONE site origin. It used to be a literal in 17 files
+ * (metadataBase, robots, sitemap, canonicals, OG urls, JSON-LD) — a domain
+ * move was a 17-file sweep no test could catch. Compose every origin from
+ * this constant; tests/unit/robots-sitemap.test.ts pins that no raw literal
+ * survives in src/app outside this home.
+ */
+export const SITE_ORIGIN = "https://nordhem.sg";
+
+/**
+ * Task 125 G-3: the ONE ld+json serialization. Both script sites used to
+ * inline `JSON.stringify(x).replace(/</g, "\\u003c")` — `<` is escaped but
+ * U+2028/U+2029 are not: both are LEGAL inside JSON strings yet terminate JS
+ * string semantics in some embedding contexts, breaking the script element.
+ * Escape all three; the output still JSON.parses identically (the escapes
+ * are valid JSON string escapes).
+ */
+export function jsonLdScript(data: unknown): string {
+  return JSON.stringify(data)
+    .replace(/</g, "\\u003c")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
 export const GST_RATE = 0.09;
 export const FREE_DELIVERY_THRESHOLD_CENTS = 20000; // $200
 export const STANDARD_DELIVERY_FEE_CENTS = 1200; // $12

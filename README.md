@@ -164,12 +164,12 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 138 tests at the pure seams
+npm run test             # Vitest unit — 145 tests at the pure seams
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 89 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 97 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
@@ -244,11 +244,41 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 138 unit + 89 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120/121/122/123/124); counts pinned by tests/unit/docs-counts.test.ts |
+| Test suite | ✅ 145 unit + 97 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120/121/122/123/124/125); counts pinned by tests/unit/docs-counts.test.ts |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
+
+Current cycle (2026-11-19, Task 125): workspace-refresh re-audit (mobile-nav
+taxonomy re-verified clean at 390/1440 — no Tailwind v4 bug — with one NEW
+drawer gap browser-reproduced and fixed: a category tap while already on
+/shop kept the drawer open because the close guard compares pathname only;
+the drawer links close on click now) that caught **the Task-121 method-switch
+e2e pin time-bombed by the Task-124 slot seam** (it asserted "Today 2pm"
+with the real clock — any post-14:00-SGT run went red; honest-RED via a
+temporary 23:00 SGT pin, now pinned at 10:00 SGT), **the reviews POST
+boundary still type-coercing** (`rating: true`/numeric authors persisted
+junk — the checkout TYPE-strictness posture mirrored at the last coercing
+boundary), **unbounded strings at the track/promo-lookup boundaries** (caps
+mirrored from checkout), **the rate-limit identity taking the
+client-forgeable leftmost XFF hop at four duplicated sites** (one
+`clientIp()` seam, rightmost hop), **no security headers and an advertised
+`x-powered-by`** (the platform header set + fingerprint suppression, e2e
+pinned), the header strip and /offers metadata misattributing the max
+discount to dining (max −17%; the honest lighting/cookware/decor set), the
+checkout select displaying "Tomorrow 10am" while POSTing an already-past
+"Today 2pm" across the 14:00 SGT cutoff (adjust-during-render reset; the
+payload pin captures the intercepted POST), hardcoded metadata counts
+(home/planning-tools/shop now derive), a JSON-LD seam missing the
+U+2028/U+2029 escapes, the site origin hardcoded in 17 files (one
+`SITE_ORIGIN` constant, fs-pinned), a 404-ing favicon (app icon + web
+manifest added), and the e2e suite's admitted hydration blindness (the
+`html[data-hydrated]` sentinel + `gotoHydrated` gate). The mobile project
+now runs on `devices["iPhone 13"]` (touch + DPR 3 + real UA — hover-gated
+Tailwind v4 variants render the way phones hit them). Suite grew to 145
+unit + 97 e2e. Details in `worklog.md` and
+`docs/plans/2026-11-19-task125-remediation-plan.md`.
 
 Current cycle (2026-11-19, Task 124): workspace-refresh re-audit (mobile-nav
 taxonomy re-verified clean at 390/1440 — no Tailwind v4 bug; baseline gates

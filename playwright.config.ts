@@ -25,10 +25,14 @@ export default defineConfig({
     {
       // The mobile navigation seam — the taxonomy from the Tailwind v4 skill:
       // open, Escape, toggle, navigate, auto-close, hamburger hidden ≥ lg.
+      // Task 125 G-7: devices["iPhone 13"] keeps the same 390×844 viewport
+      // and adds touch emulation (hasTouch), DPR 3 and a real mobile UA —
+      // the only way the suite sees the phone-side rendering of Tailwind v4
+      // hover-gated variants (@media (hover: hover) never matches).
       name: "mobile-navigation",
       testMatch: /mobile-navigation\.spec\.ts/,
       use: {
-        viewport: { width: 390, height: 844 },
+        ...devices["iPhone 13"],
         browserName: "chromium",
       },
     },

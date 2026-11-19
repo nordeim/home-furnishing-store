@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex, campaignEnd, campaignEndLabel, sgTomorrowISO, sortProductList, DELIVERY_SLOTS, isValidDeliverySlot, availableDeliverySlots } from "@/lib/utils";
+import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex, campaignEnd, campaignEndLabel, sgTomorrowISO, sortProductList, DELIVERY_SLOTS, isValidDeliverySlot, availableDeliverySlots, jsonLdScript } from "@/lib/utils";
 
 describe("formatSGD", () => {
   // The currency symbol depends on the node build's ICU data ($ vs S$) — assert
@@ -334,5 +334,36 @@ describe("sortProductList (the shared display-sort seam — Task 122 F-6)", () =
     const before = JSON.stringify(rows);
     sortProductList(rows, "price-asc");
     expect(JSON.stringify(rows)).toBe(before);
+  });
+});
+
+/**
+ * Task 125 G-3: the JSON-LD serialization seam. Both ld+json sites used to
+ * inline `JSON.stringify(x).replace(/</g, "\\u003c")` — `<` is escaped but
+ * U+2028/U+2029 are not: both are LEGAL inside JSON strings yet terminate JS
+ * string semantics in some embedding contexts, breaking the script element.
+ * Catalog-authored payloads today; review text is one product away.
+ */
+describe("jsonLdScript (Task 125 G-3)", () => {
+  it("escapes </script> so hostile payloads cannot close the element early", () => {
+    const out = jsonLdScript({ name: "</script><script>alert(1)</script>" });
+    expect(out).not.toContain("</script>");
+    expect(out).toContain("\\u003c");
+  });
+
+  it("escapes U+2028 and U+2029 line terminators", () => {
+    // Explicit code points — the raw characters are invisible in source.
+    const hostile = `line${String.fromCodePoint(0x2028)}sep${String.fromCodePoint(0x2029)}ends`;
+    const out = jsonLdScript({ body: hostile });
+    expect(out).not.toContain(String.fromCodePoint(0x2028));
+    expect(out).not.toContain(String.fromCodePoint(0x2029));
+    expect(out).toContain("\\u2028");
+    expect(out).toContain("\\u2029");
+  });
+
+  it("round-trips: the escaped output still JSON.parses to the original data", () => {
+    const data = { name: "SOLBAKKEN 3-seat sofa", price: 79900, note: "a<b c" };
+    const out = jsonLdScript(data);
+    expect(JSON.parse(out)).toEqual(data);
   });
 });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { validatePromo } from "@/lib/server-data";
-import { createRateLimiter } from "@/lib/rate-limit";
+import { createRateLimiter, clientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 const limiter = createRateLimiter({ limit: 20, windowMs: 60_000 });
 
 export async function POST(req: Request) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  const ip = clientIp(req.headers); // rightmost XFF hop (Task 125 G-2)
   if (limiter.throttled(ip)) {
     return NextResponse.json({ ok: false, error: { code: "RATE_LIMIT", message: "Too many attempts. Please wait a minute." } }, { status: 429, headers: { "Retry-After": String(limiter.retryAfterSec(ip)) } });
   }
@@ -22,7 +22,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: { code: "BAD_REQUEST", message: "Expected a JSON body." } }, { status: 400 });
   }
   try {
-    const result = await validatePromo(String(body.code ?? ""), Math.max(0, Math.round(Number(body.subtotalCents) || 0)));
+    // Task 125 F-3: mirror the checkout promoCode cap (≤32) and the persisted
+    // promo store's predicate — an unbounded code string went straight into
+    // the promotions-table lookup.
+    const code = String(body.code ?? "");
+    if (code.length > 32) {
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Promo codes are at most 32 characters." } }, { status: 422 });
+    }
+    const result = await validatePromo(code, Math.max(0, Math.round(Number(body.subtotalCents) || 0)));
     if (!result.ok) {
       return NextResponse.json({ ok: false, error: { code: "INVALID_PROMO", message: result.error } }, { status: 422 });
     }

@@ -5,7 +5,7 @@ import { expect, test } from "@playwright/test";
 import { Client } from "pg";
 // Task 124 F-14: the sitemap count derives from the catalogue constants (the
 // unit suite's approach) — a hardcoded 42 broke on the first catalogue edit.
-import { PRODUCTS, INSPIRATIONS } from "../../src/lib/catalog";
+import { CATEGORIES, INSPIRATIONS, PRODUCTS } from "../../src/lib/catalog";
 
 // PDP specs must select the Product JSON-LD node, not the first script — the
 // root layout's site-level Organization/WebSite graph precedes it in the DOM.
@@ -680,7 +680,10 @@ test.describe("SEO metadata blanket (Task 119)", () => {
     // metadata export extends in place, no layout needed).
     const routes: Array<[string, RegExp]> = [
       ["/inspiration", /Real Singapore homes/],
-      ["/offers", /Up to 24% off/],
+      // Task 125 F-5: tightened to hold the ATTRIBUTION (the Task-122 F-19
+      // fix landed on the visible copy only — the metadata kept "dining,
+      // decor and sleep", both ≤17%).
+      ["/offers", /Up to 24% off lighting/],
       ["/services", /deliver, assemble/],
       ["/stores", /Three NORDHEM stores/],
       ["/food", /Swedish-inspired/],
@@ -731,9 +734,11 @@ test.describe("SEO metadata blanket (Task 119)", () => {
   test("home ships its own title and description, not the layout default", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveTitle("NORDHEM Singapore — Scandinavian furniture, beds, dining & more");
+    // Task 125 F-8: the description derives its counts from the catalogue
+    // (the sitemap-derivation pattern) — a catalogue edit self-corrects.
     await expect(page.locator('meta[name="description"]')).toHaveAttribute(
       "content",
-      /24 products across 8 room categories/
+      new RegExp(`${PRODUCTS.length} products across ${CATEGORIES.length} room categories`)
     );
     await expect(page.locator("link[rel=canonical]")).toHaveAttribute("href", "https://nordhem.sg");
   });
@@ -1443,6 +1448,12 @@ test.describe("checkout form error placement (Task 121 F-12)", () => {
 
 test.describe("checkout fulfilment method switch (Task 121 F-20 pin)", () => {
   test("switching to Click & Collect re-derives the slot options", async ({ page }) => {
+    // Task 125 F-1: the slot options became clock-sensitive in Task-124 F-8
+    // ("Today 2pm" hides after 14:00 SGT) — this spec used to run on the real
+    // clock and would fail on any post-cutoff run. Pin a pre-cutoff instant
+    // (10:00 SGT, the F-8 sibling's) so the re-derivation assertion is
+    // deterministic.
+    await page.clock.setFixedTime(new Date("2026-11-19T02:00:00Z")); // 10:00 SGT
     await page.goto("/product/solbakken-3-seat-sofa");
     await page.getByRole("button", { name: "Add to bag" }).click();
     await page.goto("/checkout");
@@ -1751,6 +1762,67 @@ test.describe("checkout qty/productId type strictness (Task 124 F-5)", () => {
   });
 });
 
+test.describe("reviews POST type strictness (Task 125 F-2)", () => {
+  test("non-number TYPES are refused instead of coerced into junk reviews", async ({ request }) => {
+    // Task-124 F-5 made checkout drop non-number TYPES; the reviews boundary
+    // still coerced: Number(true)===1, Number([3])===3, Number("5")===5, and
+    // String(1e19) is a 20-char "name" that sails past the ≤60 cap. Crafted
+    // TYPES must be a 422, never a persisted junk row riding the live review
+    // list (and the Task-123 F-10 count-truth chain).
+    // The RED path of this probe WRITES (today: 201) — safety-net cleanup
+    // keyed on the probe's own titles (the gotcha #13 discipline).
+    const client = new Client({ connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db" });
+    await client.connect();
+    try {
+      const probes: Array<[string, Record<string, unknown>]> = [
+        ["boolean rating", { productId: 1, author: "Type Probe", rating: true, title: "task125-f2-probe-bool", body: "probe" }],
+        ["numeric-string rating", { productId: 1, author: "Type Probe", rating: "5", title: "task125-f2-probe-str", body: "probe" }],
+        ["numeric author", { productId: 1, author: 10000000000000000000, rating: 5, title: "task125-f2-probe-num", body: "probe" }],
+        ["numeric body", { productId: 1, author: "Type Probe", rating: 5, title: "task125-f2-probe-body", body: 42 }],
+      ];
+      for (const [label, payload] of probes) {
+        const res = await request.post("/api/reviews", {
+          headers: { "x-forwarded-for": "10.9.125.2" },
+          data: payload,
+        });
+        const body = (await res.json()) as { ok?: boolean; error?: { code?: string } };
+        expect(res.status(), label).toBe(422);
+        expect(body.error?.code, label).toBe("VALIDATION");
+      }
+    } finally {
+      await client.query("delete from reviews where title like 'task125-f2-probe-%'");
+      await client.end();
+    }
+  });
+});
+
+test.describe("track + promo field caps (Task 125 F-3)", () => {
+  test("overlong order numbers / emails / promo codes are refused with 422 VALIDATION", async ({ request }) => {
+    // The checkout boundary caps every field (email ≤254, promoCode ≤32 —
+    // Task 120 F-3); the PII-lookup pair accepted unbounded strings into the
+    // parameterized lookups. Mirror the known shapes: order numbers are
+    // NH-YYYYMMDD-XXXXXX (17 chars) → ≤32, emails ≤254, codes ≤32 (the
+    // isValidPromoPayload / checkout cap).
+    const trackRes = await request.post("/api/orders/track", {
+      headers: { "x-forwarded-for": "10.9.125.3" },
+      data: { orderNumber: "NH-" + "9".repeat(40), email: "x".repeat(500) + "@nordhem.sg" },
+    });
+    expect(trackRes.status()).toBe(422);
+    const trackJson = (await trackRes.json()) as { ok: boolean; error: { code: string } };
+    expect(trackJson.ok).toBe(false);
+    expect(trackJson.error.code).toBe("VALIDATION");
+
+    const promoRes = await request.post("/api/promotions/validate", {
+      headers: { "x-forwarded-for": "10.9.125.4" },
+      data: { code: "X".repeat(100), subtotalCents: 5000 },
+    });
+    expect(promoRes.status()).toBe(422);
+    const promoJson = (await promoRes.json()) as { ok: boolean; error: { code: string } };
+    expect(promoJson.ok).toBe(false);
+    expect(promoJson.error.code).toBe("VALIDATION");
+  });
+});
+
 test.describe("reviews refuse-never-truncate (Task 122 F-11)", () => {
   test("an overlong review body is refused with 422, not silently truncated", async ({ request }) => {
     const res = await request.post("/api/reviews", {
@@ -1876,6 +1948,18 @@ test.describe("home hero discount attribution (Task 122 F-19)", () => {
     await expect(hero.getByText(/Up to 24% off/)).toContainText(/lighting/i);
     await expect(hero.getByText(/Up to 24% off/)).not.toContainText(/extendable dining tables/i);
   });
+
+  test("the header utility strip's discount claim is attributed honestly too (Task 125 F-4)", async ({ page }) => {
+    // Task-122 F-19 fixed the hero but the header strip kept "up to 24% off
+    // dining & decor" — dining's max is −17%; the 24% is NORDLYS
+    // (lighting/decor). The strip must lead with categories that actually
+    // carry a ≥20% discount (lighting −24%, cookware −23%, decor −24/−21%).
+    await page.goto("/");
+    const strip = page.locator("header").getByText(/up to 24% off/i);
+    await expect(strip).toContainText(/lighting/i);
+    await expect(strip).toContainText(/cookware/i);
+    await expect(strip).not.toContainText(/dining & decor/i);
+  });
 });
 
 test.describe("shop SSR sort order (Task 122 F-6)", () => {
@@ -1894,5 +1978,110 @@ test.describe("shop SSR sort order (Task 122 F-6)", () => {
     const sorted = [...cents].sort((a, b) => a - b);
     expect(cents).toEqual(sorted);
     await context.close();
+  });
+});
+
+test.describe("security headers + fingerprint suppression (Task 125 G-1)", () => {
+  test("every response carries the platform header set and no x-powered-by", async ({ request }) => {
+    // The homenest posture: nosniff, frame denial, referrer trimming, a
+    // permissions lockout and HSTS — plus poweredByHeader: false so the
+    // stack is not advertised. Pinned on both a page and an API route.
+    for (const path of ["/", "/api/products"]) {
+      const res = await request.get(path);
+      expect(res.headers()["x-content-type-options"], path).toBe("nosniff");
+      expect(res.headers()["x-frame-options"], path).toBe("DENY");
+      expect(res.headers()["referrer-policy"], path).toBe("strict-origin-when-cross-origin");
+      expect(res.headers()["permissions-policy"], path).toContain("camera=()");
+      expect(res.headers()["permissions-policy"], path).toContain("payment=()");
+      expect(res.headers()["strict-transport-security"], path).toContain("max-age=63072000");
+      expect(res.headers()["x-powered-by"], path).toBeUndefined();
+    }
+  });
+});
+
+test.describe("checkout slot clock coherence (Task 125 F-6)", () => {
+  test("a slot held past its own 14:00 SGT cutoff is reset before submit — display and payload agree", async ({ page }) => {
+    // Task-124 F-8 hid "Today 2pm" from the OPTIONS after the cutoff, but
+    // form.slot kept holding it: a checkout opened before 14:00 SGT that
+    // re-renders after the cutoff DISPLAYS "Tomorrow 10am" (the controlled
+    // select falls back to the first option) while POSTing the already-past
+    // "Today 2pm". The adjust-during-render guard resets a held slot the
+    // moment it leaves the available set — display and payload must agree.
+    // The POST is intercepted (fixed 422 — no DB write, no navigation).
+    await page.clock.setFixedTime(new Date("2026-11-19T05:59:00Z")); // 13:59 SGT
+    await page.goto("/product/katong-bedside-table");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await page.goto("/checkout");
+    await page.getByRole("button", { name: /Click & Collect/ }).click();
+    const slot = page.getByLabel("Time slot");
+    await expect(slot).toHaveValue("Today 2pm");
+
+    // Object wrapper: TS control-flow narrows a plain `let captured = null`
+    // to `never` at the read site (closure assignments are not tracked).
+    const state: { captured: { deliverySlot?: string } | null } = { captured: null };
+    await page.route("**/api/checkout", async (route) => {
+      state.captured = route.request().postDataJSON() as { deliverySlot?: string };
+      await route.fulfill({
+        status: 422,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: false, error: { code: "VALIDATION", message: "intercepted-probe" } }),
+      });
+    });
+
+    // Cross the cutoff, then force a re-render (typing re-derives options).
+    await page.clock.setFixedTime(new Date("2026-11-19T07:01:00Z")); // 15:01 SGT
+    await page.getByLabel("Full name").fill("Clock Probe");
+    const options = await slot.locator("option").allTextContents();
+    expect(options).toEqual(["Tomorrow 10am"]);
+    // The displayed select falls back to the first option — and the STATE
+    // must follow it (the pre-fix bug kept "Today 2pm" in the payload).
+    await expect(slot).toHaveValue("Tomorrow 10am");
+
+    await page.getByLabel("Email").fill("clock-probe@nordhem.sg");
+    await page.getByLabel("Phone").fill("+65 91234567");
+    await page.getByLabel("Postal code").fill("521123");
+    await page.getByPlaceholder("Blk, street, unit number").fill("Blk 1 Clock Rd #01-01");
+    await page.getByRole("button", { name: /Pay / }).click();
+    // Scope to the text — the form alert shares role=alert with Next's route
+    // announcer (strict-mode would resolve 2 elements).
+    await expect(page.getByText("intercepted-probe")).toBeVisible();
+    expect(state.captured?.deliverySlot).toBe("Tomorrow 10am");
+  });
+});
+
+test.describe("web manifest + app icon (Task 125 G-6)", () => {
+  test("the icon and manifest resolve and are linked from the document head", async ({ page, request }) => {
+    // Every browser request for /favicon.ico used to 404 (no app icon, no
+    // public/ dir) and there was no installable-PWA metadata. Next's file
+    // conventions: app/icon.svg → /icon.svg (+ <link rel="icon">), and
+    // app/manifest.ts → /manifest.webmanifest (+ <link rel="manifest">).
+    await page.goto("/");
+    const iconHref = await page.locator('link[rel="icon"]').getAttribute("href");
+    expect(iconHref).toBeTruthy();
+    const iconRes = await request.get(iconHref!);
+    expect(iconRes.status()).toBe(200);
+
+    const manifestHref = await page.locator('link[rel="manifest"]').getAttribute("href");
+    expect(manifestHref).toBeTruthy();
+    const manifestRes = await request.get(manifestHref!);
+    expect(manifestRes.status()).toBe(200);
+    const manifest = (await manifestRes.json()) as { name?: string; icons?: Array<{ src?: string }> };
+    expect(manifest.name).toContain("NORDHEM");
+    expect(manifest.icons?.length ?? 0).toBeGreaterThan(0);
+    const iconInManifest = await request.get(new URL(manifest.icons![0].src!, "http://127.0.0.1:3100").toString());
+    expect(iconInManifest.status()).toBe(200);
+  });
+});
+
+test.describe("hydration sentinel (Task 125 G-5)", () => {
+  test("html[data-hydrated] appears on the home page, the shop grid and a PDP", async ({ page }) => {
+    // CartProvider (the root client boundary) stamps the sentinel on mount —
+    // the e2e suite's hydration gate. Before this, the suite was blind to
+    // hydration states (AGENTS gotcha #11's own admission): a pre-hydration
+    // click silently no-ops.
+    for (const path of ["/", "/shop", "/product/solbakken-3-seat-sofa"]) {
+      await page.goto(path);
+      await expect(page.locator("html")).toHaveAttribute("data-hydrated", "true", { timeout: 20_000 });
+    }
   });
 });
