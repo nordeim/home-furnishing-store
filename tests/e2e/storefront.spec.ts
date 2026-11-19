@@ -7,7 +7,7 @@ import { gotoHydrated } from "./helpers";
 // Task 124 F-14: the sitemap count derives from the catalogue constants (the
 // unit suite's approach) — a hardcoded 42 broke on the first catalogue edit.
 import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, catalogMaxDiscountPercent } from "../../src/lib/catalog";
-import { GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, FAMILY_VOUCHER_CENTS, FAMILY_POINTS_PER_VOUCHER, FAMILY_POINTS_PER_DOLLAR } from "../../src/lib/utils";
+import { GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, FAMILY_VOUCHER_CENTS, FAMILY_POINTS_PER_VOUCHER, FAMILY_POINTS_PER_DOLLAR, TRADE_RATE, formatSGD } from "../../src/lib/utils";
 
 // Task 126 F-3: the max-discount pins derive from the catalogue (the same
 // seam the hero/strip/offers copy interpolates) — a catalogue edit
@@ -291,13 +291,24 @@ test.describe("API envelope", () => {
   });
 
   test("reviews POST rejects a bad rating / short name with 422", async ({ request }) => {
-    const res = await request.post("/api/reviews", {
-      headers: { "x-forwarded-for": "10.9.124.13" },
-      data: { productId: 1, author: "X", rating: 9, body: "n/a" },
-    });
-    expect(res.status()).toBe(422);
-    const json = (await res.json()) as { ok: boolean; error: { code: string } };
-    expect(json.error.code).toBe("VALIDATION");
+    // Task 129 F-1c: this refusal spec is write-capable — a compound-validation
+    // regression (rating bound AND author-min both reverted) inserts the junk
+    // row. The RED-run net keys on the probe's own identity (lesson 33) and
+    // lives in a finally (lesson 39: a net after a failing expect is dead code).
+    const client = new Client({ connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db" });
+    await client.connect();
+    try {
+      const res = await request.post("/api/reviews", {
+        headers: { "x-forwarded-for": "10.9.124.13" },
+        data: { productId: 1, author: "X", rating: 9, body: "n/a" },
+      });
+      expect(res.status()).toBe(422);
+      const json = (await res.json()) as { ok: boolean; error: { code: string } };
+      expect(json.error.code).toBe("VALIDATION");
+    } finally {
+      await client.query("delete from reviews where author = 'X' and body = 'n/a'");
+      await client.end();
+    }
   });
 
   test("malformed JSON body is a 400 client error, not a 500 (envelope on every route)", async ({ page }) => {
@@ -339,6 +350,11 @@ test.describe("API envelope", () => {
       const probes: Array<{ path: string; body: string }> = [
         { path: "/api/checkout", body: "null" },
         { path: "/api/checkout", body: "5" },
+        // Task 129 F-7: the checkout Array.isArray branch, pinned — an array
+        // IS an object (typeof "object") and parses cleanly, but it is not
+        // the record the field reads assume; before the guard it limped to a
+        // 422 "bag" of nothing (the 400 parse class is the honest answer).
+        { path: "/api/checkout", body: '["a"]' },
         { path: "/api/reviews", body: "null" },
         { path: "/api/promotions/validate", body: "null" },
         { path: "/api/orders/track", body: "null" },
@@ -855,6 +871,28 @@ test.describe("SEO metadata blanket (Task 119)", () => {
     );
   });
 
+  test("the business estimate panel derives from TRADE_RATE — label, saving and net (Task 129 F-4)", async ({ page }) => {
+    // Task 128 F-9 gave the business half the CONSTANT (calculator and copy
+    // derive) but no pin — a revert to a hand-copied 0.12/"12%" pair passed
+    // every gate (the copy↔math drift class). This pins the family-derived
+    // pattern's business sibling: the label interpolates the rate, and the
+    // saving/estimate rows equal the page's own formula at the default
+    // quantities. DEFAULT_LIST_CENTS recomputes the page's initial state
+    // (desk ×10, meet4 ×1, pantry ×1, locker ×2) — a unit-price or
+    // default-quantity edit fails this pin LOUDLY (self-alerting, like the
+    // journey amounts).
+    await gotoHydrated(page, "/business");
+    const DEFAULT_LIST_CENTS = 77800 * 10 + 129800 + 219800 + 34900 * 2; // 1,197,400
+    const trade = Math.round(DEFAULT_LIST_CENTS * TRADE_RATE);
+    const panel = page.locator("aside");
+    await expect(panel).toContainText(`Trade saving (${Math.round(TRADE_RATE * 100)}%)`);
+    // The dt/dd pairs render with no whitespace between them (single-line JSX),
+    // so each row's label and value concatenate in the text content.
+    await expect(panel).toContainText(`List total${formatSGD(DEFAULT_LIST_CENTS)}`);
+    await expect(panel).toContainText(`−${formatSGD(trade)}`);
+    await expect(panel).toContainText(`Estimate${formatSGD(DEFAULT_LIST_CENTS - trade)}`);
+  });
+
   test("inspiration detail ships generated metadata", async ({ page }) => {
     // Task 119 F-5: the 6 sitemap-pinned room URLs previously had no
     // metadata export at all.
@@ -1364,36 +1402,32 @@ test.describe("checkout slot coherence (Task 123 F-3)", () => {
   });
 
   test("a method-coherent slot still places the order (the boundary does not over-refuse)", async ({ request }) => {
-    const res = await request.post("/api/checkout", {
-      headers: { "x-forwarded-for": "10.9.123.10" },
-      data: {
-        email: "slot-ok-probe@nordhem.sg",
-        fullName: "Slot Ok Probe",
-        phone: "+65 91234567",
-        address: "Blk 1 Testing Rd #01-01",
-        postal: "089001",
-        deliveryMethod: "express",
-        deliverySlot: "Next-day by 6pm",
-        storeSlug: "tampines",
-        paymentMethod: "card",
-        lines: [{ productId: 1, qty: 1 }],
-      },
-    });
-    expect(res.status()).toBe(201);
-    // The coherence spec places a REAL order — clean it up (gotcha #13).
-    const body = (await res.json()) as { data?: { orderNumber?: string } };
-    const orderNo = body.data?.orderNumber;
-    if (orderNo) {
-      const client = new Client({ connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db" });
-      await client.connect();
-      try {
-        await client.query("delete from order_items where order_id in (select id from orders where order_number = $1)", [orderNo]);
-        await client.query("delete from orders where order_number = $1", [orderNo]);
-        // productId 1 = SOLBAKKEN; delivery decrements tampines — restore.
-        await client.query("update inventory set quantity = quantity + 1 where product_id = 1 and store_slug = 'tampines'");
-      } finally {
-        await client.end();
-      }
+    // Task 129 F-8: this positive-control spec places a REAL order — the
+    // cleanup runs in a finally via the shared helper (order delete by email +
+    // inventory restore re-derived from the inserted rows), so a throw between
+    // the 201 and the cleanup (e.g. a json() parse failure) cannot strand the
+    // row (the lesson-39 rule applied to the one positive writer).
+    try {
+      const res = await request.post("/api/checkout", {
+        headers: { "x-forwarded-for": "10.9.123.10" },
+        data: {
+          email: "slot-ok-probe@nordhem.sg",
+          fullName: "Slot Ok Probe",
+          phone: "+65 91234567",
+          address: "Blk 1 Testing Rd #01-01",
+          postal: "089001",
+          deliveryMethod: "express",
+          deliverySlot: "Next-day by 6pm",
+          storeSlug: "tampines",
+          paymentMethod: "card",
+          lines: [{ productId: 1, qty: 1 }],
+        },
+      });
+      expect(res.status()).toBe(201);
+      const body = (await res.json()) as { data?: { orderNumber?: string } };
+      expect(body.data?.orderNumber).toBeTruthy();
+    } finally {
+      await deleteProbeOrders("slot-ok-probe@nordhem.sg");
     }
   });
 });
@@ -1420,8 +1454,12 @@ test.describe("search settle discipline (Task 121 F-1)", () => {
     });
 
     // Phase 1 — frozen debounce: no verdict may render while unsettled.
-    await page.goto("/search?q=sofa");
-    await page.waitForTimeout(900); // hydration + margin: the flash would be showing by now
+    // Task 129 F-2: gotoHydrated replaces the bare goto + 900ms sleep — the
+    // phase-2 submit click is React-dependent, and a sleep is not a hydration
+    // proof (the sentinel mount-effect is unaffected by the debounce freeze,
+    // which only swallows 200–300ms setTimeout calls).
+    await gotoHydrated(page, "/search?q=sofa");
+    await page.waitForTimeout(900); // margin: the flash would be showing by now
     await expect(page.getByText(/^0 results/)).toHaveCount(0);
     await expect(page.getByText("No products found")).toHaveCount(0);
 
@@ -1460,7 +1498,10 @@ test.describe("search stale-error discipline (Task 123 F-4)", () => {
       route.request().url().includes("q=zzzfail") ? route.abort() : route.continue());
 
     // Phase 1 — the first search genuinely fails: the error box must show.
-    await page.goto("/search?q=zzzfail");
+    // Task 129 F-2: the phases below fill/click — route through gotoHydrated
+    // (the positive errorBox assertion already proves the client ran, but
+    // the broad "interaction-first" reading is now mechanically true).
+    await gotoHydrated(page, "/search?q=zzzfail");
     const errorBox = page.locator("#main").getByRole("alert").filter({ hasText: /couldn.t load results/i });
     await expect(errorBox).toBeVisible({ timeout: 10_000 });
 
@@ -1531,7 +1572,8 @@ test.describe("search retry settle discipline (Task 124 F-13)", () => {
     await page.route("**/api/products**", (route) => route.abort());
 
     // Phase 1 — the search fails and settles: the error box shows.
-    await page.goto("/search?q=zzzfail");
+    // Task 129 F-2: same conversion — the phase-2 Try-again click follows.
+    await gotoHydrated(page, "/search?q=zzzfail");
     const errorBox = page.locator("#main").getByRole("alert").filter({ hasText: /couldn.t load results/i });
     await expect(errorBox).toBeVisible({ timeout: 10_000 });
 
@@ -1905,20 +1947,27 @@ test.describe("checkout qty:null drop semantics (Task 122 F-8)", () => {
     // 1 — a crafted single-line order with qty:null placed a real order.
     // null/undefined must behave like every other non-number: drop the line
     // (an all-dropped bag is EMPTY_BAG, never a quiet qty-1 order).
-    const res = await request.post("/api/checkout", {
-      headers: { "x-forwarded-for": "10.9.122.3" },
-      data: {
-        email: "nullqty-probe@nordhem.sg",
-        fullName: "Null Qty Probe",
-        phone: "+65 91234567",
-        address: "Blk 1 Testing Rd #01-01",
-        postal: "089001",
-        lines: [{ productId: 1, qty: null }],
-      },
-    });
-    const body = (await res.json()) as { ok?: boolean; error?: { code?: string } };
-    expect(res.status()).toBe(422);
-    expect(body.error?.code).toBe("EMPTY_BAG");
+    // Task 129 F-1a: this refusal spec is write-capable (a qty-boundary
+    // regression places a real order for product 1) — the RED-run net
+    // (order delete + inventory restore) lives in a finally.
+    try {
+      const res = await request.post("/api/checkout", {
+        headers: { "x-forwarded-for": "10.9.122.3" },
+        data: {
+          email: "nullqty-probe@nordhem.sg",
+          fullName: "Null Qty Probe",
+          phone: "+65 91234567",
+          address: "Blk 1 Testing Rd #01-01",
+          postal: "089001",
+          lines: [{ productId: 1, qty: null }],
+        },
+      });
+      const body = (await res.json()) as { ok?: boolean; error?: { code?: string } };
+      expect(res.status()).toBe(422);
+      expect(body.error?.code).toBe("EMPTY_BAG");
+    } finally {
+      await deleteProbeOrders("nullqty-probe@nordhem.sg");
+    }
   });
 });
 
@@ -1998,6 +2047,64 @@ test.describe("checkout free-text field type strictness (Task 127 F-2)", () => {
   });
 });
 
+test.describe("checkout enum/promo field type + whitelist strictness (Task 129 F-3)", () => {
+  test("non-string or unknown TYPES on deliveryMethod/paymentMethod and non-string promoCode are refused, never silently coerced", async ({ request }) => {
+    // Task-127 F-2 closed the FREE-TEXT class; the enum class stayed half
+    // open — storeSlug (Task 121 F-7) and deliverySlot (Task 123 F-3/127 F-2)
+    // refuse crafted values, but deliveryMethod/paymentMethod String()-coerce
+    // (paymentMethod: ["card"] → String(["card"]) === "card" → a REAL 201
+    // order on a crafted type) and promoCode silently null-drops non-strings.
+    // Unknown STRINGS must also refuse — the storeSlug/deliverySlot posture,
+    // not a silent default. Absent fields keep the documented defaults.
+    // The RED path of every probe here WRITES (today: 201) — shared net in
+    // the finally (the Task-126 F-2 discipline).
+    try {
+      const probes: Array<[string, Record<string, unknown>]> = [
+        ["array paymentMethod (String-coerces to a real method)", { paymentMethod: ["card"] }],
+        ["numeric deliveryMethod (silently defaults)", { deliveryMethod: 5 }],
+        ["numeric promoCode (silently null-dropped)", { promoCode: 42 }],
+        ["unknown-string deliveryMethod (silently defaults)", { deliveryMethod: "teleport" }],
+        ["unknown-string paymentMethod (silently defaults)", { paymentMethod: "crypto" }],
+      ];
+      for (const [label, patch] of probes) {
+        const res = await request.post("/api/checkout", {
+          headers: { "x-forwarded-for": "10.9.129.1" },
+          data: {
+            email: "enum-probe@nordhem.sg",
+            fullName: "Enum Probe",
+            phone: "+65 91234567",
+            address: "Blk 1 Testing Rd #01-01",
+            postal: "089001",
+            lines: [{ productId: 1, qty: 1 }],
+            ...patch,
+          },
+        });
+        const body = (await res.json()) as { ok?: boolean; error?: { code?: string } };
+        expect(res.status(), label).toBe(422);
+        expect(body.error?.code, label).toBe("VALIDATION");
+      }
+      // The UI's own "no promo" encoding — promoCode: null — MUST stay
+      // accepted (checkout/page.tsx always sends the key; cart-store types
+      // it string | null). A valid order still places (201) with no promo.
+      const nullPromo = await request.post("/api/checkout", {
+        headers: { "x-forwarded-for": "10.9.129.1" },
+        data: {
+          email: "enum-probe@nordhem.sg",
+          fullName: "Enum Probe",
+          phone: "+65 91234567",
+          address: "Blk 1 Testing Rd #01-01",
+          postal: "089001",
+          promoCode: null,
+          lines: [{ productId: 1, qty: 1 }],
+        },
+      });
+      expect(nullPromo.status()).toBe(201);
+    } finally {
+      await deleteProbeOrders("enum-probe@nordhem.sg");
+    }
+  });
+});
+
 test.describe("reviews POST type strictness (Task 125 F-2)", () => {
   test("non-number TYPES are refused instead of coerced into junk reviews", async ({ request }) => {
     // Task-124 F-5 made checkout drop non-number TYPES; the reviews boundary
@@ -2037,7 +2144,7 @@ test.describe("track + promo field caps (Task 125 F-3)", () => {
     // The checkout boundary caps every field (email ≤254, promoCode ≤32 —
     // Task 120 F-3); the PII-lookup pair accepted unbounded strings into the
     // parameterized lookups. Mirror the known shapes: order numbers are
-    // NH-YYYYMMDD-XXXXXX (17 chars) → ≤32, emails ≤254, codes ≤32 (the
+    // NH-YYYYMMDD-XXXXXX (18 chars) → ≤32, emails ≤254, codes ≤32 (the
     // isValidPromoPayload / checkout cap).
     const trackRes = await request.post("/api/orders/track", {
       headers: { "x-forwarded-for": "10.9.125.3" },
@@ -2100,20 +2207,29 @@ test.describe("track + promo field caps (Task 125 F-3)", () => {
 
 test.describe("reviews refuse-never-truncate (Task 122 F-11)", () => {
   test("an overlong review body is refused with 422, not silently truncated", async ({ request }) => {
-    const res = await request.post("/api/reviews", {
-      headers: { "x-forwarded-for": "10.9.122.4" },
-      data: {
-        productId: 1,
-        author: "Truncation Probe",
-        rating: 5,
-        title: "Long body probe",
-        body: "x".repeat(3000),
-      },
-    });
-    const body = (await res.json()) as { ok?: boolean; error?: { code?: string; message?: string } };
-    expect(res.status()).toBe(422);
-    expect(body.error?.code).toBe("VALIDATION");
-    expect(body.error?.message).toMatch(/too long|shorter/i);
+    // Task 129 F-1b: a cap regression INSERTS the 3000-char probe row — the
+    // RED-run net (the Task-125 F-2 sibling pattern) lives in a finally.
+    const client = new Client({ connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db" });
+    await client.connect();
+    try {
+      const res = await request.post("/api/reviews", {
+        headers: { "x-forwarded-for": "10.9.122.4" },
+        data: {
+          productId: 1,
+          author: "Truncation Probe",
+          rating: 5,
+          title: "Long body probe",
+          body: "x".repeat(3000),
+        },
+      });
+      const body = (await res.json()) as { ok?: boolean; error?: { code?: string; message?: string } };
+      expect(res.status()).toBe(422);
+      expect(body.error?.code).toBe("VALIDATION");
+      expect(body.error?.message).toMatch(/too long|shorter/i);
+    } finally {
+      await client.query("delete from reviews where author = 'Truncation Probe'");
+      await client.end();
+    }
   });
 });
 

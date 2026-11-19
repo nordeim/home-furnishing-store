@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { expect, test } from "vitest";
 
 /**
@@ -20,8 +20,13 @@ import { expect, test } from "vitest";
  *   four docs stayed truthful.
  */
 
-const unitDir = "tests/unit";
-const e2eDir = "tests/e2e";
+// Task 129 F-9: repo-root anchor — cwd-relative paths break with a confusing
+// ENOENT when vitest runs from a subdirectory; resolve from this file's own
+// location instead (the local-store fs-pin precedent).
+const ROOT = resolve(import.meta.dirname, "../..");
+
+const unitDir = join(ROOT, "tests/unit");
+const e2eDir = join(ROOT, "tests/e2e");
 
 const unitFiles = readdirSync(unitDir).filter((f) => /\.test\.tsx?$/.test(f));
 const e2eFiles = readdirSync(e2eDir).filter((f) => /\.spec\.ts$/.test(f));
@@ -39,7 +44,7 @@ const unitCount = countMatches(unitFiles, unitDir, /^\s*(?:test|it)\(/gm);
 const e2eCount = countMatches(e2eFiles, e2eDir, /^\s*test\(/gm);
 
 function claimed(doc: string, re: RegExp): number {
-  const m = readFileSync(doc, "utf8").match(re);
+  const m = readFileSync(join(ROOT, doc), "utf8").match(re);
   expect(m, `${doc}: claim pattern ${re.source} not found — the claim site moved?`).not.toBeNull();
   return Number(m?.[1] ?? -1);
 }
@@ -67,7 +72,7 @@ test("README.md e2e count === fs reality", () => {
   expect(claimed("README.md", /Playwright e2e — (\d+) tests against/)).toBe(e2eCount);
 });
 test("README.md status-table counts === fs reality", () => {
-  const doc = readFileSync("README.md", "utf8");
+  const doc = readFileSync(join(ROOT, "README.md"), "utf8");
   const m = doc.match(/(\d+) unit \+ (\d+) e2e, all green/);
   expect(m, "README status-table claim not found").not.toBeNull();
   expect(Number(m?.[1])).toBe(unitCount);
@@ -80,13 +85,13 @@ test("CLAUDE.md e2e count === fs reality", () => {
   expect(claimed("CLAUDE.md", /E2E \(Playwright, (\d+) tests\)/)).toBe(e2eCount);
 });
 test("SKILL.md gate-chain unit fraction === fs reality", () => {
-  const m = readFileSync("home-furnishing-store_SKILL.md", "utf8").match(/npm run test\s+# (\d+)\/(\d+)/);
+  const m = readFileSync(join(ROOT, "home-furnishing-store_SKILL.md"), "utf8").match(/npm run test\s+# (\d+)\/(\d+)/);
   expect(m, "SKILL gate-chain unit claim not found").not.toBeNull();
   expect(Number(m?.[1])).toBe(unitCount);
   expect(Number(m?.[2])).toBe(unitCount);
 });
 test("SKILL.md gate-chain e2e fraction === fs reality", () => {
-  const m = readFileSync("home-furnishing-store_SKILL.md", "utf8").match(/npm run test:e2e\s+# (\d+)\/(\d+)/);
+  const m = readFileSync(join(ROOT, "home-furnishing-store_SKILL.md"), "utf8").match(/npm run test:e2e\s+# (\d+)\/(\d+)/);
   expect(m, "SKILL gate-chain e2e claim not found").not.toBeNull();
   expect(Number(m?.[1])).toBe(e2eCount);
   expect(Number(m?.[2])).toBe(e2eCount);
@@ -102,14 +107,14 @@ test("PAD §1.2 tech-table counts === fs reality", () => {
   // Live-tense: "… N unit + N e2e, all green (§7)". The historical ledgers
   // ("Suite grew to …", "as of Task 118") keep their era counts — the
   // ", all green" tense marker targets only the live claim.
-  const m = readFileSync("Project_Architecture_Document.md", "utf8").match(/ (\d+) unit \+ (\d+) e2e, all green/);
+  const m = readFileSync(join(ROOT, "Project_Architecture_Document.md"), "utf8").match(/ (\d+) unit \+ (\d+) e2e, all green/);
   expect(m, "PAD §1.2 live claim not found").not.toBeNull();
   expect(Number(m?.[1])).toBe(unitCount);
   expect(Number(m?.[2])).toBe(e2eCount);
 });
 
 test("PAD §7.4 gate commands === fs reality", () => {
-  const doc = readFileSync("Project_Architecture_Document.md", "utf8");
+  const doc = readFileSync(join(ROOT, "Project_Architecture_Document.md"), "utf8");
   const unit = doc.match(/npm run test\s+# (\d+)\/(\d+) unit/);
   const e2e = doc.match(/npm run test:e2e\s+# (\d+)\/(\d+) e2e/);
   expect(unit, "PAD §7.4 unit gate claim not found").not.toBeNull();
@@ -121,14 +126,14 @@ test("PAD §7.4 gate commands === fs reality", () => {
 });
 
 test("PAD §9.2 command-table counts === fs reality", () => {
-  const m = readFileSync("Project_Architecture_Document.md", "utf8").match(/Vitest unit \((\d+)\) \/ Playwright e2e \((\d+)/);
+  const m = readFileSync(join(ROOT, "Project_Architecture_Document.md"), "utf8").match(/Vitest unit \((\d+)\) \/ Playwright e2e \((\d+)/);
   expect(m, "PAD §9.2 command-table claim not found").not.toBeNull();
   expect(Number(m?.[1])).toBe(unitCount);
   expect(Number(m?.[2])).toBe(e2eCount);
 });
 
 test("PAD §11 key-files test counts === fs reality", () => {
-  const doc = readFileSync("Project_Architecture_Document.md", "utf8");
+  const doc = readFileSync(join(ROOT, "Project_Architecture_Document.md"), "utf8");
   const unit = doc.match(/\| (\d+) files \| (\d+) unit tests/);
   const e2e = doc.match(/\| (\d+) specs \| (\d+) Playwright tests/);
   expect(unit, "PAD §11 unit row not found").not.toBeNull();
@@ -146,19 +151,19 @@ test("PAD §11 key-files test counts === fs reality", () => {
 // envelope narrative). Every health claim site must now tell the shipped
 // truth (src/app/api/health/route.ts), or the run fails.
 test("CLAUDE.md /api/health table row tells the envelope truth (Task 124 F-1)", () => {
-  const row = readFileSync("CLAUDE.md", "utf8").match(/\| `\/api\/health`[^\n]*/)?.[0] ?? "";
+  const row = readFileSync(join(ROOT, "CLAUDE.md"), "utf8").match(/\| `\/api\/health`[^\n]*/)?.[0] ?? "";
   expect(row, "CLAUDE.md /api/health table row not found").not.toBe("");
   expect(row).toContain('data: { db: "up" }');
 });
 
 test("README /api/health quick-start line tells the envelope truth (Task 124 F-1)", () => {
-  const line = readFileSync("README.md", "utf8").match(/- `curl http:\/\/localhost:3000\/api\/health`[^\n]*/)?.[0] ?? "";
+  const line = readFileSync(join(ROOT, "README.md"), "utf8").match(/- `curl http:\/\/localhost:3000\/api\/health`[^\n]*/)?.[0] ?? "";
   expect(line, "README quick-start health curl line not found").not.toBe("");
   expect(line).toContain('"data":{"db":"up"}');
 });
 
 test("README /api/health table row tells the envelope truth (Task 124 F-1)", () => {
-  const row = readFileSync("README.md", "utf8").match(/\| `\/api\/health`[^\n]*/)?.[0] ?? "";
+  const row = readFileSync(join(ROOT, "README.md"), "utf8").match(/\| `\/api\/health`[^\n]*/)?.[0] ?? "";
   expect(row, "README /api/health table row not found").not.toBe("");
   expect(row).toContain('data: { db: "up" }');
 });

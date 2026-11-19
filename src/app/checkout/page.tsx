@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useCart } from "@/lib/cart-store";
-import { effectivePromo } from "@/lib/catalog";
+import { effectivePromo, STORES, storeName } from "@/lib/catalog";
 import { availableDeliverySlots, formatSGD, mintIdempotencyKey, priceTotals, EXPRESS_DELIVERY_FEE_CENTS, FREE_DELIVERY_THRESHOLD_CENTS, GST_RATE, STANDARD_DELIVERY_FEE_CENTS } from "@/lib/utils";
 
 type Method = "delivery" | "click-collect" | "express";
@@ -124,7 +124,11 @@ export default function CheckoutPage() {
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <label className="text-[13px] font-bold">Fulfilment store
                 <select value={form.store} onChange={(e) => set("store", e.target.value)} className={input}>
-                  <option value="tampines">Tampines</option><option value="jurong">Jurong</option><option value="alexandra">Alexandra</option>
+                  {/* Task 129 F-11: the options derive from the STORES seed (the
+                      storeName display seam) — no hand-duplicated store list. */}
+                  {STORES.map((s) => (
+                    <option key={s.slug} value={s.slug}>{storeName(s.slug)}</option>
+                  ))}
                 </select>
               </label>
               <label className="text-[13px] font-bold">Time slot

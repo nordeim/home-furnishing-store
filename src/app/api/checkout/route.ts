@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { OrderRefusalError, placeOrder } from "@/lib/server-data";
 import { clampInt, IDEMPOTENCY_KEY_RE, isValidDeliverySlot, isValidEmail, isValidPhone, isValidPostal } from "@/lib/utils";
+import { STORES } from "@/lib/catalog";
 import { clientIp, createRateLimiter } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -115,7 +116,10 @@ export async function POST(req: Request) {
     // persisted verbatim was junk data in customer-facing text), and
     // deliverySlot is refused overlong like every other field — the Task-120
     // "refuse, never truncate" rule now has no slice() exceptions.
-    const STORE_SLUGS = ["tampines", "jurong", "alexandra"];
+    // Task 129 F-11: the whitelist derives from the STORES seed — the last
+    // hand-duplicated store list (a fourth store previously needed four
+    // coordinated edits across route/page/Header).
+    const STORE_SLUGS = STORES.map((s) => s.slug);
     const storeSlug = String(body.storeSlug ?? "tampines");
     if (!STORE_SLUGS.includes(storeSlug))
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Choose one of our three stores." } }, { status: 422 });
@@ -132,15 +136,44 @@ export async function POST(req: Request) {
     // copy ("Arriving {slot}" on the confirmation + tracking pages). The slot
     // must now be one the selected method actually offers (the shared
     // DELIVERY_SLOTS map — the same contract the UI's <select> enforces).
-    const deliveryMethod = ["delivery", "click-collect", "express"].includes(String(body.deliveryMethod)) ? String(body.deliveryMethod) : "delivery";
+    // Task 129 F-3: deliveryMethod joins the TYPE-strict + whitelist posture
+    // its enum siblings already enforce (storeSlug Task 121 F-7, deliverySlot
+    // Task 123 F-3 / 127 F-2) — String() coercion let crafted values ride a
+    // silent default. Present-but-invalid (wrong type OR unknown string) is a
+    // 422; an ABSENT field keeps the documented "delivery" default.
+    const DELIVERY_METHODS = ["delivery", "click-collect", "express"];
+    let deliveryMethod = "delivery";
+    if ("deliveryMethod" in body) {
+      const dm = body.deliveryMethod;
+      if (typeof dm !== "string" || !DELIVERY_METHODS.includes(dm))
+        return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Choose a delivery method." } }, { status: 422 });
+      deliveryMethod = dm;
+    }
     if (!isValidDeliverySlot(deliveryMethod, deliverySlot))
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Choose one of the offered time slots." } }, { status: 422 });
     // Task 122 F-7: promoCode joins the capped fields (the DB would refuse
     // any unknown code anyway — this refuses oversized payloads at the
     // boundary before the round-trip).
+    // Task 129 F-3: promoCode is also TYPE-strict — `promoCode: 42` used to
+    // null-drop silently. `promoCode: null` STAYS accepted: it is the
+    // checkout UI's own "no promo" encoding (the page always sends the key;
+    // cart-store types it string | null).
+    if ("promoCode" in body && body.promoCode !== null && typeof body.promoCode !== "string")
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Enter a valid promo code." } }, { status: 422 });
     const promoCode = typeof body.promoCode === "string" ? body.promoCode : null;
     if (promoCode !== null && promoCode.length > 32)
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "One or more fields are too long — keep each under its stated limit." } }, { status: 422 });
+    // Task 129 F-3 (the enum trio's last member): paymentMethod TYPE-strict +
+    // whitelist-strict — String(["card"]) === "card" placed a REAL 201 order
+    // on a crafted type. Absent keeps the documented "card" default.
+    const PAYMENT_METHODS = ["card", "paynow", "grabpay", "atome"];
+    let paymentMethod = "card";
+    if ("paymentMethod" in body) {
+      const pm = body.paymentMethod;
+      if (typeof pm !== "string" || !PAYMENT_METHODS.includes(pm))
+        return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Choose a payment method." } }, { status: 422 });
+      paymentMethod = pm;
+    }
 
     const { order, replayed } = await placeOrder({
       email,
@@ -151,7 +184,7 @@ export async function POST(req: Request) {
       deliveryMethod,
       deliverySlot,
       storeSlug,
-      paymentMethod: ["card", "paynow", "grabpay", "atome"].includes(String(body.paymentMethod)) ? String(body.paymentMethod) : "card",
+      paymentMethod,
       promoCode,
       lines,
       idempotencyKey,

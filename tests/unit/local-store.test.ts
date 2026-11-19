@@ -251,18 +251,28 @@ describe("PERSISTED_STORAGE_KEYS seam (Task 126 F-6)", () => {
     // recovery buttons partially ineffective with no failing test. The
     // seam's "by construction" claim is now actually enforced (the
     // SITE_ORIGIN fs-pin precedent).
+    // Task 129 F-6: the scan covers EVERY .ts/.tsx file under src/ (recursive)
+    // — the original two-file producers list let a call site added to any
+    // other file escape the pin with the test green.
     const read = (p: string) => fs.readFileSync(path.resolve(import.meta.dirname, "../../", p), "utf8");
-    // The producers are the call sites: cart-store.tsx (3 stores, constant
-    // keys) and Header.tsx (1 store, literal key). local-store.ts only
-    // defines the factory — a call site added THERE joins this list too.
-    const producers = ["src/lib/cart-store.tsx", "src/components/Header.tsx"];
+    const srcDir = path.resolve(import.meta.dirname, "../../src");
+    const producers: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (/\.tsx?$/.test(entry.name) && !entry.name.endsWith(".d.ts")) producers.push(path.relative(path.resolve(import.meta.dirname, "../.."), full));
+      }
+    };
+    walk(srcDir);
     // First arg is either a literal or a module const defined in the same file
     // (cart-store: const CART_KEY = "nordhem_cart_v1").
     const callRe = /createLocalStore(?:<[^>]*>)?\(\s*("[^"]+"|[A-Z][A-Z0-9_]*)/g;
+    let minted = 0;
     for (const producer of producers) {
       const src = read(producer);
       const args = [...src.matchAll(callRe)].map((m) => m[1]);
-      expect(args.length, `${producer} mints at least one store`).toBeGreaterThan(0);
+      minted += args.length;
       for (const arg of args) {
         const key = arg.startsWith('"')
           ? arg.slice(1, -1)
@@ -271,5 +281,9 @@ describe("PERSISTED_STORAGE_KEYS seam (Task 126 F-6)", () => {
         expect(PERSISTED_STORAGE_KEYS, `${producer} key "${key}"`).toContain(key);
       }
     }
+    // The known producers today: cart-store.tsx (3 constant-keyed stores) +
+    // Header.tsx (1 literal-keyed store). The floor catches a scan that
+    // silently matches nothing (a regex regression would zero it).
+    expect(minted, "src/ mints the known four persisted stores").toBeGreaterThanOrEqual(4);
   });
 });

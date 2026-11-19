@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { createLocalStore } from "@/lib/local-store";
 import { useCart } from "@/lib/cart-store";
-import { CATEGORIES, catalogMaxDiscountPercent } from "@/lib/catalog";
+import { CATEGORIES, STORES, catalogMaxDiscountPercent, storeName } from "@/lib/catalog";
 
 const TOP_LINKS = [
   { href: "/offers", label: "Offers" },
@@ -127,8 +127,11 @@ export function Header() {
               onChange={(e) => pickStore(e.target.value)}
               className="cursor-pointer rounded-full border border-[#e5e1d8] bg-white px-3 py-2 text-[13px] font-semibold focus-ring"
             >
-              {["Tampines", "Jurong", "Alexandra"].map((s) => (
-                <option key={s} value={s}>{s}</option>
+              {/* Task 129 F-11: the picker derives from the STORES seed (the
+                  storeName display seam) — the value stays the display label
+                  (the persisted nordhem_store contract). */}
+              {STORES.map((s) => (
+                <option key={s.slug} value={storeName(s.slug)}>{storeName(s.slug)}</option>
               ))}
             </select>
           </div>

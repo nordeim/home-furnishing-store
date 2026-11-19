@@ -23,10 +23,10 @@ ORM + PostgreSQL.
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
 | `npm run test` | Vitest unit suite (163 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
-| `npm run test:e2e` | Playwright e2e (111 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
+| `npm run test:e2e` | Playwright e2e (113 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
-The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–128):
+The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–129):
 `tests/unit` (9 files) + `tests/e2e` (mobile-navigation + storefront specs
 incl. the fetch-failure resilience pair, the API rate-limit pins, PDP badge
 dedupe, cart promo persistence, JSON-LD live-inventory + LOW_STOCK commerce
@@ -160,7 +160,29 @@ spec's interaction-first coverage is now complete: 34 gotoHydrated call
 sites, zero interaction-first bare gotos (mechanically re-verified — the
 Task-127 conversion had left 13, including a /cart site both sweeps
 under-counted). One reference-agent claim was DISPROVEN by direct read
-(rate-limit.ts "corruption" — the line is clean).
+(rate-limit.ts "corruption" — the line is clean) — and the Task-129 pins:
+the **residue-net completion** (three write-capable refusal specs — the
+nullqty order probe, the overlong-review-body probe, the bad-rating/short-name
+probe — plus the positive-control slot-coherence spec now carry their RED-run
+`finally` nets; the "every write-capable refusal spec" claim is true for the
+whole suite, not just the order-refusal half), the **enum-boundary parity**
+(`deliveryMethod`/`paymentMethod` are TYPE-strict + whitelist-strict like
+their enum siblings storeSlug/deliverySlot — `paymentMethod: ["card"]` used
+to String()-coerce into a real 201; `promoCode` refuses present-non-string-
+non-null while `promoCode: null` stays the UI's accepted "no promo" encoding),
+the **business TRADE_RATE derived pin** (the Task-128 F-9 business half —
+label + saving + estimate rows derive from the constant and the default-
+quantity list total), the **gotoHydrated broad-reading completion** (the one
+genuinely racy search-freeze bare goto + its two letter-violating freeze-spec
+siblings converted — the sleep-then-click race class closed), the **checkout
+array-body probe** (the Task-128 `Array.isArray` guard pinned, not just
+implemented), the **producer-side fs-pin widening** (every `.ts/.tsx` under
+`src/` scanned for `createLocalStore` call sites — a store minted in any new
+file can no longer escape `PERSISTED_STORAGE_KEYS`), the **store-list
+derivation** (route whitelist + checkout options + Header picker derive from
+the `STORES` seed via `storeName()` — the last hand-duplicated store list),
+and the **fs-pin path normalization** (the IDEMPOTENCY_KEY_RE + docs-counts
+pins resolve from `import.meta.dirname`, not cwd).
 
 **Test counts are documentation claims, pinned by test** (Task 119):
 `tests/unit/docs-counts.test.ts` fs-computes the real counts and fails the run
@@ -276,7 +298,7 @@ rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_
 npm run typecheck
 npm run lint          # 0 errors expected (the 7-error lint debt was fixed in Task 114)
 npm run test          # 163/163 unit
-npm run test:e2e      # 111/111 e2e (needs a live Postgres for the checkout journey)
+npm run test:e2e      # 113/113 e2e (needs a live Postgres for the checkout journey)
 ```
 
 There is no hosted CI; the local gate is the only gate.

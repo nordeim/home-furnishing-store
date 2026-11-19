@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-19 (Task 128: body-shape guards, recall parity, derived-pin completion)
+last_updated: 2026-11-20 (Task 129: residue-net completion, enum-boundary parity, business derived pin)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -130,12 +130,12 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`typecheck:tests` covers the test tree) |
 | `npm run test` | Vitest unit suite (163 tests, pure seams) |
-| `npm run test:e2e` | Playwright e2e (111 tests, production build on :3100) |
+| `npm run test:e2e` | Playwright e2e (113 tests, production build on :3100) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
-**Current state (Tasks 114–128, extended this cycle):** a NORDHEM-native suite is wired into the gates.
+**Current state (Tasks 114–129, extended this cycle):** a NORDHEM-native suite is wired into the gates.
 
 - **Unit (Vitest, 163 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
@@ -151,7 +151,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   with the fs-computed reality — count-lockstep is enforced across all five
   operator docs, not remembered). Node environment with a localStorage shim
   (`tests/unit/setup.ts`); no jsdom, no component rendering.
-- **E2E (Playwright, 111 tests)** against the **production build** (the webServer
+- **E2E (Playwright, 113 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
   hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
@@ -348,8 +348,29 @@ fix and passes after.
   that derive from the same constants the pages interpolate (a rate edit
   self-corrects copy and pins together — the Task-127 claim now true).
   The storefront spec's interaction-first coverage is complete: zero bare
-  interaction-first gotos remain (34 gotoHydrated call sites), and every
+  interaction-first gotos remain (38 gotoHydrated call sites after Task 129's
+  three conversions + the business pin), and every
   write-capable refusal spec carries its RED-run `finally` net.
+- **Task-129 seams:** every write-capable refusal spec is netted — including
+  the REVIEW probes (the overlong-body and bad-rating specs insert rows on
+  their RED paths; author/title-scoped deletes in their `finally`) and the
+  nullqty order probe, plus the one positive-control writer (the slot-
+  coherence spec) whose cleanup moved from an if-block into a
+  `finally { deleteProbeOrders }`; the checkout route's enum trio is
+  TYPE-strict + whitelist-strict like storeSlug/deliverySlot
+  (`paymentMethod: ["card"]` used to String()-coerce into a real 201 —
+  present-but-invalid is a 422, absent keeps the documented default, and
+  `promoCode: null` stays the UI's accepted "no promo" encoding); the
+  business panel's label/saving/estimate rows are pinned against
+  `TRADE_RATE` + the default-quantity list total (the Task-128 F-9 business
+  half); the last racy interaction-first bare goto (the search-freeze spec's
+  sleep-then-click) and its two freeze-spec siblings route through
+  `gotoHydrated`; the checkout array-body guard carries an e2e probe; the
+  producer-side fs-pin scans every `.ts/.tsx` under `src/` (a new store in
+  any file cannot escape `PERSISTED_STORAGE_KEYS`); the route's store
+  whitelist, the checkout page's options and the Header picker derive from
+  the `STORES` seed via `storeName()`; and the IDEMPOTENCY_KEY_RE /
+  docs-counts fs-pins resolve from `import.meta.dirname` (cwd-proof).
 
 - **`main` branch only** — no feature branches (operator contract).
 - Conventional Commits, atomic units (`fix:`, `feat:`, `docs:` — history uses

@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 2.2.0
-last_updated: "2026-11-19 (Task 128: body-shape guards, recall parity, derived-pin completion)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 163/163 unit · 111/111 e2e · cold build green · PostgreSQL 17 live-verified · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
+version: 2.3.0
+last_updated: "2026-11-20 (Task 129: residue-net completion, enum-boundary parity, business derived pin)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 163/163 unit · 113/113 e2e · cold build green · PostgreSQL 17 live-verified (fresh install via docs/setup_pg_z.sh) · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -20,7 +20,8 @@ project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 163/163 
 > cycle, and the Task 126 idempotent-checkout/test-residue-parity/derived-copy
 > cycle, and the Task 127 boundary-type-parity/replay-ownership/derived-copy
 > cycle, and the Task 128 body-shape-guard/recall-parity/derived-pin
-> cycle. `AGENTS.md` is the quick operator
+> cycle, and the Task 129 residue-net-completion/enum-boundary-parity/
+> business-derived-pin cycle. `AGENTS.md` is the quick operator
 > reference, the PAD is the full blueprint, and this skill is the
 > pattern/lesson layer an agent needs before touching the code. When code and
 > this document disagree, **the code wins** — then fix this document in the
@@ -94,7 +95,7 @@ rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache ma
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
 npm run test                                                   # 163/163
-npm run test:e2e                                               # 111/111 (live Postgres for the journey)
+npm run test:e2e                                               # 113/113 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -187,7 +188,7 @@ same contract the header links already use.
 
 ## 7. Catalogue & Data Management
 
-The static catalogue (`src/lib/catalog.ts`, ~160 lines) is **the seed AND the
+The static catalogue (`src/lib/catalog.ts`) is **the seed AND the
 fallback**: 24 products / 8 categories / 3 stores / 6 inspirations / 3 promos,
 plus `findProduct` and `findPromo`. `findPromo(code)` is the single
 client-side promo lookup for DISPLAY (cart + checkout previews); the server
@@ -738,6 +739,35 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
     prefer making the claim true (add the pins, convert the gotos) over
     rewording it.
 
+47. **A write-capable spec is a write-capable spec — the refusal/positive
+    distinction is not the net boundary (Task 129 F-1).** The Task-126
+    F-2 / Task-128 F-7 finally-net program swept "refusal specs" and the
+    docs claimed "every write-capable refusal spec carries its RED-run
+    net" — while three specs whose RED paths genuinely WRITE sat outside
+    both sweeps (the nullqty order probe, the overlong-review-body probe,
+    the bad-rating probe; a boundary regression in each inserts a real
+    row), and the one positive-control writer cleaned up under an if-block
+    a `json()` throw could skip. The correct sweep key is WRITE
+    CAPABILITY — "does this spec's RED path insert or decrement a row?"
+    — applied to every DB-touching spec, refusal or positive, every time
+    the net discipline lands (lesson 30's rule pointed at the net program
+    itself). Phrase the docs claim by the same key ("every write-capable
+    spec"), or the claim rots one class over.
+
+48. **An enum field's silent default is a coercion hole — and check the
+    UI's own null encoding before refusing nulls (Task 129 F-3).**
+    `["card","paynow",…].includes(String(body.paymentMethod))` is kind to
+    absent fields and hostile to crafted ones: `paymentMethod: ["card"]`
+    String()-coerced into a REAL 201 order, and unknown strings silently
+    rode the documented default while the enum siblings (storeSlug,
+    deliverySlot) refused. The enum-class discipline: present-non-string
+    → 422 AND unknown-string → 422, absent keeps the documented default
+    (the storeSlug/deliverySlot posture — lesson 43's field-class audit
+    extended to enums). And before refusing `null` on a nullable field,
+    read the primary client: `promoCode: null` is the checkout page's own
+    "no promo" encoding (it always sends the key) — refusing it would
+    have broken the UI the boundary exists to serve.
+
 ## 13. Pitfalls to Avoid
 
 - Adding state/auth/payment SDKs without a decision record (ADR-006 deferrals
@@ -870,4 +900,4 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
 | Unit suite | `tests/unit/*.test.ts` (163) |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (111) |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (113) |

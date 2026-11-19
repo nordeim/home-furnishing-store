@@ -1,12 +1,94 @@
-# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.13.0
+# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.14.0
 
 **Classification:** Internal Engineering Reference
 **Status:** DEFINITIVE, PRODUCTION-LOCKED BLUEPRINT
 **Companion Documents:** `docs/implementation-plan.md` (build decision record) · `docs/reference-investigation.md` (reference-site evidence dossier) · `AGENTS.md` / `CLAUDE.md` (agent instructions) · `README.md` (product view) · `home-furnishing-store_SKILL.md` (distilled engineering memory)
-**Last Updated:** 2026-11-19
+**Last Updated:** 2026-11-20
 **Audience:** Senior Engineers, Tech Leads, DevOps, and Onboarding Engineers (human and AI)
 **Rule:** Every architectural decision in this document traces to a specific rationale.
 Nothing is here "because it's popular."
+
+#### Revision Block — v1.14.0 (Task 129 — residue-net completion, enum-boundary parity, business derived pin)
+
+- `[TST]` **The "every write-capable refusal spec carries its RED-run finally
+  net" claim was half false (F-1, MEDIUM — the cycle's headline)**: three
+  write-capable refusal specs carried no net — the nullqty order probe
+  (storefront.spec.ts:1902-era; a qty-boundary regression places a real
+  order), the overlong-review-body probe (:2101-era; a cap regression
+  inserts the 3000-char row) and the bad-rating/short-name probe (:293-era;
+  a compound-validation regression inserts the junk review) — while four
+  operator docs claimed the discipline was complete. The Task-126 F-2 /
+  Task-128 F-7 program had stopped at the ORDER-refusal half; the review
+  probes and the nullqty spec fell outside its sweep. All three netted
+  (order nets via `deleteProbeOrders`; review nets author/title-scoped in
+  their `finally`), plus the one positive-control writer (the slot-coherence
+  spec) whose cleanup moved from an if-block into a finally (a `json()`
+  throw between the 201 and the cleanup used to strand the row).
+- `[COR]` **The checkout enum trio still String()-coerced (F-3, LOW — the
+  Task-127 F-2 field-class audit one class over)**: `deliveryMethod` and
+  `paymentMethod` coerced via `String()` (`paymentMethod: ["card"]` →
+  `String(["card"]) === "card"` → a REAL 201 on a crafted type,
+  dev-server-verified this cycle) and unknown strings silently rode the
+  documented defaults, while their enum siblings storeSlug (Task 121 F-7)
+  and deliverySlot (Task 123 F-3 / 127 F-2) refuse. The trio is now
+  TYPE-strict + whitelist-strict (present-but-invalid → 422; absent keeps
+  the documented default); `promoCode` refuses present-non-string-non-null
+  while `promoCode: null` STAYS accepted — it is the checkout UI's own
+  "no promo" encoding (checkout/page.tsx always sends the key; cart-store
+  types it `string | null`).
+- `[TST]` **The business half of Task-128 F-9 got the constant but not the
+  pin (F-4, LOW)**: `TRADE_RATE` drove calculator and copy (verified) with
+  zero test references — a revert to a hand-copied 0.12/"12%" pair passed
+  every gate. The business panel's label/saving/estimate rows now carry a
+  derived e2e pin (the family-pin pattern; the default-quantity list total
+  recomputed spec-side, self-alerting on a unit-price edit).
+- `[TST]` **One genuinely racy interaction-first bare goto remained (F-2,
+  LOW)**: the search-freeze spec's phase-1 navigation was gated only by a
+  900ms sleep before a React-dependent form-submit click — the exact race
+  `gotoHydrated` exists to close (a slow machine no-ops the click). It and
+  its two letter-violating freeze-spec siblings (self-gating via positive
+  error-box assertions) are converted; the claim now holds under the broad
+  "any interaction later" reading (38 gotoHydrated call sites in the
+  storefront spec, 40 across both files).
+- `[TST]` **The Task-128 checkout array-body guard was implemented but
+  unpinned (F-7, INFO→fixed)**: the `Array.isArray` → 400 branch now carries
+  an e2e probe (`["a"]` on checkout, inside the Task-128 body-shape spec).
+- `[TST]` **The producer-side createLocalStore fs-pin was enumeration-
+  scoped (F-6, INFO→fixed)**: the pin scanned two hardcoded producer files
+  — a fifth store minted in any other file escaped it. The scan now walks
+  every `.ts/.tsx` under `src/` (recursive) with a ≥4 floor guarding the
+  regex against silent zero-matches.
+- `[COR]` **The three-store list was the last hand-duplicated store literal
+  (F-11, INFO→fixed)**: the checkout route's `STORE_SLUGS` whitelist, the
+  checkout page's `<option>`s and the Header picker's list now derive from
+  the `STORES` seed via `storeName()` (behavior-preserving — identical
+  values, pinned by the existing storeSlug-refusal and checkout specs). The
+  adjacent "store-picker wiring" register row is unchanged (the wiring
+  itself — persisted display-name keys — remains deferred).
+- `[MAN]` **fs-pin path normalization (F-9, INFO→fixed)**: the
+  IDEMPOTENCY_KEY_RE route pin and the docs-counts pin resolve from
+  `import.meta.dirname` (the local-store precedent), not cwd — a
+  subdirectory vitest run no longer ENOENTs. Plus the stale
+  `catalog.ts` "~160 lines" claim in the SKILL (244; dropped, line counts
+  rot) and an 18-chars comment fix (NH-YYYYMMDD-XXXXXX).
+- `[REG]` **Register notes**: the ensureSeed reviews-only partial-seed window
+  (a first-seed crash between the products+inventory commit and the review
+  inserts leaves the 5 seed reviews unlanded — the narrower sibling of the
+  Task-126 AUD-3 disproof; honest degrade, unreachable in practice via
+  single-flight + reset-on-failure) recorded as a documented tradeoff. The
+  array-body asymmetry (checkout 400 vs siblings 422) kept — both 4xx
+  client-fault envelopes, the Task-128 documented scope, the checkout guard
+  now pinned. Standing deferrals unchanged (TRUST_PROXY, CSP, jsdom layer,
+  delivery-decrement redistribution, store-picker wiring, React cache(),
+  health-503, token codemod, bundle curation, unthrottled GETs,
+  orderNumber collision retry, whole-number magnitude bound, journey
+  hardcoded amounts).
+- `[SAN]` **Environment**: a FRESH rootless PostgreSQL 17 install via
+  `docs/setup_pg_z.sh` (the workspace snapshot was fully absent this cycle —
+  no lesson-31 subdirectory restore needed for the first time since the
+  class appeared); 9 tables + the full DDL contract verified by direct SQL
+  before any gate ran. Gates after remediation: lint 0/0 · typechecks
+  clean · **163/163 unit** · **113/113 e2e (cold)** · zero DB residue.
 
 #### Revision Block — v1.13.0 (Task 128 — body-shape guards, recall parity, derived-pin completion)
 
@@ -841,7 +923,7 @@ non-app artifacts remain in the tree (§10).
 | DB driver | `pg` (node-postgres) | 8.20.0 | Pooled connections, `drizzle-orm/node-postgres` adapter |
 | Database | PostgreSQL | 15+ recommended | Relational catalogue/orders; `drizzle-kit push` for schema |
 | Lint | ESLint flat config + `eslint-config-next/core-web-vitals` | 9.39.4 | One linter, Next-aware rules |
-| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–128) — 163 unit + 111 e2e, all green (§7) |
+| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–129) — 163 unit + 113 e2e, all green (§7) |
 | Imagery | Pexels CDN | — | Licensed stock, zero local pipeline (ADR-007) |
 
 ### 1.3 Architecture Decision Records (ADRs)
@@ -1373,7 +1455,7 @@ rm -rf .next && DATABASE_URL=… npm run build   # cold build (cache can mask th
 npm run typecheck && npm run typecheck:tests  # app scope + test tree
 npm run lint                                   # 0 errors / 0 warnings
 npm run test                                   # 163/163 unit
-npm run test:e2e                               # 111/111 e2e (live Postgres for the journey)
+npm run test:e2e                               # 113/113 e2e (live Postgres for the journey)
 # runtime smoke of touched routes against `npm run start`
 ```
 
@@ -1437,7 +1519,7 @@ npm run dev                       # http://localhost:3000
 | `npm run dev` / `build` / `start` | root | Dev / cold production build / serve |
 | `npm run lint` | root | ESLint (flat; `skills/` ignored) |
 | `npm run typecheck` / `typecheck:tests` | root | App-scope / test-tree `tsc --noEmit` |
-| `npm run test` / `test:e2e` | root | Vitest unit (163) / Playwright e2e (111, production build on :3100) |
+| `npm run test` / `test:e2e` | root | Vitest unit (163) / Playwright e2e (113, production build on :3100) |
 | `npx drizzle-kit push` | root | Apply `src/db/schema.ts` |
 | `python3 docs/ssh_git_wrapper_v3.py --key-file K --remote git@github.com:nordeim/home-furnishing-store.git` | repo | Verified SSH push to main (see the runbook) |
 
@@ -1624,7 +1706,7 @@ re-verified in-browser on the dead-DB path ($1,200/yr → $60 vouchers) —
 | `src/app/api/checkout/route.ts` | ~130 | Validation, rate limit, `placeOrder` delegation, envelope |
 | `src/components/Header.tsx` | ~180 | Utility strip, search, store picker (external store), category nav, mobile drawer (Escape-close) |
 | `tests/unit/` | 9 files | 163 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges/DELIVERY_SLOTS/orderNumber-SGT, catalog incl. findPromoMinimumCents, local-store incl. the promo predicate, mask, robots/sitemap, env/compose/config + scan-guard pins) |
-| `tests/e2e/` | 2 specs | 111 Playwright tests: mobile-navigation (iPhone-13 emulation, 390×844), storefront/commerce journeys, API boundary validation, fetch-failure resilience, slot coherence, review-count truth |
+| `tests/e2e/` | 2 specs | 113 Playwright tests: mobile-navigation (iPhone-13 emulation, 390×844), storefront/commerce journeys, API boundary validation, fetch-failure resilience, slot coherence, review-count truth |
 | `src/components/ProductCard.tsx` | ~92 | Card + `Rating`; wishlist/add-to-bag affordances |
 | `docs/implementation-plan.md` | 42 | Stack decision record, deviations ledger, acceptance criteria |
 | `docs/reference-investigation.md` | 45 | Reference-site evidence (Verified/Reasoned/Assumed/Unknown) |
