@@ -15,7 +15,7 @@
 # This compose file intentionally runs ONLY the postgres service: the app
 # has no Redis, no Stripe, and no other backing service (payments are mock
 # selectors; rate limiting is in-process). The schema needs no PostgreSQL
-# extensions (integer serial PKs; ilike search) — no init scripts are mounted.
+# extensions (integer serial PKs; in-JS catalogue search) — no init scripts are mounted.
 
 services:
 

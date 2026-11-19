@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 1.9.0
-last_updated: "2026-11-19 (Task 125: test integrity, boundary parity, identity/origin seams)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 145/145 unit · 97/97 e2e · cold build green (30 routes incl. icon + manifest) · PostgreSQL 17 live-verified · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
+version: 2.0.0
+last_updated: "2026-11-19 (Task 126: idempotent checkout, test-residue parity, derived copy)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 156/156 unit · 104/104 e2e · cold build green · PostgreSQL 17 live-verified · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -90,8 +90,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 145/145
-npm run test:e2e                                               # 97/97 (live Postgres for the journey)
+npm run test                                                   # 156/156
+npm run test:e2e                                               # 104/104 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -644,6 +644,38 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
     adjust-during-render pattern covers clock crossings, not just method
     switches).
 
+39. **A safety net that runs after a failing assertion is dead code
+    (Task 126 F-2).** The Task-123-era net guarded its cleanup with
+    `if (res.status() === 201)` AFTER `expect(res.status()).toBe(422)` —
+    but the failed expect THROWS past the if-block, so the net never fired
+    on exactly the RED runs it existed for (it was a no-op on GREEN runs
+    too). Rule: cleanup for a spec whose RED path writes must live in a
+    `finally` (or run before the assertions) — and the honest proof is to
+    temporarily revert the boundary, watch the row strand, then watch the
+    net clean it with the boundary still broken.
+
+40. **Trace insert order before believing a partial-state reachability
+    claim (Task 126 AUD-3).** The audit claimed an early-return check could
+    strand half-seeded tables — but the inserts it worried about all run
+    BEFORE the state the early return requires, so the claimed state was
+    unreachable. Program order is executable truth: an early-return
+    condition over tables X+Y can only strand tables that insert AFTER the
+    last of X/Y. Rule: reachability analysis walks the code's actual
+    sequence, not the condition in isolation (the second audit disproof in
+    the lineage — authority is not evidence).
+
+41. **Idempotency is a three-part pattern, not a column (Task 126 F-1).**
+    The unique index dedupes; the pre-transaction fast-path replays the
+    sequential case cheaply; the unique-violation catch replays the
+    concurrent race (the loser's transaction rolled back — insert AND
+    decrement — so nothing double-burns). The key must be client-minted
+    once per INTENT (per checkout-page mount: a remount is a new intent,
+    an error-path retry is the same one), survive non-secure contexts
+    (crypto.randomUUID throws on plain HTTP — the Math.random fallback),
+    and replay with possession-as-authority (an unguessable token needs no
+    email gate). Answer 200 on replay vs 201 on create — the client treats
+    both identically, the semantics stay honest.
+
 ## 13. Pitfalls to Avoid
 
 - Adding state/auth/payment SDKs without a decision record (ADR-006 deferrals
@@ -775,5 +807,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (145) |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (97) |
+| Unit suite | `tests/unit/*.test.ts` (156) |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (104) |

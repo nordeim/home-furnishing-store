@@ -1,4 +1,4 @@
-# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.10.0
+# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.11.0
 
 **Classification:** Internal Engineering Reference
 **Status:** DEFINITIVE, PRODUCTION-LOCKED BLUEPRINT
@@ -7,6 +7,113 @@
 **Audience:** Senior Engineers, Tech Leads, DevOps, and Onboarding Engineers (human and AI)
 **Rule:** Every architectural decision in this document traces to a specific rationale.
 Nothing is here "because it's popular."
+
+#### Revision Block — v1.11.0 (Task 126 — idempotent checkout, test-residue parity, derived copy)
+
+- `[FEA]` **Idempotent checkout (F-1, MEDIUM — the homenest session-70
+  discipline ported ORM-agnostically)**: a double-click on Pay, a network
+  retry after a response-timeout, or an impatient re-submit re-POSTs the
+  same bag and used to place a SECOND real order (row + inventory
+  decrement — the FOR UPDATE locks serialize concurrent POSTs, they do not
+  dedupe them). `orders.idempotency_key` (nullable text, UNIQUE — Postgres
+  allows unlimited NULLs, so pre-existing orders and key-less POSTs are
+  unaffected); the client mints ONE key per checkout-page mount
+  (`useState(() => mintIdempotencyKey())` — hydration re-runs the
+  initializer but the key is never rendered; a remount mints fresh = a new
+  intent; kept across error-path retries) with the crypto.randomUUID
+  try/catch fallback (non-secure contexts crash randomUUID — the homenest
+  D-4 lesson); the route validates the shape (`/^[A-Za-z0-9-]{8,64}$/`)
+  and DROPS malformed keys to null (dedupe is an enhancement, never a
+  persisted field); `placeOrder` returns `{ order, replayed }` — the
+  pre-transaction fast-path replays a key that already has its order, and
+  the pg-23505 catch covers the concurrent same-key race (the loser's
+  transaction, insert and decrement included, rolled back). Replay answers
+  200 (nothing created) with the SAME order number; create stays 201.
+- `[TST]` **RED-run safety nets on every refusal spec (F-2, MEDIUM)**: five
+  e2e specs that pin a checkout refusal place a REAL order when their
+  boundary regresses, and had no cleanup (the gotcha-#13 discipline was
+  applied inconsistently). The shared `deleteProbeOrders(email)` helper
+  deletes by email and restores the inventory re-derived from the inserted
+  order_items (the payload's lines may have been dropped/normalized by the
+  boundary — the inserted rows are the only truth). Honest-RED: the lines
+  cap was temporarily reverted, the 101-line spec failed with a stranded
+  101-row order (observed by SQL), then the net cleaned it to zero with the
+  boundary still broken. En route discovery: the Task-123-era
+  `if (res.status() === 201)` net was DEAD CODE on exactly the RED runs it
+  existed for (the failed `expect` throws past the if-block) — every net
+  now lives in a `finally`.
+- `[SEC]` **Read-boundary TYPE parity (F-5)**: track + promo-validate +
+  reviews GET still coerced crafted types (`String(12345)` sailed into the
+  parameterized lookup as a silent 404; `Number("15000")` rode the promo
+  math; `?productId=1.5` floored into a real product's reviews). The
+  Task-124 F-5 / Task-125 F-2 typeof-guard stance now spans every
+  boundary; caps unchanged.
+- `[DSE]` **Derived marketing copy (F-3)**: `catalogMaxDiscountPercent()`
+  in `catalog.ts` is the ONE max-discount derivation (the hero, the header
+  strip, the offers metadata ×2 and the offers copy interpolated the
+  literal "24%" — a catalogue edit turned five claims, two of them
+  metadata, into lies with every gate green); the e2e pins derive from the
+  same seam. The delivery-fee/threshold copy (~8 marketing sites) derives
+  from the `*_DELIVERY_*` constants (`$${cents / 100}` preserves the
+  marketing-string style; formatSGD is for money displays).
+- `[SEO]` **SEO completion (F-8, the homenest posture)**: root-layout
+  `twitter.card = "summary_large_image"` (inherits to every page via
+  Next's metadata resolution; page title/description/images fall back to
+  their own openGraph), OG images declare their TRUE 1200×627 (every
+  catalogue + hero Pexels URL pins h=627&w=1200 — verified), and the PDP
+  Offer carries `priceValidUntil` composed from the EXISTING rolling
+  `campaignEnd()` seam (no invented date — the festive market is the
+  site's own price-refresh claim).
+- `[DB]` **Schema hygiene (F-7)**: the redundant `products_slug_idx`
+  dropped (slug already carries a unique CONSTRAINT — two unique indexes
+  on one column), `reviews_product_idx` added (getReviews/getReviewCount
+  filter on productId every PDP render), the `order_items.product_id`
+  `.default(0)` footgun removed (a silent 0 productId is junk data; the
+  denormalized-no-FK choice is now documented at the column), and the
+  reviews ordering ties-breaks on `desc(id)` (the homenest S51-1 trap:
+  createdAt alone is not a total order — same-timestamp rows are
+  physically ordered; SQL-seeded pathological pin).
+- `[MNT]` **Seam + docs-truth batch**: `PERSISTED_STORAGE_KEYS` exported
+  from `local-store.ts` (the two crash boundaries carried the identical
+  4-key literal — a fifth persisted store required remembering both sites;
+  fs-pinned), the stale `.env.example` origin note corrected (it still
+  sent a domain-mover to layout.tsx/robots.ts/sitemap.ts after G-4
+  single-sourced the origin into SITE_ORIGIN — now pinned by the
+  env-example test), the ilike claims corrected (search is in-JS
+  `matchesProductQuery`), the stale XFF spec comment fixed (rightmost
+  hop, not first), `dotenv` REMOVED from dependencies (unused since the
+  lineage — Next's own env loader reads `.env`), and the playwright HTML
+  reporter added (`open: "never"`).
+- `[DIS]` **AUD-3 DISPROVEN — the ensureSeed "partial-seed blind spot"**:
+  the audit claimed a first-seed crash between the products insert and the
+  promotions/inspirations/stores/categories inserts leaves those tables
+  empty forever (the products+inventory early return skips them). Insert
+  order says otherwise: categories → stores → products → promotions →
+  inspirations → inventory LAST — any state with products+inventory
+  present necessarily completed the earlier inserts; any crash before
+  inventory leaves the early-return unsatisfied and the next read re-seeds
+  everything (onConflictDoNothing). The genuine remaining window (a crash
+  between the inventory insert and the seed-reviews loop) strands the five
+  seed REVIEWS — the documented first-time-only design (no unique
+  constraint; re-inserting would duplicate). No code change; the disproof
+  is the Task-124 F-16 precedent applied (audit reachability claims get
+  traced through program order, not taken on authority).
+- `[REG]` **Register updates**: the XFF TRUST_PROXY gate (audit H-1 —
+  rightmost-hop parsing is still client-controlled in a no-proxy deploy;
+  the named un-deferral path is an env-gated `TRUST_PROXY` defaulting to
+  the shared "direct" bucket, which changes the single-variable env
+  contract pinned across all five operator docs — an operator decision,
+  design sketch recorded), the Tailwind token codemod (79 arbitrary-value
+  sites are the DOCUMENTED convention — a codemod contradicts it; noted),
+  the "ready in 2 hrs" cutoff-vs-promise claim REJECTED (the copy reads as
+  a within-2-hours maximum; an order at 13:59 for 14:00 satisfies it),
+  health-503 (one-line semantic alignment, ripples the pinned 500 claims —
+  register note), and the prior deferrals unchanged (delivery decrement
+  redistribution, header store-picker wiring, PDP repeated catalogue reads
+  via React `cache()`, CSP, jsdom layer, orderNumber collision retry).
+- `[SAN]` Gates: lint 0/0 · typechecks clean · **156 unit / 104 e2e** ·
+  cold build green · zero DB residue after the full suite (verified by
+  direct SQL) · counts pinned across all five operator docs.
 
 #### Revision Block — v1.10.0 (Task 125 — test integrity, boundary parity, identity/origin seams)
 
@@ -81,7 +188,7 @@ Nothing is here "because it's popular."
   homenest trap log recorded with it); jsdom component-test layer
   deferred (the e2e coverage is strong; the one candidate pin is covered
   by the settle specs).
-- `[SAN]` Gates: lint 0/0 · typechecks clean · **145 unit / 97 e2e** ·
+- `[SAN]` Gates: lint 0/0 · typechecks clean · **156 unit / 104 e2e** ·
   cold build 30 routes (icon + manifest routes added) · zero DB residue
   after the full suite (verified by direct SQL) · counts pinned across
   all five operator docs.
@@ -576,7 +683,7 @@ non-app artifacts remain in the tree (§10).
 | DB driver | `pg` (node-postgres) | 8.20.0 | Pooled connections, `drizzle-orm/node-postgres` adapter |
 | Database | PostgreSQL | 15+ recommended | Relational catalogue/orders; `drizzle-kit push` for schema |
 | Lint | ESLint flat config + `eslint-config-next/core-web-vitals` | 9.39.4 | One linter, Next-aware rules |
-| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–125) — 145 unit + 97 e2e, all green (§7) |
+| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–126) — 156 unit + 104 e2e, all green (§7) |
 | Imagery | Pexels CDN | — | Licensed stock, zero local pipeline (ADR-007) |
 
 ### 1.3 Architecture Decision Records (ADRs)
@@ -1107,8 +1214,8 @@ the code, never to hit a number.
 rm -rf .next && DATABASE_URL=… npm run build   # cold build (cache can mask the scan-guard failure)
 npm run typecheck && npm run typecheck:tests  # app scope + test tree
 npm run lint                                   # 0 errors / 0 warnings
-npm run test                                   # 145/145 unit
-npm run test:e2e                               # 97/97 e2e (live Postgres for the journey)
+npm run test                                   # 156/156 unit
+npm run test:e2e                               # 104/104 e2e (live Postgres for the journey)
 # runtime smoke of touched routes against `npm run start`
 ```
 
@@ -1172,7 +1279,7 @@ npm run dev                       # http://localhost:3000
 | `npm run dev` / `build` / `start` | root | Dev / cold production build / serve |
 | `npm run lint` | root | ESLint (flat; `skills/` ignored) |
 | `npm run typecheck` / `typecheck:tests` | root | App-scope / test-tree `tsc --noEmit` |
-| `npm run test` / `test:e2e` | root | Vitest unit (145) / Playwright e2e (97, production build on :3100) |
+| `npm run test` / `test:e2e` | root | Vitest unit (156) / Playwright e2e (104, production build on :3100) |
 | `npx drizzle-kit push` | root | Apply `src/db/schema.ts` |
 | `python3 docs/ssh_git_wrapper_v3.py --key-file K --remote git@github.com:nordeim/home-furnishing-store.git` | repo | Verified SSH push to main (see the runbook) |
 
@@ -1358,8 +1465,8 @@ re-verified in-browser on the dead-DB path ($1,200/yr → $60 vouchers) —
 | `src/app/product/[slug]/page.tsx` | ~204 | PDP: metadata, gallery, stock/aisle, reviews, related |
 | `src/app/api/checkout/route.ts` | ~130 | Validation, rate limit, `placeOrder` delegation, envelope |
 | `src/components/Header.tsx` | ~180 | Utility strip, search, store picker (external store), category nav, mobile drawer (Escape-close) |
-| `tests/unit/` | 9 files | 145 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges/DELIVERY_SLOTS/orderNumber-SGT, catalog incl. findPromoMinimumCents, local-store incl. the promo predicate, mask, robots/sitemap, env/compose/config + scan-guard pins) |
-| `tests/e2e/` | 2 specs | 97 Playwright tests: mobile-navigation (iPhone-13 emulation, 390×844), storefront/commerce journeys, API boundary validation, fetch-failure resilience, slot coherence, review-count truth |
+| `tests/unit/` | 9 files | 156 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges/DELIVERY_SLOTS/orderNumber-SGT, catalog incl. findPromoMinimumCents, local-store incl. the promo predicate, mask, robots/sitemap, env/compose/config + scan-guard pins) |
+| `tests/e2e/` | 2 specs | 104 Playwright tests: mobile-navigation (iPhone-13 emulation, 390×844), storefront/commerce journeys, API boundary validation, fetch-failure resilience, slot coherence, review-count truth |
 | `src/components/ProductCard.tsx` | ~92 | Card + `Rating`; wishlist/add-to-bag affordances |
 | `docs/implementation-plan.md` | 42 | Stack decision record, deviations ledger, acceptance criteria |
 | `docs/reference-investigation.md` | 45 | Reference-site evidence (Verified/Reasoned/Assumed/Unknown) |

@@ -1,10 +1,16 @@
 import Link from "next/link";
 
-import { SITE_ORIGIN } from "@/lib/utils";
+import { EXPRESS_DELIVERY_FEE_CENTS, FREE_DELIVERY_THRESHOLD_CENTS, SITE_ORIGIN, STANDARD_DELIVERY_FEE_CENTS } from "@/lib/utils";
+// Task 126 F-3: fee copy derives from the utils constants — a fee change is a
+// one-line edit, not a ~10-site marketing sweep (the $-divided form keeps the
+// marketing-string style "$12"/"$200", formatSGD is for money displays).
+const STD = STANDARD_DELIVERY_FEE_CENTS / 100;
+const FREE_OVER = FREE_DELIVERY_THRESHOLD_CENTS / 100;
+const EXPRESS = EXPRESS_DELIVERY_FEE_CENTS / 100;
 export const metadata = {
   title: "Services — delivery, assembly & planning",
   description:
-    "We deliver, assemble, plan — you relax. Delivery from $12 island-wide, assembly from $25, free Click & Collect in 2 hours and a home design service from $190.",
+    `We deliver, assemble, plan — you relax. Delivery from $${STD} island-wide, assembly from $25, free Click & Collect in 2 hours and a home design service from $190.`,
   alternates: { canonical: "/services" },
   openGraph: {
     title: "Services — delivery, assembly & planning · NORDHEM Singapore",
@@ -16,7 +22,7 @@ export const metadata = {
 };
 
 const CARDS = [
-  { t: "Delivery", price: "from $12 · free over $200", d: "Evening and weekend slots island-wide, including walk-up apartments. Tracked delivery with a 2-hour window (demo storefront — no live SMS is sent).", points: ["Standard 3–5 days from $12", "Express next-day $29", "Free over $200 (standard)"] },
+  { t: "Delivery", price: `from $${STD} · free over $${FREE_OVER}`, d: "Evening and weekend slots island-wide, including walk-up apartments. Tracked delivery with a 2-hour window (demo storefront — no live SMS is sent).", points: [`Standard 3–5 days from $${STD}`, `Express next-day $${EXPRESS}`, `Free over $${FREE_OVER} (standard)`] },
   { t: "Assembly", price: "from $25 per item", d: "Certified crews assemble, level and anchor — and take every scrap of packaging away for recycling.", points: ["Wardrobes & kitchens our specialty", "Wall-anchoring included", "Re-assembly if you move (members)"] },
   { t: "Click & Collect", price: "free · ready in 2 hours", d: "Order online, collect at Tampines, Jurong or Alexandra. Drive-through bays — we load, you go.", points: ["Ready-in-2-hours promise", "21-day collection window", "Free trolley & rope loan"] },
   { t: "Home Design Service", price: "from $190 · redeemable", d: "A planner measures (or video-calls), draws 3D views and gives a shoppable list for one room or the whole flat.", points: ["BTO & resale specialists", "Lighting & paint advice", "Fee offsets your purchase"] },

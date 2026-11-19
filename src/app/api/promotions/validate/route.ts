@@ -22,14 +22,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: { code: "BAD_REQUEST", message: "Expected a JSON body." } }, { status: 400 });
   }
   try {
-    // Task 125 F-3: mirror the checkout promoCode cap (≤32) and the persisted
-    // promo store's predicate — an unbounded code string went straight into
-    // the promotions-table lookup.
-    const code = String(body.code ?? "");
+    // Task 126 F-5: TYPE-strict (the checkout/reviews-POST stance) — the old
+    // String()/Number() coercions let a numeric code ride the lookup and a
+    // numeric-string subtotal ride the promo math. Caps (Task 125 F-3) stay.
+    if (typeof body.code !== "string" || typeof body.subtotalCents !== "number" || !Number.isFinite(body.subtotalCents)) {
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Promo code and subtotal must be their documented types." } }, { status: 422 });
+    }
+    const code = body.code;
     if (code.length > 32) {
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Promo codes are at most 32 characters." } }, { status: 422 });
     }
-    const result = await validatePromo(code, Math.max(0, Math.round(Number(body.subtotalCents) || 0)));
+    const result = await validatePromo(code, Math.max(0, Math.round(body.subtotalCents)));
     if (!result.ok) {
       return NextResponse.json({ ok: false, error: { code: "INVALID_PROMO", message: result.error } }, { status: 422 });
     }

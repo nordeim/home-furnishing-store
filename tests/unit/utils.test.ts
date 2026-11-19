@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex, campaignEnd, campaignEndLabel, sgTomorrowISO, sortProductList, DELIVERY_SLOTS, isValidDeliverySlot, availableDeliverySlots, jsonLdScript } from "@/lib/utils";
+import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex, campaignEnd, campaignEndLabel, sgTomorrowISO, sortProductList, DELIVERY_SLOTS, isValidDeliverySlot, availableDeliverySlots, jsonLdScript, IDEMPOTENCY_KEY_RE, mintIdempotencyKey } from "@/lib/utils";
 
 describe("formatSGD", () => {
   // The currency symbol depends on the node build's ICU data ($ vs S$) — assert
@@ -365,5 +365,51 @@ describe("jsonLdScript (Task 125 G-3)", () => {
     const data = { name: "SOLBAKKEN 3-seat sofa", price: 79900, note: "a<b c" };
     const out = jsonLdScript(data);
     expect(JSON.parse(out)).toEqual(data);
+  });
+});
+
+/**
+ * Task 126 F-1: the idempotency-key seam. The checkout client mints ONE key
+ * per page mount (double-submit guard); the boundary accepts the shape via
+ * IDEMPOTENCY_KEY_RE and drops malformed keys to null (never refuses — dedupe
+ * is an enhancement, not a persisted field). The mint must survive
+ * non-secure contexts where crypto.randomUUID is unavailable.
+ */
+describe("idempotency key seam (Task 126 F-1)", () => {
+  it("mints a key matching the boundary shape", () => {
+    const key = mintIdempotencyKey();
+    expect(IDEMPOTENCY_KEY_RE.test(key)).toBe(true);
+  });
+
+  it("mints distinct keys per call (one per checkout-page mount)", () => {
+    const a = mintIdempotencyKey();
+    const b = mintIdempotencyKey();
+    expect(a).not.toBe(b);
+  });
+
+  it("falls back to a well-shaped token when crypto.randomUUID throws", () => {
+    const original = globalThis.crypto;
+    // Simulate the non-secure-context failure (homenest session-70: a
+    // plain-HTTP LAN deploy crashed at mount — randomUUID exists only on
+    // secure contexts).
+    Object.defineProperty(globalThis, "crypto", {
+      value: { randomUUID: undefined },
+      configurable: true,
+    });
+    try {
+      const key = mintIdempotencyKey();
+      expect(IDEMPOTENCY_KEY_RE.test(key)).toBe(true);
+      expect(key.startsWith("k")).toBe(true);
+    } finally {
+      Object.defineProperty(globalThis, "crypto", { value: original, configurable: true });
+    }
+  });
+
+  it("accepts canonical UUIDs and rejects malformed keys (the route's drop rule)", () => {
+    expect(IDEMPOTENCY_KEY_RE.test("e2e-idem-probe-key-0001")).toBe(true);
+    expect(IDEMPOTENCY_KEY_RE.test(crypto.randomUUID())).toBe(true);
+    expect(IDEMPOTENCY_KEY_RE.test("short")).toBe(false); // < 8 chars
+    expect(IDEMPOTENCY_KEY_RE.test("x".repeat(65))).toBe(false); // > 64 chars
+    expect(IDEMPOTENCY_KEY_RE.test("has space in it")).toBe(false); // invalid char
   });
 });

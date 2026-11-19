@@ -77,7 +77,7 @@ describe("docker-compose describes THIS architecture", () => {
   });
 
   it("mounts no init-script directory — the schema needs no extensions", () => {
-    // serial integer PKs + ilike search: pgcrypto/pg_trgm lineage has no place.
+    // serial integer PKs + in-JS catalogue search: pgcrypto/pg_trgm lineage has no place.
     expect(compose).not.toMatch(/docker-entrypoint-initdb\.d/);
     expect(existsSync(join(ROOT, "infrastructure"))).toBe(false);
   });
@@ -102,5 +102,25 @@ describe("db pool keeps its degrade time bound (Task 122 F-9)", () => {
     const src = readRoot(join("src", "db", "index.ts"));
     expect(src).toMatch(/connectionTimeoutMillis:\s*5_000/);
     expect(src).toMatch(/query_timeout:\s*8_000/);
+  });
+});
+
+describe(".env.example keeps its docs-truth claims current (Task 126 F-4)", () => {
+  it("documents the SITE_ORIGIN single-sourcing, not the retired hardcoded-origin note", () => {
+    // Task 125 G-4 moved the origin literal into SITE_ORIGIN
+    // (src/lib/utils.ts); the .env.example note still told a domain-mover to
+    // edit layout.tsx/robots.ts/sitemap.ts. Docs claims rot exactly like
+    // counts — pin the corrected claim (the docs-counts stance).
+    const example = readRoot(".env.example");
+    expect(example).toContain("single-sourced as SITE_ORIGIN in src/lib/utils.ts");
+    expect(example).not.toMatch(/hardcoded in src\/app\/layout\.tsx/);
+  });
+
+  it("attributes the env precedence to Next's own loader (dotenv the package is gone)", () => {
+    // dotenv sat unused in dependencies for the template lineage — Next
+    // reads .env natively; the precedence note must name the real actor.
+    const example = readRoot(".env.example");
+    expect(example).toContain("Next's");
+    expect(example).not.toMatch(/^.*dotenv never overrides/m);
   });
 });

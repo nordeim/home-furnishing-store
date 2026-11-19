@@ -164,12 +164,12 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 145 tests at the pure seams
+npm run test             # Vitest unit — 156 tests at the pure seams
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 97 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 104 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
@@ -244,11 +244,39 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 145 unit + 97 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120/121/122/123/124/125); counts pinned by tests/unit/docs-counts.test.ts |
+| Test suite | ✅ 156 unit + 104 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120/121/122/123/124/125/126); counts pinned by tests/unit/docs-counts.test.ts |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
+
+Current cycle (2026-11-19, Task 126): workspace-refresh re-audit (mobile-nav
+taxonomy re-verified clean at 390/1440 incl. the F-7 param-close regression
+check — no Tailwind v4 bug; baseline gates green at 145/97 with zero DB
+residue; one audit finding DISPROVEN by insert-order analysis — the
+ensureSeed "partial-seed blind spot") that delivered **idempotent checkout**
+(a double-click or network retry re-POSTs the same client-minted key and the
+boundary replays the first order instead of placing a second — nullable
+unique column, pre-transaction fast-path + pg-23505 race catch, replay
+answers 200 with the same order number, stock decrements exactly once),
+**RED-run safety nets on every refusal spec** (five e2e specs that place a
+real order when their boundary regresses had no cleanup — the shared
+deleteProbeOrders helper deletes by email and restores the inventory
+re-derived from the inserted rows; proven live by temporarily reverting the
+lines cap and watching the stranded 101-row order clean to zero; the
+Task-123-era if-block net was found dead on its own RED path and rewritten
+to finally), **read-boundary TYPE parity** (track/promo-validate/reviews GET
+refuse crafted types with 422, mirroring the write boundaries), the
+**derived marketing copy** pass (catalogMaxDiscountPercent() feeds the
+hero/strip/offers claims + pins; the delivery-fee copy derives from the
+utils constants), **SEO completion** (twitter:card site-wide, true OG image
+dimensions, priceValidUntil from the rolling campaign seam), the
+**PERSISTED_STORAGE_KEYS seam** across both crash boundaries, schema hygiene
+(redundant products_slug_idx dropped, reviews_product_idx added, the
+orderItems default(0) footgun removed, reviews order tie-broken on id), the
+dotenv dependency removed, and the HTML playwright reporter. Suite grew to
+156 unit + 104 e2e. Details in `worklog.md` and
+`docs/plans/2026-11-19-task126-remediation-plan.md`.
 
 Current cycle (2026-11-19, Task 125): workspace-refresh re-audit (mobile-nav
 taxonomy re-verified clean at 390/1440 — no Tailwind v4 bug — with one NEW

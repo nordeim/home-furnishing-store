@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 // The module is new (F-2): import AFTER the localStorage shim in setup.ts exists.
 // Red first — this suite defines the contract before the implementation lands.
-import { createLocalStore } from "@/lib/local-store";
+import { createLocalStore, PERSISTED_STORAGE_KEYS } from "@/lib/local-store";
+import fs from "node:fs";
+import path from "node:path";
 import { isValidCartPayload, isValidWishPayload, isValidPromoPayload } from "@/lib/cart-store";
 
 function key() {
@@ -213,5 +215,32 @@ describe("promo payload validation (Task 123 F-13)", () => {
     localStorage.setItem(k, JSON.stringify("X".repeat(40)));
     const s = createLocalStore<string | null>(k, null, isValidPromoPayload);
     expect(s.getSnapshot()).toBeNull();
+  });
+});
+
+/**
+ * Task 126 F-6: the crash boundaries must consume the shared
+ * PERSISTED_STORAGE_KEYS list (fs-pin — GREEN-on-arrival, the invariant IS
+ * the deliverable): a fifth persisted store added to the list heals both
+ * recovery buttons at once, and a literal key array in a boundary is the
+ * drift this seam exists to kill.
+ */
+describe("PERSISTED_STORAGE_KEYS seam (Task 126 F-6)", () => {
+  it("lists exactly the four persisted keys", () => {
+    expect([...PERSISTED_STORAGE_KEYS]).toEqual([
+      "nordhem_cart_v1",
+      "nordhem_wish_v1",
+      "nordhem_promo",
+      "nordhem_store",
+    ]);
+  });
+
+  it("both crash boundaries import the shared list, not literal key arrays", () => {
+    const read = (p: string) => fs.readFileSync(path.resolve(import.meta.dirname, "../../", p), "utf8");
+    for (const boundary of ["src/app/error.tsx", "src/app/global-error.tsx"]) {
+      const src = read(boundary);
+      expect(src, boundary).toContain("PERSISTED_STORAGE_KEYS");
+      expect(src, boundary).not.toContain('"nordhem_cart_v1"');
+    }
   });
 });

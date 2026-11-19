@@ -1,6 +1,8 @@
 import Link from "next/link";
 
-import { SITE_ORIGIN } from "@/lib/utils";
+import { EXPRESS_DELIVERY_FEE_CENTS, FREE_DELIVERY_THRESHOLD_CENTS, SITE_ORIGIN, STANDARD_DELIVERY_FEE_CENTS } from "@/lib/utils";
+// Task 126 F-3: the delivery FAQ derives from the utils constants (the
+// services-page pattern) — the fee numbers can no longer rot in copy.
 export const metadata = {
   title: "Help & contact",
   description:
@@ -16,7 +18,7 @@ export const metadata = {
 };
 
 const FAQS = [
-  { q: "How much is delivery?", a: "Standard delivery (3–5 days) from $12, free over $200. Express next-day is $29. Click & Collect is always free and ready in about 2 hours." },
+  { q: "How much is delivery?", a: `Standard delivery (3–5 days) from $${STANDARD_DELIVERY_FEE_CENTS / 100}, free over $${FREE_DELIVERY_THRESHOLD_CENTS / 100}. Express next-day is $${EXPRESS_DELIVERY_FEE_CENTS / 100}. Click & Collect is always free and ready in about 2 hours.` },
   { q: "Can I return assembled furniture?", a: "Yes — within 365 days with proof of purchase. Unopened flat-packs get a full refund; assembled pieces are assessed at our As-Is counter and refunded or exchanged on the spot." },
   { q: "Do you deliver to walk-up apartments and Sentosa?", a: "Yes, island-wide including walk-ups (a $10 stair-carry applies above level 3 without lift) and Sentosa (entry fees waived for our trucks on weekdays)." },
   { q: "Can I use more than one promo code?", a: "No — one promo code per order, applied to the goods subtotal before delivery fees. Codes never stack, and there are no separate member prices in this store." },

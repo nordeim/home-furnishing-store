@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useCart } from "@/lib/cart-store";
 import { effectivePromo, findPromoMinimumCents } from "@/lib/catalog";
-import { formatSGD, priceTotals } from "@/lib/utils";
+import { formatSGD, priceTotals, FREE_DELIVERY_THRESHOLD_CENTS } from "@/lib/utils";
 
 export default function CartPage() {
   const { lines, setQty, remove, promoCode, setPromo, subtotalCents } = useCart();
@@ -141,7 +141,7 @@ export default function CartPage() {
           </dl>
           <Link href="/checkout" className="mt-4 block rounded-full bg-[#0058a3] py-3.5 text-center font-black text-white hover:bg-[#004382] focus-ring">Go to checkout →</Link>
           <Link href="/shop" className="mt-2 block text-center text-[14px] font-bold text-[#0058a3] hover:underline">Continue shopping</Link>
-          <p className="mt-3 text-[12px] text-[#5b5b5b]">Free delivery over $200 · 365-day returns · Secure checkout</p>
+          <p className="mt-3 text-[12px] text-[#5b5b5b]">{`Free delivery over $${FREE_DELIVERY_THRESHOLD_CENTS / 100} · 365-day returns · Secure checkout`}</p>
         </aside>
       </div>
     </div>

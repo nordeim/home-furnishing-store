@@ -5,7 +5,12 @@ import { expect, test } from "@playwright/test";
 import { Client } from "pg";
 // Task 124 F-14: the sitemap count derives from the catalogue constants (the
 // unit suite's approach) — a hardcoded 42 broke on the first catalogue edit.
-import { CATEGORIES, INSPIRATIONS, PRODUCTS } from "../../src/lib/catalog";
+import { CATEGORIES, INSPIRATIONS, PRODUCTS, catalogMaxDiscountPercent } from "../../src/lib/catalog";
+
+// Task 126 F-3: the max-discount pins derive from the catalogue (the same
+// seam the hero/strip/offers copy interpolates) — a catalogue edit
+// self-corrects the assertions instead of rotting them.
+const MAX_OFF = catalogMaxDiscountPercent();
 
 // PDP specs must select the Product JSON-LD node, not the first script — the
 // root layout's site-level Organization/WebSite graph precedes it in the DOM.
@@ -19,6 +24,40 @@ const productJsonLd = async (page: import("@playwright/test").Page) =>
     }
     return null;
   });
+
+// Task 126 F-2: shared RED-run safety net (the gotcha-#13 discipline, applied
+// uniformly). A refusal-pinning spec whose boundary regresses places a REAL
+// order; this deletes every order the probe email placed and restores the
+// inventory placeOrder decremented — re-derived from the order rows about to
+// be deleted (the payload's lines may have been dropped or normalized by the
+// boundary, the inserted order_items are the only truth). No-op when the
+// probe placed nothing (the GREEN path).
+async function deleteProbeOrders(email: string): Promise<void> {
+  const client = new Client({
+    connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+  });
+  await client.connect();
+  try {
+    const existing = await client.query("select id from orders where email = $1", [email]);
+    if (existing.rows.length === 0) return;
+    const decremented = await client.query(
+      `select oi.product_id, o.store_slug, sum(oi.qty)::int as qty
+         from order_items oi join orders o on oi.order_id = o.id
+        where o.email = $1 group by oi.product_id, o.store_slug`,
+      [email],
+    );
+    for (const r of decremented.rows) {
+      await client.query(
+        "update inventory set quantity = quantity + $1 where product_id = $2 and store_slug = $3",
+        [r.qty, r.product_id, r.store_slug],
+      );
+    }
+    await client.query("delete from order_items where order_id in (select id from orders where email = $1)", [email]);
+    await client.query("delete from orders where email = $1", [email]);
+  } finally {
+    await client.end();
+  }
+}
 
 
 // Storefront + commerce journey (desktop 1440×900). Doubles as the
@@ -387,9 +426,10 @@ test.describe("API rate limits (20/min/IP fixed window)", () => {
   test("orders/track and promotions/validate throttle the 21st rapid request", async ({ request }) => {
     // Task 118 F-18: checkout and reviews enforce the limiter; track (the PII
     // lookup) and promo validation (a Postgres read per call) did not. Each
-    // probe runs under its OWN x-forwarded-for identity so the shared "local"
+    // probe runs under its OWN x-forwarded-for identity so the shared "direct"
     // bucket used by the journey/persistence specs stays clean (the limiter
-    // keys on the first XFF hop — the documented single-trusted-hop posture).
+    // keys on the RIGHTMOST XFF hop — Task 125 G-2's clientIp() seam; the
+    // rightmost hop is the nearest proxy's value, never the client alone).
     const probe = async (path: string, ip: string, data: Record<string, unknown>) => {
       // One FIXED identity per probe (all 21 requests share the bucket →
       // the 21st crosses the 20/min window).
@@ -683,7 +723,7 @@ test.describe("SEO metadata blanket (Task 119)", () => {
       // Task 125 F-5: tightened to hold the ATTRIBUTION (the Task-122 F-19
       // fix landed on the visible copy only — the metadata kept "dining,
       // decor and sleep", both ≤17%).
-      ["/offers", /Up to 24% off lighting/],
+      [`/offers`, new RegExp(`Up to ${MAX_OFF}% off lighting`)],
       ["/services", /deliver, assemble/],
       ["/stores", /Three NORDHEM stores/],
       ["/food", /Swedish-inspired/],
@@ -850,6 +890,14 @@ test.describe("checkout API boundary (Task 120)", () => {
           row.store_slug,
         ]);
       }
+      // Task 126 F-2 RED-run safety net (gotcha #13): the refusal this spec
+      // pins is the only thing keeping the probe from placing a REAL order —
+      // a boundary regression (201) strands the row even though the inventory
+      // restore above ran. Delete by email like the typeqty sibling.
+      await client.query("delete from order_items where order_id in (select id from orders where email = $1)", [
+        "boundary-probe@nordhem.sg",
+      ]);
+      await client.query("delete from orders where email = $1", ["boundary-probe@nordhem.sg"]);
       await client.end();
     }
   });
@@ -1125,9 +1173,20 @@ test.describe("checkout storeSlug / deliverySlot boundary (Task 121 F-7)", () =>
         lines: [{ productId: 1, qty: 1 }],
       },
     });
-    expect(res.status()).toBe(422);
-    const body = (await res.json()) as { error?: { code?: string } };
-    expect(body.error?.code).toBe("VALIDATION");
+    try {
+      expect(res.status()).toBe(422);
+      const body = (await res.json()) as { error?: { code?: string } };
+      expect(body.error?.code).toBe("VALIDATION");
+    } finally {
+      // Task 126 F-2 RED-run safety net (gotcha #13, the typeqty finally
+      // pattern — an after-the-expect if-block is dead code on the RED path
+      // because the failed expect throws past it): a boundary regression can
+      // reach a 201 here only if the availability check ALSO broke (the
+      // crafted slug scopes the click-collect inventory query to nothing →
+      // LOW_STOCK alone refuses it — proven live this cycle); the net stays
+      // as uniform insurance on every write-capable spec.
+      await deleteProbeOrders("slug-probe@nordhem.sg");
+    }
   });
 
   test("an overlong deliverySlot is refused, never silently truncated", async ({ request }) => {
@@ -1146,9 +1205,14 @@ test.describe("checkout storeSlug / deliverySlot boundary (Task 121 F-7)", () =>
         lines: [{ productId: 1, qty: 1 }],
       },
     });
-    expect(res.status()).toBe(422);
-    const body = (await res.json()) as { error?: { code?: string } };
-    expect(body.error?.code).toBe("VALIDATION");
+    try {
+      expect(res.status()).toBe(422);
+      const body = (await res.json()) as { error?: { code?: string } };
+      expect(body.error?.code).toBe("VALIDATION");
+    } finally {
+      // Task 126 F-2 RED-run safety net (gotcha #13).
+      await deleteProbeOrders("slot-probe@nordhem.sg");
+    }
   });
 });
 
@@ -1173,25 +1237,17 @@ test.describe("checkout slot coherence (Task 123 F-3)", () => {
         lines: [{ productId: 1, qty: 1 }],
       },
     });
-    expect(res.status()).toBe(422);
-    const body = (await res.json()) as { error?: { code?: string } };
-    expect(body.error?.code).toBe("VALIDATION");
-    // RED-run safety net (gotcha #13): against a reverted boundary this spec
-    // PLACES a real order — delete it and restore the tampines decrement so
-    // the next GREEN run starts from a clean pinned DB.
-    if (res.status() === 201) {
-      const created = (body as unknown as { data?: { orderNumber?: string } }).data?.orderNumber;
-      if (created) {
-        const client = new Client({ connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db" });
-        await client.connect();
-        try {
-          await client.query("delete from order_items where order_id in (select id from orders where order_number = $1)", [created]);
-          await client.query("delete from orders where order_number = $1", [created]);
-          await client.query("update inventory set quantity = quantity + 1 where product_id = 1 and store_slug = 'tampines'");
-        } finally {
-          await client.end();
-        }
-      }
+    try {
+      expect(res.status()).toBe(422);
+      const body = (await res.json()) as { error?: { code?: string } };
+      expect(body.error?.code).toBe("VALIDATION");
+    } finally {
+      // RED-run safety net (gotcha #13) — Task 126 F-2 rewrote the previous
+      // if (res.status() === 201) block into this finally: the failed expect
+      // threw PAST the old if-block, so the net was dead code on exactly the
+      // RED runs it existed for. The shared helper re-derives the decrement
+      // from the inserted rows.
+      await deleteProbeOrders("slot-coin-probe@nordhem.sg");
     }
   });
 
@@ -1679,7 +1735,13 @@ test.describe("checkout payload caps (Task 122 F-7)", () => {
         lines: [{ productId: 1, qty: 1 }],
       },
     });
-    expect(res.status()).toBe(422);
+    try {
+      expect(res.status()).toBe(422);
+    } finally {
+      // Task 126 F-2 RED-run safety net (gotcha #13): a 201 needs BOTH the cap
+      // and the unknown-promo refusal to break — uniform insurance regardless.
+      await deleteProbeOrders("caps-probe@nordhem.sg");
+    }
   });
 
   test("a 101-line bag is refused (bounded write, not a 101-row insert)", async ({ request }) => {
@@ -1695,7 +1757,15 @@ test.describe("checkout payload caps (Task 122 F-7)", () => {
         lines,
       },
     });
-    expect(res.status()).toBe(422);
+    try {
+      expect(res.status()).toBe(422);
+    } finally {
+      // Task 126 F-2 RED-run safety net (gotcha #13): the honest-RED for this
+      // cycle's backfill — with the cap reverted the probe genuinely placed a
+      // 101-row order (products 1–20, tampines); the net re-derives the
+      // decrement from the inserted rows and restores it.
+      await deleteProbeOrders("caps-probe@nordhem.sg");
+    }
   });
 });
 
@@ -1821,6 +1891,45 @@ test.describe("track + promo field caps (Task 125 F-3)", () => {
     expect(promoJson.ok).toBe(false);
     expect(promoJson.error.code).toBe("VALIDATION");
   });
+
+  test("non-string TYPES on the read boundaries are 422 VALIDATION, never coerced (Task 126 F-5)", async ({ request }) => {
+    // The checkout (Task-124 F-5) and reviews-POST (Task-125 F-2) boundaries
+    // are TYPE-strict; the track + promo-validate READ pair still coerced —
+    // String(12345) sailed into the lookup as a 404, Number("15000") into the
+    // promo math. A crafted TYPE is a client error on every boundary.
+    const trackRes = await request.post("/api/orders/track", {
+      headers: { "x-forwarded-for": "10.9.125.13" },
+      data: { orderNumber: 123456789, email: "type-probe@nordhem.sg" },
+    });
+    expect(trackRes.status()).toBe(422);
+    const trackJson = (await trackRes.json()) as { ok: boolean; error: { code: string } };
+    expect(trackJson.error.code).toBe("VALIDATION");
+
+    const promoRes = await request.post("/api/promotions/validate", {
+      headers: { "x-forwarded-for": "10.9.125.14" },
+      data: { code: 12345, subtotalCents: 5000 },
+    });
+    expect(promoRes.status()).toBe(422);
+    const promoJson = (await promoRes.json()) as { ok: boolean; error: { code: string } };
+    expect(promoJson.error.code).toBe("VALIDATION");
+
+    // subtotalCents is type-checked too — a numeric string must not ride the
+    // promo math (Number("15000") === 15000).
+    const promoRes2 = await request.post("/api/promotions/validate", {
+      headers: { "x-forwarded-for": "10.9.125.15" },
+      data: { code: "WELCOME10", subtotalCents: "15000" },
+    });
+    expect(promoRes2.status()).toBe(422);
+    const promoJson2 = (await promoRes2.json()) as { ok: boolean; error: { code: string } };
+    expect(promoJson2.error.code).toBe("VALIDATION");
+
+    // reviews GET accepts only whole-number productId strings — ?productId=1.5
+    // used to floor into a real product's review list.
+    const reviewsRes = await request.get("/api/reviews?productId=1.5");
+    expect(reviewsRes.status()).toBe(422);
+    const reviewsJson = (await reviewsRes.json()) as { ok: boolean; error: { code: string } };
+    expect(reviewsJson.error.code).toBe("VALIDATION");
+  });
 });
 
 test.describe("reviews refuse-never-truncate (Task 122 F-11)", () => {
@@ -1945,8 +2054,9 @@ test.describe("home hero discount attribution (Task 122 F-19)", () => {
     // actually carries the max.
     await page.goto("/");
     const hero = page.locator("section").first();
-    await expect(hero.getByText(/Up to 24% off/)).toContainText(/lighting/i);
-    await expect(hero.getByText(/Up to 24% off/)).not.toContainText(/extendable dining tables/i);
+    const heroClaim = hero.getByText(new RegExp(`Up to ${MAX_OFF}% off`));
+    await expect(heroClaim).toContainText(/lighting/i);
+    await expect(heroClaim).not.toContainText(/extendable dining tables/i);
   });
 
   test("the header utility strip's discount claim is attributed honestly too (Task 125 F-4)", async ({ page }) => {
@@ -1955,7 +2065,7 @@ test.describe("home hero discount attribution (Task 122 F-19)", () => {
     // (lighting/decor). The strip must lead with categories that actually
     // carry a ≥20% discount (lighting −24%, cookware −23%, decor −24/−21%).
     await page.goto("/");
-    const strip = page.locator("header").getByText(/up to 24% off/i);
+    const strip = page.locator("header").getByText(new RegExp(`up to ${MAX_OFF}% off`, "i"));
     await expect(strip).toContainText(/lighting/i);
     await expect(strip).toContainText(/cookware/i);
     await expect(strip).not.toContainText(/dining & decor/i);
@@ -2083,5 +2193,170 @@ test.describe("hydration sentinel (Task 125 G-5)", () => {
       await page.goto(path);
       await expect(page.locator("html")).toHaveAttribute("data-hydrated", "true", { timeout: 20_000 });
     }
+  });
+});
+
+test.describe("checkout idempotency (Task 126 F-1)", () => {
+  test("a double-submit with the same idempotency key places ONE order (replay, not a second)", async ({ request }) => {
+    // A double-click on Pay, a network retry after a response-timeout, or an
+    // impatient second submit re-POSTs the same bag: the client mints ONE key
+    // per checkout-page mount and the boundary replays the first order
+    // instead of placing a second (stock decrements exactly once). The
+    // homenest session-70 discipline, ported ORM-agnostically.
+    const payload = {
+      email: "idem-probe@nordhem.sg",
+      fullName: "Idem Probe",
+      phone: "+65 91234567",
+      address: "Blk 1 Testing Rd #01-01",
+      postal: "089001",
+      deliveryMethod: "delivery",
+      deliverySlot: "Standard (3–5 days)",
+      storeSlug: "tampines",
+      paymentMethod: "card",
+      lines: [{ productId: 1, qty: 1 }],
+      idempotencyKey: "e2e-idem-probe-key-0001",
+    };
+    try {
+      const first = await request.post("/api/checkout", { headers: { "x-forwarded-for": "10.9.126.10" }, data: payload });
+      const firstBody = (await first.json()) as { ok?: boolean; data?: { orderNumber?: string } };
+      expect(first.status()).toBe(201);
+      expect(firstBody.data?.orderNumber).toBeTruthy();
+      // Separate limiter identities so the rate window cannot color the result.
+      const second = await request.post("/api/checkout", { headers: { "x-forwarded-for": "10.9.126.11" }, data: payload });
+      const secondBody = (await second.json()) as { ok?: boolean; data?: { orderNumber?: string } };
+      // The replay is a SUCCESS (200 — nothing new was created) carrying the
+      // SAME order number the confirmation page navigates to.
+      expect(second.status()).toBe(200);
+      expect(secondBody.ok).toBe(true);
+      expect(secondBody.data?.orderNumber).toBe(firstBody.data?.orderNumber);
+    } finally {
+      // Gotcha #13: the first POST is a real order — clean it (and any
+      // regression-stranded sibling) by email.
+      await deleteProbeOrders("idem-probe@nordhem.sg");
+    }
+  });
+
+  test("the checkout page mints and sends one idempotency key per mount", async ({ page }) => {
+    // The server-side replay is dead code for real users unless the client
+    // actually mints and sends the key. The POST is intercepted (fixed 422 —
+    // no DB write); the captured payload must carry a well-shaped key, and
+    // submitting TWICE must reuse the same key (the double-click window).
+    await page.goto("/product/hdb-kitchen-trolley");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await page.goto("/checkout");
+
+    const state: { captured: Array<{ idempotencyKey?: string }> } = { captured: [] };
+    await page.route("**/api/checkout", async (route) => {
+      state.captured.push(route.request().postDataJSON() as { idempotencyKey?: string });
+      await route.fulfill({
+        status: 422,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: false, error: { code: "VALIDATION", message: "intercepted-idem-probe" } }),
+      });
+    });
+
+    await page.getByLabel("Email").fill("idem-ui-probe@nordhem.sg");
+    await page.getByLabel("Full name").fill("Idem Ui Probe");
+    await page.getByLabel("Phone").fill("+65 91234567");
+    await page.getByLabel("Postal code").fill("521123");
+    await page.getByPlaceholder("Blk, street, unit number").fill("Blk 1 Idem Rd #01-01");
+    await page.getByRole("button", { name: /Pay / }).click();
+    await expect(page.getByText("intercepted-idem-probe")).toBeVisible();
+    // The error path keeps the key (a retry after a refusal must dedupe
+    // against nothing — the refused attempt created no order).
+    await page.getByRole("button", { name: /Pay / }).click();
+    await expect(state.captured.length).toBe(2);
+    const [k1, k2] = [state.captured[0]?.idempotencyKey, state.captured[1]?.idempotencyKey];
+    expect(k1).toMatch(/^[A-Za-z0-9-]{8,64}$/);
+    expect(k2).toBe(k1);
+  });
+});
+
+test.describe("reviews deterministic ordering (Task 126 F-7)", () => {
+  test("same-timestamp reviews render newest-insert-first (the id tie-break)", async ({ request }) => {
+    // The homenest S51-1 trap: createdAt alone is not a total order — rows
+    // inserted in one transaction share Postgres's now(), so the physical
+    // order decides. The seam ties-break on id (desc); this pin SQL-seeds the
+    // pathological state (two identical timestamps) and asserts the API's
+    // deterministic order. GREEN-on-arrival invariant pin (the SITE_ORIGIN
+    // fs-pin pattern) — the nondeterminism it guards against is not
+    // reproducible through the public interface on demand.
+    const client = new Client({
+      connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+    });
+    await client.connect();
+    try {
+      const pidRow = await client.query("select id from products where slug = 'solbakken-3-seat-sofa'");
+      const pid = pidRow.rows[0].id as number;
+      const sameTs = new Date().toISOString();
+      // Insert OLDER-id-first is impossible (serial ascends), so the lower id
+      // is the OLDER review: id-desc must list probe-B (higher id) first.
+      const a = await client.query(
+        "insert into reviews (product_id, author, rating, title, body, verified, created_at) values ($1, $2, 5, 'task126-f7-probe-a', 'older by id', false, $3) returning id",
+        [pid, "F7 Probe A", sameTs],
+      );
+      const b = await client.query(
+        "insert into reviews (product_id, author, rating, title, body, verified, created_at) values ($1, $2, 5, 'task126-f7-probe-b', 'newer by id', false, $3) returning id",
+        [pid, "F7 Probe B", sameTs],
+      );
+      const lowerId = Math.min(a.rows[0].id, b.rows[0].id) as number;
+      const higherId = Math.max(a.rows[0].id, b.rows[0].id) as number;
+      const res = await request.get(`/api/reviews?productId=${pid}`);
+      const body = (await res.json()) as { ok: boolean; data: Array<{ id: number; createdAt: string }> };
+      expect(body.ok).toBe(true);
+      const ids = body.data.map((r) => r.id);
+      const posHigh = ids.indexOf(higherId);
+      const posLow = ids.indexOf(lowerId);
+      expect(posHigh).toBeGreaterThanOrEqual(0);
+      expect(posLow).toBeGreaterThanOrEqual(0);
+      expect(posHigh, "same createdAt: the higher id (newer insert) renders first").toBeLessThan(posLow);
+    } finally {
+      await client.query("delete from reviews where title like 'task126-f7-probe-%'");
+      await client.end();
+    }
+  });
+});
+
+test.describe("SEO completion: twitter card, OG dimensions, priceValidUntil (Task 126 F-8)", () => {
+  test("twitter:card is declared site-wide and inherits to the PDP", async ({ page }) => {
+    // The homenest posture: og:* metadata renders for link unfurlers, but
+    // X/Twitter requires its own card type — without it every share renders
+    // as a bare summary. Declared once at the root layout, it inherits to
+    // every page (PDP title/description/images fall back to its own
+    // openGraph fields).
+    for (const path of ["/", "/product/solbakken-3-seat-sofa"]) {
+      await page.goto(path);
+      const card = page.locator('meta[name="twitter:card"]');
+      await expect(card, path).toHaveAttribute("content", "summary_large_image");
+      const title = page.locator('meta[name="twitter:title"]');
+      await expect(title, path).toBeTruthy();
+    }
+  });
+
+  test("og:image declares its true dimensions (1200x627 — every Pexels URL pins them)", async ({ page }) => {
+    // Every catalogue + hero image URL pins h=627&w=1200 (catalog.ts IMG map)
+    // — declaring the dimensions is TRUE and lets crawlers pre-render the
+    // card without fetching the image.
+    for (const path of ["/", "/product/solbakken-3-seat-sofa"]) {
+      await page.goto(path);
+      await expect(page.locator('meta[property="og:image:width"]'), path).toHaveAttribute("content", "1200");
+      await expect(page.locator('meta[property="og:image:height"]'), path).toHaveAttribute("content", "627");
+    }
+  });
+
+  test("the PDP Offer carries priceValidUntil (the rolling campaign seam)", async ({ page }) => {
+    // Google's rich-result recommendation, tied to the EXISTING campaignEnd
+    // seam (no invented date): the festive-market campaign is the site's own
+    // price-refresh claim ("offers refreshed with the season"), so the
+    // Offer's price validity is the campaign's end date — pure and rolling,
+    // never a rotable literal.
+    await page.goto("/product/solbakken-3-seat-sofa");
+    const ld = await productJsonLd(page);
+    expect(ld).toBeTruthy();
+    const parsed = JSON.parse(ld!) as { offers?: { priceValidUntil?: string } };
+    expect(parsed.offers?.priceValidUntil).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    // Derive the expectation from the same seam the page uses.
+    const { campaignEnd } = await import("../../src/lib/utils");
+    expect(parsed.offers?.priceValidUntil).toBe(campaignEnd().toISOString().slice(0, 10));
   });
 });

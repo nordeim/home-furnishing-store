@@ -13,7 +13,10 @@ export default defineConfig({
   forbidOnly: !process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: [["list"]],
+  // Task 126 F-9: list for the terminal, HTML for post-run inspection (the
+  // homenest posture) — open: "never" keeps CI/local runs non-interactive;
+  // view a failed run with `npx playwright show-report`.
+  reporter: [["list"], ["html", { open: "never" }]],
   outputDir: "test-results",
   timeout: 30_000,
   use: {

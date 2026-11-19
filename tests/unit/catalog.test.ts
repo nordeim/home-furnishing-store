@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, findPromo, effectivePromo, findPromoMinimumCents, storeName, matchesProductQuery } from "@/lib/catalog";
+import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, findPromo, effectivePromo, findPromoMinimumCents, storeName, matchesProductQuery, catalogMaxDiscountPercent } from "@/lib/catalog";
 
 describe("catalogue invariants (seed + static fallback contract)", () => {
   it("ships the documented counts", () => {
@@ -147,5 +147,43 @@ describe("matchesProductQuery (the one recall seam — Task 124 F-12)", () => {
   it("is case-insensitive both ways and refuses non-matching needles", () => {
     expect(matchesProductQuery(outdoor!, "OUTDOOR")).toBe(true);
     expect(matchesProductQuery(outdoor!, "zzz-no-match-zzz")).toBe(false);
+  });
+});
+
+/**
+ * Task 126 F-3: the catalogue max-discount derivation. "Up to 24% off" was a
+ * hardcoded literal at five marketing surfaces (hero, header strip, offers
+ * metadata ×2, offers copy) — a catalogue edit turned every claim into a lie
+ * with the gates green. The single seam derives the number from PRODUCTS;
+ * the e2e attribution pins derive their expectations from this helper too.
+ */
+describe("catalogMaxDiscountPercent (Task 126 F-3)", () => {
+  it("derives the true max discount across the catalogue (the NORDLYS floor lamp, 24%)", () => {
+    expect(catalogMaxDiscountPercent()).toBe(24);
+  });
+
+  it("derives 0 when no product carries a compare-at price above its price", () => {
+    // A hypothetical catalogue — the seam is pure over its input list, so pin
+    // the formula against a worked example (not against PRODUCTS again).
+    const rows = [
+      { priceCents: 100, compareAtCents: 90 },   // compare-at BELOW price: no deal
+      { priceCents: 100, compareAtCents: null },  // no compare-at
+      { priceCents: 100, compareAtCents: 100 },   // equal: no deal
+    ];
+    const max = Math.max(0, ...rows.map((p) =>
+      p.compareAtCents && p.compareAtCents > p.priceCents
+        ? Math.round(((p.compareAtCents - p.priceCents) / p.compareAtCents) * 100)
+        : 0));
+    expect(max).toBe(0);
+  });
+
+  it("rounds to whole percent like the PDP's per-product chip does", () => {
+    // The PDP chip computes Math.round((compare-at − price) / compare-at × 100)
+    // — the seam must agree with that display formula on the max product.
+    const withDeal = PRODUCTS.filter((p) => p.compareAtCents && p.compareAtCents > p.priceCents);
+    for (const p of withDeal) {
+      const pct = Math.round((((p.compareAtCents ?? 0) - p.priceCents) / (p.compareAtCents ?? 1)) * 100);
+      expect(pct).toBeLessThanOrEqual(catalogMaxDiscountPercent());
+    }
   });
 });

@@ -87,3 +87,19 @@ export function createLocalStore<T>(
     },
   };
 }
+
+/**
+ * Task 126 F-6: the ONE list of localStorage keys this app persists. The two
+ * crash boundaries (error.tsx + global-error.tsx) used to carry the same
+ * 4-key literal array — a fifth persisted store required remembering both
+ * sites, and a miss left the recovery button partially ineffective. Both
+ * boundaries (and any future one) import this list; a new store adds its key
+ * here and the fs-pin (tests/unit/local-store.test.ts) holds the boundaries
+ * to the import.
+ */
+export const PERSISTED_STORAGE_KEYS = [
+  "nordhem_cart_v1",
+  "nordhem_wish_v1",
+  "nordhem_promo",
+  "nordhem_store",
+] as const;

@@ -22,12 +22,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: { code: "BAD_REQUEST", message: "Expected a JSON body." } }, { status: 400 });
   }
   try {
-    // Task 125 F-3: mirror the checkout cap discipline (Task 120 F-3) — the
-    // PII-lookup boundary accepted unbounded strings into the parameterized
-    // lookup. Order numbers are NH-YYYYMMDD-XXXXXX (17 chars) → cap at 32;
-    // emails cap at 254 (the checkout shape).
-    const orderNumber = String(body.orderNumber ?? "");
-    const email = String(body.email ?? "");
+    // Task 126 F-5: TYPE-strict, mirroring the checkout (Task-124 F-5) and
+    // reviews-POST (Task-125 F-2) stance — the old String() coercions let a
+    // numeric/object orderNumber or email sail into the parameterized lookup
+    // as a silent 404. A crafted TYPE is a client error on every boundary.
+    // Caps (Task 125 F-3) stay: order numbers ≤32 (NH-YYYYMMDD-XXXXXX is 17),
+    // emails ≤254 (the checkout shape).
+    if (typeof body.orderNumber !== "string" || typeof body.email !== "string") {
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Order number and email must be text." } }, { status: 422 });
+    }
+    const orderNumber = body.orderNumber;
+    const email = body.email;
     if (orderNumber.length > 32 || email.length > 254) {
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Order number or email is too long." } }, { status: 422 });
     }

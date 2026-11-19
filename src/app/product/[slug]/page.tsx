@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAllProducts, getInventory, getProductBySlug, getReviewCount, getReviews } from "@/lib/server-data";
-import { formatSGD, stars, visibleBadges, SITE_ORIGIN, jsonLdScript } from "@/lib/utils";
+import { formatSGD, stars, visibleBadges, SITE_ORIGIN, jsonLdScript, campaignEnd, STANDARD_DELIVERY_FEE_CENTS, FREE_DELIVERY_THRESHOLD_CENTS, EXPRESS_DELIVERY_FEE_CENTS } from "@/lib/utils";
 import { CATEGORIES } from "@/lib/catalog";
 import { ProductCard } from "@/components/ProductCard";
 import { BuyBox } from "@/components/BuyBox";
@@ -26,7 +26,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       type: "website",
       siteName: "NORDHEM Singapore",
       url: `${SITE}/product/${p.slug}`,
-      images: [{ url: p.imageUrls[0], alt: p.name }],
+      // True dimensions — every catalogue Pexels url pins h=627&w=1200
+      // (Task 126 F-8; crawlers pre-render the card without fetching).
+      images: [{ url: p.imageUrls[0], alt: p.name, width: 1200, height: 627 }],
     },
   };
 }
@@ -86,6 +88,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       url: `${SITE}/product/${p.slug}`,
       priceCurrency: "SGD",
       price: (p.priceCents / 100).toFixed(2),
+      // Task 126 F-8: Google's rich-result recommendation, tied to the
+      // rolling campaignEnd seam (no invented date) — the festive market is
+      // the site's own price-refresh claim ("offers refreshed with the
+      // season"), so the Offer's validity is the campaign's end date.
+      priceValidUntil: campaignEnd().toISOString().slice(0, 10),
       ...(stock.length > 0
         ? { availability: availableQty > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock" }
         : {}),
@@ -178,7 +185,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <details className="mt-2 rounded-xl ring-1 ring-[#ece8df]">
             <summary className="cursor-pointer p-4 font-bold">Delivery, assembly & returns</summary>
             <p className="px-4 pb-4 text-[14px] leading-relaxed text-[#444]">
-              Delivery from $12 (free over $200) · Express next-day $29 · Click &amp; Collect free in 2 hours ·
+              {`Delivery from $${STANDARD_DELIVERY_FEE_CENTS / 100} (free over $${FREE_DELIVERY_THRESHOLD_CENTS / 100}) · Express next-day $${EXPRESS_DELIVERY_FEE_CENTS / 100} · Click &amp; Collect free in 2 hours ·`}
               Assembly from $25 · 365-day returns with proof of purchase.
             </p>
           </details>

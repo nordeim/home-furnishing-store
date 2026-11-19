@@ -13,8 +13,16 @@ const limiter = createRateLimiter({ limit: 20, windowMs: 60_000 });
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const productId = Number(url.searchParams.get("productId") ?? "0");
-  if (!productId) return NextResponse.json({ ok: false, error: { code: "BAD_REQUEST", message: "productId is required." } }, { status: 400 });
+  const raw = url.searchParams.get("productId");
+  // Task 126 F-5: whole-number strings only — the old Number() coercion let
+  // ?productId=1.5 floor into a real product's review list (and any junk
+  // text hit the DB layer as NaN). Missing stays a 400; a present-but-
+  // malformed value is a 422 (the boundary stance).
+  if (!raw) return NextResponse.json({ ok: false, error: { code: "BAD_REQUEST", message: "productId is required." } }, { status: 400 });
+  if (!/^\d+$/.test(raw) || Number(raw) <= 0) {
+    return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "productId must be a whole number." } }, { status: 422 });
+  }
+  const productId = Number(raw);
   const data = await getReviews(productId);
   return NextResponse.json({ ok: true, data });
 }

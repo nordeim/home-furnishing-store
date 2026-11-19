@@ -129,15 +129,15 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`typecheck:tests` covers the test tree) |
-| `npm run test` | Vitest unit suite (145 tests, pure seams) |
-| `npm run test:e2e` | Playwright e2e (97 tests, production build on :3100) |
+| `npm run test` | Vitest unit suite (156 tests, pure seams) |
+| `npm run test:e2e` | Playwright e2e (104 tests, production build on :3100) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
-**Current state (Tasks 114–125, extended this cycle):** a NORDHEM-native suite is wired into the gates.
+**Current state (Tasks 114–126, extended this cycle):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 145 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 156 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
@@ -151,7 +151,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   with the fs-computed reality — count-lockstep is enforced across all five
   operator docs, not remembered). Node environment with a localStorage shim
   (`tests/unit/setup.ts`); no jsdom, no component rendering.
-- **E2E (Playwright, 97 tests)** against the **production build** (the webServer
+- **E2E (Playwright, 104 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
   hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
@@ -280,6 +280,32 @@ fix and passes after.
   rationale comments); no commented-out code, no placeholder values.
 
 ## Git & Version Control
+
+- **Task-126 seams:** `orders.idempotencyKey` (nullable unique) +
+  `mintIdempotencyKey()`/`IDEMPOTENCY_KEY_RE` in `utils.ts` +
+  `PlaceOrderResult { order, replayed }` are the idempotent-checkout seam —
+  the client mints ONE key per checkout-page mount (`useState(() => mint…)`,
+  re-minted on remount = new intent, kept across error-path retries), the
+  route drops malformed keys to null (dedupe is an enhancement, never a
+  persisted field), and `placeOrder` replays via the pre-transaction
+  fast-path OR the pg-23505 catch (the loser's transaction — insert and
+  decrement included — rolled back; replay answers 200, create 201);
+  `deleteProbeOrders(email)` in the storefront spec is the shared RED-run
+  safety net (email-keyed order deletion + inventory restore re-derived
+  from the inserted order_items — a net that runs AFTER a failing expect is
+  dead code, the nets live in `finally` blocks); track/promo-validate/reviews
+  GET are TYPE-strict like every write boundary (String()/Number() coercion
+  → 422 VALIDATION); `getReviews` ties-break on `desc(id)` (createdAt alone
+  is not a total order — same-timestamp rows are physically ordered);
+  `catalogMaxDiscountPercent()` in `catalog.ts` is the ONE max-discount
+  derivation (hero/strip/offers copy + the e2e pins interpolate it; the fee
+  copy derives from the `*_DELIVERY_*` constants); `PERSISTED_STORAGE_KEYS`
+  in `local-store.ts` is the ONE recovery list (both crash boundaries
+  import it, fs-pinned); the root layout declares `twitter.card`
+  (summary_large_image, inherits everywhere), OG images declare their true
+  1200×627, and the PDP Offer carries `priceValidUntil` from the rolling
+  `campaignEnd()` seam; `dotenv` is REMOVED from dependencies (Next's own
+  env loader reads `.env` — the precedence note names the real actor).
 
 - **`main` branch only** — no feature branches (operator contract).
 - Conventional Commits, atomic units (`fix:`, `feat:`, `docs:` — history uses

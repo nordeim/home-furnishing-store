@@ -2,18 +2,22 @@ import Link from "next/link";
 import { getAllProducts } from "@/lib/server-data";
 import { formatSGD, SITE_ORIGIN } from "@/lib/utils";
 import { ProductCard } from "@/components/ProductCard";
-import { PROMOS } from "@/lib/catalog";
+import { PROMOS, catalogMaxDiscountPercent } from "@/lib/catalog";
 import { campaignEndLabel } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
+// Task 126 F-3: the max-discount number derives from the catalogue (the
+// hero/strip seam) — metadata included, so a catalogue edit self-corrects
+// the SERP copy instead of rotting it.
+const MAX_OFF = catalogMaxDiscountPercent();
 export const metadata = {
   title: "Offers & Last chance",
   description:
-    "Up to 24% off lighting, decor and everyday essentials across the NORDHEM catalogue — plus one promo code per order. Festive market offers refreshed with the season.",
+    `Up to ${MAX_OFF}% off lighting, decor and everyday essentials across the NORDHEM catalogue — plus one promo code per order. Festive market offers refreshed with the season.`,
   alternates: { canonical: "/offers" },
   openGraph: {
     title: "Offers & Last chance · NORDHEM Singapore",
-    description: "Up to 24% off lighting, decor and everyday essentials — one promo code per order.",
+    description: `Up to ${MAX_OFF}% off lighting, decor and everyday essentials — one promo code per order.`,
     type: "website",
     siteName: "NORDHEM Singapore",
     url: `${SITE_ORIGIN}/offers`,
@@ -32,7 +36,7 @@ export default async function OffersPage() {
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <p className="inline-block rounded-full bg-[#cc0008] px-3 py-1 text-[12px] font-black uppercase tracking-[0.12em] text-white">Ends {CAMPAIGN_END}</p>
       <h1 className="mt-2 text-[clamp(1.9rem,4vw,3rem)] font-black tracking-tight">Festive market offers</h1>
-      <p className="mt-2 text-[#5b5b5b]">Up to 24% off lighting, decor and everyday essentials — plus a promo code below (one code per order).</p>
+      <p className="mt-2 text-[#5b5b5b]">Up to {MAX_OFF}% off lighting, decor and everyday essentials — plus a promo code below (one code per order).</p>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
         {PROMOS.map((p) => (

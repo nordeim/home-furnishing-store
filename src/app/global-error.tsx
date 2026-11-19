@@ -1,5 +1,7 @@
 "use client";
 
+import { PERSISTED_STORAGE_KEYS } from "@/lib/local-store";
+
 // Task 122 F-2: a render crash inside the ROOT LAYOUT (CartProvider and the
 // persisted-state stores live there) is above the app/error.tsx route
 // boundary — without this file those crashes landed on Next's unbranded
@@ -15,7 +17,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
   console.error("[global-error]", error);
 
   const clearAndReload = () => {
-    for (const key of ["nordhem_cart_v1", "nordhem_wish_v1", "nordhem_promo", "nordhem_store"]) {
+    for (const key of PERSISTED_STORAGE_KEYS) {
       try {
         localStorage.removeItem(key);
       } catch {

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getAllProducts, getInspirations } from "@/lib/server-data";
-import { campaignEndLabel, formatSGD, SITE_ORIGIN } from "@/lib/utils";
-import { CATEGORIES, PRODUCTS, STORES } from "@/lib/catalog";
+import { campaignEndLabel, formatSGD, SITE_ORIGIN, EXPRESS_DELIVERY_FEE_CENTS, FREE_DELIVERY_THRESHOLD_CENTS, STANDARD_DELIVERY_FEE_CENTS } from "@/lib/utils";
+import { CATEGORIES, PRODUCTS, STORES, catalogMaxDiscountPercent } from "@/lib/catalog";
 import { ProductCard } from "@/components/ProductCard";
 
 export const dynamic = "force-dynamic";
@@ -33,8 +33,9 @@ export const metadata: Metadata = {
     siteName: "NORDHEM Singapore",
     url: `${SITE_ORIGIN}/`,
     // Task 121 F-18: products always shipped og:image; the most-shared page
-    // on the site shipped none. The hero's licensed Pexels frame.
-    images: [{ url: "https://images.pexels.com/photos/7546218/pexels-photo-7546218.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200" }],
+    // on the site shipped none. The hero's licensed Pexels frame — with its
+    // true dimensions (every IMG url pins h=627&w=1200, Task 126 F-8).
+    images: [{ url: "https://images.pexels.com/photos/7546218/pexels-photo-7546218.jpeg?auto=compress&cs=tinysrgb&fit=crop&h=627&w=1200", width: 1200, height: 627 }],
   },
 };
 
@@ -62,11 +63,12 @@ export default async function HomePage() {
               A merrier home starts with makan-ready spaces
             </h1>
             <p className="mt-4 max-w-md text-[16px] leading-relaxed text-white/85">
-              {/* Task 122 F-19: the catalogue max discount (24%) is the NORDLYS
-                  floor lamp — attribute the headline to what actually carries
+              {/* Task 122 F-19: the catalogue max discount (the NORDLYS
+                  floor lamp — the number itself derives since Task 126 F-3)
+                  — attribute the headline to what actually carries
                   it (the old copy led with extendable dining tables, the one
                   discounted-set member with NO deal). */}
-              Up to 24% off lighting, cookware and home favourites —
+              Up to {catalogMaxDiscountPercent()}% off lighting, cookware and home favourites —
               plus free Click &amp; Collect at Tampines, Jurong and Alexandra.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
@@ -79,7 +81,7 @@ export default async function HomePage() {
             </div>
             <dl className="mt-8 flex gap-8 text-[13px] text-white/80">
               <div><dt className="text-[22px] font-black text-white">365</dt><dd>day returns</dd></div>
-              <div><dt className="text-[22px] font-black text-white">$200+</dt><dd>free delivery</dd></div>
+              <div><dt className="text-[22px] font-black text-white">${FREE_DELIVERY_THRESHOLD_CENTS / 100}+</dt><dd>free delivery</dd></div>
               <div><dt className="text-[22px] font-black text-white">3</dt><dd>SG stores</dd></div>
             </dl>
           </div>
@@ -246,7 +248,7 @@ export default async function HomePage() {
       <section className="bg-[#111] text-white">
         <div className="mx-auto grid max-w-7xl gap-6 px-4 py-12 sm:px-6 md:grid-cols-4">
           {[
-            { t: "Delivery from $12", d: "Free over $200. Slots incl. evenings & weekends.", h: "/services" },
+            { t: `Delivery from $${STANDARD_DELIVERY_FEE_CENTS / 100}`, d: `Free over $${FREE_DELIVERY_THRESHOLD_CENTS / 100}. Slots incl. evenings & weekends.`, h: "/services" },
             { t: "Assembly from $25", d: "Certified crews, packaging taken away.", h: "/services" },
             { t: "Click & Collect in 2 hrs", d: "Free at all 3 stores. We load your car.", h: "/stores" },
             { t: "365-day returns", d: "Changed your mind? No drama, full refund.", h: "/help" },

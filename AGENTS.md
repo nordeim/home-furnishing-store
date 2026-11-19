@@ -22,11 +22,11 @@ ORM + PostgreSQL.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
-| `npm run test` | Vitest unit suite (145 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
-| `npm run test:e2e` | Playwright e2e (97 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
+| `npm run test` | Vitest unit suite (156 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
+| `npm run test:e2e` | Playwright e2e (104 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
-The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–124):
+The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–126):
 `tests/unit` (9 files) + `tests/e2e` (mobile-navigation + storefront specs
 incl. the fetch-failure resilience pair, the API rate-limit pins, PDP badge
 dedupe, cart promo persistence, JSON-LD live-inventory + LOW_STOCK commerce
@@ -83,7 +83,31 @@ param-navigation close, the derived home/planning-tools/shop metadata
 counts, the `jsonLdScript` U+2028/U+2029 escape seam, the SITE_ORIGIN
 fs-pin (no raw origin literal in src/app), the web manifest + app icon,
 and the hydration sentinel (`html[data-hydrated]` + the gotoHydrated
-gate).
+gate) — and the Task-126 pins: the **idempotent-checkout pair** (a same-key
+double-POST replays the first order — 201 then 200 with the SAME number and
+one decrement; the checkout page mints + sends one key per mount and reuses
+it across error-path retries), the **RED-run safety nets on every refusal
+spec** (the shared `deleteProbeOrders` helper — email-keyed order deletion +
+inventory restore re-derived from the inserted rows; proven live by
+temporarily reverting the lines cap and observing the stranded 101-row order
+clean to zero — and the Task-123-era if-block net was found DEAD on its own
+RED path, the failed expect threw past it, rewritten to the finally
+pattern), the **read-boundary TYPE parity** (track/promo-validate refuse
+crafted TYPES with 422 VALIDATION; reviews GET refuses `?productId=1.5`),
+the **reviews id tie-break** (same-timestamp rows render newest-insert-first
+— the SQL-seeded pathological state), the **derived marketing copy**
+(hero/strip/offers + the metadata-blanket pins interpolate
+`catalogMaxDiscountPercent()`; the fee copy derives from the utils
+constants), the **SEO completion** (twitter:card inherits site-wide,
+og:image declares its true 1200×627, the PDP Offer carries priceValidUntil
+from the rolling campaignEnd seam), the **PERSISTED_STORAGE_KEYS seam**
+(both crash boundaries import the one list — fs-pinned), and the
+**docs-truth .env.example pins** (the SITE_ORIGIN note + the Next-loader
+attribution). One Task-124 finding was DISPROVEN (browser evidence) and one
+Task-126 audit finding was DISPROVEN by insert-order analysis (the
+ensureSeed "partial-seed blind spot" — categories/stores/products/promotions/
+inspirations all insert BEFORE inventory, so the products+inventory early
+return can never skip them; see the plan's AUD-3).
 The predecessor's 73-unit/15-e2e dead
 tree was retired with it — do not resurrect ely-beauty specs; pin new ones to
 this `src/`.
@@ -200,8 +224,8 @@ When adding tests, pin them to this `src/` — never resurrect ely-beauty specs.
 rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db" npm run build
 npm run typecheck
 npm run lint          # 0 errors expected (the 7-error lint debt was fixed in Task 114)
-npm run test          # 145/145 unit
-npm run test:e2e      # 97/97 e2e (needs a live Postgres for the checkout journey)
+npm run test          # 156/156 unit
+npm run test:e2e      # 104/104 e2e (needs a live Postgres for the checkout journey)
 ```
 
 There is no hosted CI; the local gate is the only gate.

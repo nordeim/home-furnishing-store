@@ -1,5 +1,6 @@
 import { db } from "@/db";
 import { categories, inspirations, inventory, orderItems, orders, products, promotions, reviews, stores } from "@/db/schema";
+import type { Order } from "@/db/schema";
 import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, matchesProductQuery } from "@/lib/catalog";
 import {
   orderNumber,
@@ -106,7 +107,12 @@ export async function getInventory(productId: number) {
 export async function getReviews(productId: number) {
   await ensureSeed();
   try {
-    return await db.select().from(reviews).where(eq(reviews.productId, productId)).orderBy(desc(reviews.createdAt)).limit(20);
+    // Task 126 F-7 (the homenest S51-1 trap): createdAt alone is not a total
+    // order — same-timestamp rows (a batch insert shares Postgres's
+    // transaction-scoped now(), and the seed loop is one statement away from
+    // it) return in arbitrary physical order. id is the deterministic
+    // tie-break: newest insert first, stable across runs and plans.
+    return await db.select().from(reviews).where(eq(reviews.productId, productId)).orderBy(desc(reviews.createdAt), desc(reviews.id)).limit(20);
   } catch {
     return [];
   }
@@ -167,6 +173,9 @@ export interface CheckoutInput {
   paymentMethod: string;
   promoCode?: string | null;
   lines: Array<{ productId: number; qty: number }>;
+  /** Task 126 F-1: optional client-minted double-submit guard — a repeated
+   * key replays the first order instead of placing a second. */
+  idempotencyKey?: string | null;
 }
 
 /** A domain refusal at the checkout write boundary (422-class, carries the
@@ -180,7 +189,22 @@ export class OrderRefusalError extends Error {
   }
 }
 
-export async function placeOrder(input: CheckoutInput) {
+/** What placeOrder returns: the order row plus whether this call REPLAYED an
+ * existing order (Task 126 F-1) — the route answers 200 on a replay (nothing
+ * was created) vs 201 on a fresh insert. */
+export interface PlaceOrderResult {
+  order: Order;
+  replayed: boolean;
+}
+
+// pg unique-constraint violation (23505) — Drizzle surfaces the driver's
+// DatabaseError unwrapped, but check .cause too so a wrapper cannot hide it.
+function isUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: string; cause?: { code?: string } };
+  return e?.code === "23505" || e?.cause?.code === "23505";
+}
+
+export async function placeOrder(input: CheckoutInput): Promise<PlaceOrderResult> {
   await ensureSeed();
   const all = await getAllProducts();
   const byId = new Map(all.map((p) => [p.id, p]));
@@ -228,77 +252,107 @@ export async function placeOrder(input: CheckoutInput) {
   const fulfilStore = input.storeSlug || "tampines";
   const clickCollect = input.deliveryMethod === "click-collect";
 
-  return db.transaction(async (tx) => {
-    // Lock the touched inventory rows (ordered by id so concurrent carts with
-    // overlapping products acquire locks in one deterministic order — no
-    // cross-transaction deadlock). Sums are computed in JS: FOR UPDATE cannot
-    // ride along with a GROUP BY aggregate in Postgres.
-    const lockedRows = await tx
-      .select({ productId: inventory.productId, quantity: inventory.quantity })
-      .from(inventory)
-      .where(
-        clickCollect
-          ? and(inArray(inventory.productId, [...qtyByProduct.keys()]), eq(inventory.storeSlug, fulfilStore))
-          : inArray(inventory.productId, [...qtyByProduct.keys()]),
-      )
-      .orderBy(inventory.id)
-      .for("update");
-    const available = new Map<number, number>();
-    for (const row of lockedRows) available.set(row.productId, (available.get(row.productId) ?? 0) + row.quantity);
-    for (const l of lines) {
-      const have = available.get(l.product.id) ?? 0;
-      if ((qtyByProduct.get(l.product.id) ?? 0) > have) {
-        throw new OrderRefusalError("LOW_STOCK", `Only ${have} left of ${l.product.name} right now — adjust the quantity and try again.`);
+  // Task 126 F-1 (fast path): a key that already has its order replays it —
+  // a double-click, a network retry or an impatient re-submit must not place
+  // a second order or burn stock twice. The key is an unguessable
+  // client-minted token, so possession IS the authority (no email gate).
+  if (input.idempotencyKey) {
+    const existing = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.idempotencyKey, input.idempotencyKey))
+      .limit(1);
+    if (existing[0]) return { order: existing[0], replayed: true };
+  }
+
+  try {
+    return await db.transaction(async (tx) => {
+      // Lock the touched inventory rows (ordered by id so concurrent carts with
+      // overlapping products acquire locks in one deterministic order — no
+      // cross-transaction deadlock). Sums are computed in JS: FOR UPDATE cannot
+      // ride along with a GROUP BY aggregate in Postgres.
+      const lockedRows = await tx
+        .select({ productId: inventory.productId, quantity: inventory.quantity })
+        .from(inventory)
+        .where(
+          clickCollect
+            ? and(inArray(inventory.productId, [...qtyByProduct.keys()]), eq(inventory.storeSlug, fulfilStore))
+            : inArray(inventory.productId, [...qtyByProduct.keys()]),
+        )
+        .orderBy(inventory.id)
+        .for("update");
+      const available = new Map<number, number>();
+      for (const row of lockedRows) available.set(row.productId, (available.get(row.productId) ?? 0) + row.quantity);
+      for (const l of lines) {
+        const have = available.get(l.product.id) ?? 0;
+        if ((qtyByProduct.get(l.product.id) ?? 0) > have) {
+          throw new OrderRefusalError("LOW_STOCK", `Only ${have} left of ${l.product.name} right now — adjust the quantity and try again.`);
+        }
       }
+      const inserted = await tx
+        .insert(orders)
+        .values({
+          orderNumber: num,
+          idempotencyKey: input.idempotencyKey ?? null,
+          email: input.email.trim(),
+          fullName: input.fullName.trim(),
+          phone: input.phone.trim(),
+          address: input.address.trim(),
+          postal: input.postal.trim(),
+          deliveryMethod: input.deliveryMethod,
+          deliverySlot: input.deliverySlot,
+          storeSlug: input.storeSlug,
+          paymentMethod: input.paymentMethod,
+          subtotalCents,
+          discountCents,
+          deliveryFeeCents,
+          gstCents,
+          totalCents,
+          status: "confirmed",
+        })
+        .returning();
+      const order = inserted[0];
+      if (!order) throw new Error("Could not create order.");
+      await tx.insert(orderItems).values(
+        lines.map((l) => ({
+          orderId: order.id,
+          productId: l.product.id,
+          name: l.product.name,
+          sku: l.product.sku,
+          imageUrl: l.product.imageUrls[0] ?? "",
+          unitPriceCents: l.product.priceCents,
+          qty: l.qty,
+        })),
+      );
+      // Decrement store inventory (single-store source — a documented
+      // deferral; inside the lock no concurrent writer can interleave between
+      // the check above and this commit). Task 121 F-8: no swallowing catch —
+      // a failed UPDATE aborts the surrounding transaction anyway, so a silent
+      // catch here would only mask the failure until the COMMIT blows up.
+      // Fail-closed is the honest semantics for a locked-row arithmetic miss.
+      for (const l of lines) {
+        await tx
+          .update(inventory)
+          .set({ quantity: sql`greatest(0, ${inventory.quantity} - ${l.qty})` })
+          .where(and(eq(inventory.productId, l.product.id), eq(inventory.storeSlug, input.storeSlug || "tampines")));
+      }
+      return { order, replayed: false };
+    });
+  } catch (err) {
+    // Task 126 F-1 (race path): two concurrent same-key POSTs both pass the
+    // fast-path check; the unique index makes the loser's INSERT fail inside
+    // its transaction — which rolls the whole thing back (no decrement) —
+    // and the winner's committed order is what this key means now.
+    if (input.idempotencyKey && isUniqueViolation(err)) {
+      const existing = await db
+        .select()
+        .from(orders)
+        .where(eq(orders.idempotencyKey, input.idempotencyKey))
+        .limit(1);
+      if (existing[0]) return { order: existing[0], replayed: true };
     }
-    const inserted = await tx
-      .insert(orders)
-      .values({
-        orderNumber: num,
-        email: input.email.trim(),
-        fullName: input.fullName.trim(),
-        phone: input.phone.trim(),
-        address: input.address.trim(),
-        postal: input.postal.trim(),
-        deliveryMethod: input.deliveryMethod,
-        deliverySlot: input.deliverySlot,
-        storeSlug: input.storeSlug,
-        paymentMethod: input.paymentMethod,
-        subtotalCents,
-        discountCents,
-        deliveryFeeCents,
-        gstCents,
-        totalCents,
-        status: "confirmed",
-      })
-      .returning();
-    const order = inserted[0];
-    if (!order) throw new Error("Could not create order.");
-    await tx.insert(orderItems).values(
-      lines.map((l) => ({
-        orderId: order.id,
-        productId: l.product.id,
-        name: l.product.name,
-        sku: l.product.sku,
-        imageUrl: l.product.imageUrls[0] ?? "",
-        unitPriceCents: l.product.priceCents,
-        qty: l.qty,
-      })),
-    );
-    // Decrement store inventory (single-store source — a documented
-    // deferral; inside the lock no concurrent writer can interleave between
-    // the check above and this commit). Task 121 F-8: no swallowing catch —
-    // a failed UPDATE aborts the surrounding transaction anyway, so a silent
-    // catch here would only mask the failure until the COMMIT blows up.
-    // Fail-closed is the honest semantics for a locked-row arithmetic miss.
-    for (const l of lines) {
-      await tx
-        .update(inventory)
-        .set({ quantity: sql`greatest(0, ${inventory.quantity} - ${l.qty})` })
-        .where(and(eq(inventory.productId, l.product.id), eq(inventory.storeSlug, input.storeSlug || "tampines")));
-    }
-    return order;
-  });
+    throw err;
+  }
 }
 
 export async function trackOrder(orderNumberInput: string, email: string) {

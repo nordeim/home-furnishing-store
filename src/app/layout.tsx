@@ -14,6 +14,12 @@ export const metadata: Metadata = {
   description:
     "Scandinavian-designed furniture for Singapore homes: sofas, beds, dining, kitchens, workspaces and more. Delivery island-wide, Click & Collect at Tampines, Jurong and Alexandra.",
   metadataBase: new URL(SITE_ORIGIN),
+  // Task 126 F-8: og:* alone renders for link unfurlers, but X/Twitter wants
+  // its own card type — declared once here, it inherits to every page (a
+  // page's own title/description/images fall back to its openGraph fields).
+  twitter: {
+    card: "summary_large_image",
+  },
 };
 
 // Site-level structured data (Task 119 F-26): Organization + WebSite with

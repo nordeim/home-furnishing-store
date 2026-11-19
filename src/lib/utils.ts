@@ -29,6 +29,26 @@ export const FREE_DELIVERY_THRESHOLD_CENTS = 20000; // $200
 export const STANDARD_DELIVERY_FEE_CENTS = 1200; // $12
 export const EXPRESS_DELIVERY_FEE_CENTS = 2900; // $29
 
+// Task 126 F-1: the shape the checkout boundary accepts for an idempotency
+// key (client-minted double-submit guard). Malformed keys are dropped by the
+// route, never refused — dedupe is an enhancement, not a persisted field.
+export const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9-]{8,64}$/;
+
+/**
+ * Mint one idempotency key per checkout-page mount. crypto.randomUUID is the
+ * canonical token but is only available on secure contexts (https OR
+ * loopback) — plain-HTTP LAN deployments would crash at mount, so fall back
+ * to a Math.random token (still unguessable enough for a dedupe token; the
+ * homenest session-70 lesson). Pure — safe on server and client renders.
+ */
+export function mintIdempotencyKey(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `k${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+  }
+}
+
 export function formatSGD(cents: number): string {
   const v = (Number.isFinite(cents) ? cents : 0) / 100;
   return new Intl.NumberFormat("en-SG", {

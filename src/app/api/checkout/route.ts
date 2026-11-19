@@ -98,7 +98,17 @@ export async function POST(req: Request) {
     if (promoCode !== null && promoCode.length > 32)
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "One or more fields are too long — keep each under its stated limit." } }, { status: 422 });
 
-    const order = await placeOrder({
+    // Task 126 F-1: optional client-minted idempotency key — a double-submit
+    // or network retry re-POSTs the same bag and must replay the first order
+    // instead of placing a second. Malformed keys are dropped to null (dedupe
+    // is an enhancement, never a persisted field; a key-less POST behaves
+    // exactly as before).
+    const idempotencyKey =
+      typeof body.idempotencyKey === "string" && /^[A-Za-z0-9-]{8,64}$/.test(body.idempotencyKey)
+        ? body.idempotencyKey
+        : null;
+
+    const { order, replayed } = await placeOrder({
       email,
       fullName,
       phone,
@@ -110,11 +120,13 @@ export async function POST(req: Request) {
       paymentMethod: ["card", "paynow", "grabpay", "atome"].includes(String(body.paymentMethod)) ? String(body.paymentMethod) : "card",
       promoCode,
       lines,
+      idempotencyKey,
     });
     // Data minimization (Task 119, matching the track route): the confirmation
     // page needs only the order number — the full inserted row (email, phone,
-    // address, postal) never ships back in the envelope.
-    return NextResponse.json({ ok: true, data: { orderNumber: order.orderNumber } }, { status: 201 });
+    // address, postal) never ships back in the envelope. A replay answers 200
+    // (nothing was created) with the SAME number the first call returned.
+    return NextResponse.json({ ok: true, data: { orderNumber: order.orderNumber } }, { status: replayed ? 200 : 201 });
   } catch (err) {
     // Domain refusals carry their own stable envelope code (EMPTY_BAG /
     // INVALID_PROMO / LOW_STOCK) as a 422 — a client-correctable state.

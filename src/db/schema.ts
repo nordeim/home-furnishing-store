@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   numeric,
   pgTable,
@@ -49,7 +50,8 @@ export const products = pgTable(
     stockTotal: integer("stock_total").notNull().default(0),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("products_slug_idx").on(t.slug)],
+  // slug/sku carry unique CONSTRAINTS above; no second unique index on an
+  // already-constrained column (Task 126 F-7 dropped the redundant twin).
 );
 
 export const stores = pgTable("stores", {
@@ -84,6 +86,10 @@ export const inventory = pgTable(
 export const orders = pgTable("orders", {
   id: serial("id").primaryKey(),
   orderNumber: text("order_number").notNull().unique(),
+  // Task 126 F-1: client-minted double-submit guard. NULL for every pre-existing
+  // order and every key-less POST (Postgres unique indexes allow unlimited
+  // NULLs); a repeated key replays the first order instead of placing a second.
+  idempotencyKey: text("idempotency_key").unique(),
   email: text("email").notNull(),
   fullName: text("full_name").notNull(),
   phone: text("phone").notNull().default(""),
@@ -107,7 +113,11 @@ export const orderItems = pgTable("order_items", {
   orderId: integer("order_id")
     .notNull()
     .references(() => orders.id, { onDelete: "cascade" }),
-  productId: integer("product_id").notNull().default(0),
+  // Deliberately denormalized (no FK): the row is a historical copy of the
+  // purchased line — a later catalogue deletion must not cascade an order's
+  // history away. No default(0) though: a silent 0 productId is junk data,
+  // every insert must name the product (Task 126 F-7).
+  productId: integer("product_id").notNull(),
   name: text("name").notNull(),
   sku: text("sku").notNull().default(""),
   imageUrl: text("image_url").notNull().default(""),
@@ -116,18 +126,24 @@ export const orderItems = pgTable("order_items", {
 });
 
 // ── Social proof / content ───────────────────────────────
-export const reviews = pgTable("reviews", {
-  id: serial("id").primaryKey(),
-  productId: integer("product_id")
-    .notNull()
-    .references(() => products.id, { onDelete: "cascade" }),
-  author: text("author").notNull(),
-  rating: integer("rating").notNull(),
-  title: text("title").notNull().default(""),
-  body: text("body").notNull().default(""),
-  verified: boolean("verified").notNull().default(false),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const reviews = pgTable(
+  "reviews",
+  {
+    id: serial("id").primaryKey(),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    author: text("author").notNull(),
+    rating: integer("rating").notNull(),
+    title: text("title").notNull().default(""),
+    body: text("body").notNull().default(""),
+    verified: boolean("verified").notNull().default(false),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  // Task 126 F-7: getReviews/getReviewCount filter on productId every PDP
+  // render; without an index the lookup is a seq scan as the table grows.
+  (t) => [index("reviews_product_idx").on(t.productId)],
+);
 
 export const inspirations = pgTable("inspirations", {
   id: serial("id").primaryKey(),

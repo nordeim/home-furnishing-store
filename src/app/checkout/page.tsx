@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useCart } from "@/lib/cart-store";
 import { effectivePromo } from "@/lib/catalog";
-import { availableDeliverySlots, formatSGD, priceTotals } from "@/lib/utils";
+import { availableDeliverySlots, formatSGD, mintIdempotencyKey, priceTotals, EXPRESS_DELIVERY_FEE_CENTS, FREE_DELIVERY_THRESHOLD_CENTS, STANDARD_DELIVERY_FEE_CENTS } from "@/lib/utils";
 
 type Method = "delivery" | "click-collect" | "express";
 
@@ -21,6 +21,12 @@ export default function CheckoutPage() {
   const [method, setMethod] = useState<Method>("delivery");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Task 126 F-1: ONE key per checkout-page mount — a double-click, a network
+  // retry or an impatient re-submit re-sends the same key and the boundary
+  // replays the first order instead of placing a second. useState re-runs the
+  // initializer on hydration (the key is never rendered, so no mismatch) and
+  // a page REMOUNT mints fresh (a new visit is a new intent).
+  const [idemKey] = useState(() => mintIdempotencyKey());
 
   // Display totals use the shared effectivePromo gate (Task 122 F-5: a
   // below-minimum code must not display a discount the server refuses);
@@ -56,6 +62,7 @@ export default function CheckoutPage() {
           address: form.address, postal: form.postal, deliveryMethod: method,
           deliverySlot: form.slot, storeSlug: form.store, paymentMethod: form.pay,
           promoCode, lines: lines.map((l) => ({ productId: l.productId, qty: l.qty })),
+          idempotencyKey: idemKey,
         }),
       });
       const json = (await res.json()) as { ok: boolean; data?: { orderNumber: string }; error?: { message: string } };
@@ -107,7 +114,7 @@ export default function CheckoutPage() {
                 radiogroup keyboard pattern — plain buttons with aria-pressed are
                 honest semantics (Tab-reachable, correctly announced). */}
             <div className="mt-3 grid gap-2 sm:grid-cols-3" role="group" aria-label="Delivery method">
-              {([["delivery", "Delivery", "From $12 · free $200+"], ["click-collect", "Click & Collect", "Free · ready in 2 hrs"], ["express", "Express", "Next-day · $29"]] as Array<[Method, string, string]>).map(([v, title, sub]) => (
+              {([["delivery", "Delivery", `From $${STANDARD_DELIVERY_FEE_CENTS / 100} · free $${FREE_DELIVERY_THRESHOLD_CENTS / 100}+`], ["click-collect", "Click & Collect", "Free · ready in 2 hrs"], ["express", "Express", `Next-day · $${EXPRESS_DELIVERY_FEE_CENTS / 100}`]] as Array<[Method, string, string]>).map(([v, title, sub]) => (
                 <button type="button" key={v} aria-pressed={method === v} onClick={() => { setMethod(v); set("slot", availableDeliverySlots(v)[0]); }}
                   className={`rounded-xl border-2 p-4 text-left focus-ring ${method === v ? "border-[#0058a3] bg-[#f0f6fc]" : "border-[#eee]"}`}>
                   <span className="block font-black">{title}</span><span className="text-[13px] text-[#5b5b5b]">{sub}</span>

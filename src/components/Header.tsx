@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { createLocalStore } from "@/lib/local-store";
 import { useCart } from "@/lib/cart-store";
-import { CATEGORIES } from "@/lib/catalog";
+import { CATEGORIES, catalogMaxDiscountPercent } from "@/lib/catalog";
 
 const TOP_LINKS = [
   { href: "/offers", label: "Offers" },
@@ -73,7 +73,7 @@ export function Header() {
             {/* Task 125 F-4: honest attribution (dining's max is −17%; the
                 −24% is NORDLYS lighting, WOKHEY cookware −23%, PANDAN decor
                 −21%) — the hero's Task-122 F-19 set, mirrored. */}
-            Festive market is on — up to 24% off lighting, cookware & decor
+            Festive market is on — up to {catalogMaxDiscountPercent()}% off lighting, cookware & decor
           </p>
           <Link href="/offers" className="shrink-0 underline underline-offset-2 focus-ring rounded">Shop offers</Link>
           <nav className="hidden items-center gap-4 md:flex" aria-label="Utility">

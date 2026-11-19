@@ -224,3 +224,21 @@ export function storeName(slug: string): string {
   const s = slug.trim();
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
+
+/**
+ * Task 126 F-3: the ONE max-discount derivation. "Up to 24% off" was a
+ * hardcoded literal at five marketing surfaces (hero, header strip, offers
+ * metadata ×2, offers copy) — a catalogue edit turned every claim into a lie
+ * with the gates green. Same display formula as the PDP's per-product chip
+ * (Math.round over the compare-at delta), applied across the catalogue.
+ */
+export function catalogMaxDiscountPercent(): number {
+  return Math.max(
+    0,
+    ...PRODUCTS.map((p) =>
+      p.compareAtCents && p.compareAtCents > p.priceCents
+        ? Math.round(((p.compareAtCents - p.priceCents) / p.compareAtCents) * 100)
+        : 0,
+    ),
+  );
+}

@@ -1,5 +1,7 @@
 "use client";
 
+import { PERSISTED_STORAGE_KEYS } from "@/lib/local-store";
+
 // Task 121 F-4 safety net: a render-time crash inside any client component
 // (historically reachable via an unvalidated localStorage payload reaching
 // CartProvider) previously replaced every route with Next's generic error
@@ -40,7 +42,7 @@ export default function RouteError({ error, reset }: { error: Error & { digest?:
             // Last resort, clearly labelled: drop the persisted client state
             // and RELOAD — the module-level store snapshot is read once at
             // import, so reset() alone cannot recover from a poisoned value.
-            for (const key of ["nordhem_cart_v1", "nordhem_wish_v1", "nordhem_promo", "nordhem_store"]) {
+            for (const key of PERSISTED_STORAGE_KEYS) {
               try {
                 localStorage.removeItem(key);
               } catch {
