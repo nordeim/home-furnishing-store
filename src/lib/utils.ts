@@ -35,6 +35,23 @@ export const EXPRESS_DELIVERY_FEE_CENTS = 2900; // $29
 export const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9-]{8,64}$/;
 
 /**
+ * Task 130 F-4: discriminate WHICH unique constraint fired a pg 23505.
+ * placeOrder's catch used to test the error code alone, so an order_number
+ * collision (the NH-YYYYMMDD-XXXXXX suffix carries ~2^31 entropy — the
+ * birthday bound bites around 46k orders/day) was indistinguishable from an
+ * idempotency-key replay and fell through to a customer-facing 500. The
+ * discriminator checks the driver's `constraint` name on the error AND on
+ * `.cause` (Drizzle surfaces the pg error either way — the existing
+ * isUniqueViolation precedent). Pure — unit-pinned.
+ */
+export function isUniqueViolationOn(err: unknown, constraint: string): boolean {
+  const e = err as { code?: string; constraint?: string; cause?: { code?: string; constraint?: string } };
+  const code = e?.code === "23505" || e?.cause?.code === "23505";
+  const named = e?.constraint === constraint || e?.cause?.constraint === constraint;
+  return code && named;
+}
+
+/**
  * Mint one idempotency key per checkout-page mount. crypto.randomUUID is the
  * canonical token but is only available on secure contexts (https OR
  * loopback) — plain-HTTP LAN deployments would crash at mount, so fall back
@@ -95,7 +112,10 @@ export function priceTotals(input: TotalsInput): Totals {
   let discountCents = 0;
   if (input.promo) {
     if (input.promo.kind === "percent") {
-      discountCents = Math.round((subtotalCents * input.promo.value) / 100);
+      // Task 130 F-7: cap at the subtotal like the fixed branch — a >100%
+      // percent promo (unreachable today, seed/DB-controlled) must never
+      // mint negative net/GST/total cents at the money seam.
+      discountCents = Math.min(subtotalCents, Math.round((subtotalCents * input.promo.value) / 100));
     } else if (input.promo.kind === "fixed") {
       discountCents = Math.min(subtotalCents, input.promo.value);
     }

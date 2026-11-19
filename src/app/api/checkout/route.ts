@@ -120,6 +120,14 @@ export async function POST(req: Request) {
     // hand-duplicated store list (a fourth store previously needed four
     // coordinated edits across route/page/Header).
     const STORE_SLUGS = STORES.map((s) => s.slug);
+    // Task 130 F-1: storeSlug joins the TYPE-strict set (the lesson-43
+    // field-class rule, one field short in Task 129) — String(["tampines"])
+    // coerced to a real slug and rode the whitelist into a 201 order on a
+    // crafted type. There is no UI null-encoding to preserve (unlike
+    // promoCode): the checkout page's store select always sends a real
+    // string, and an absent field keeps the documented "tampines" default.
+    if ("storeSlug" in body && typeof body.storeSlug !== "string")
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Choose one of our three stores." } }, { status: 422 });
     const storeSlug = String(body.storeSlug ?? "tampines");
     if (!STORE_SLUGS.includes(storeSlug))
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Choose one of our three stores." } }, { status: 422 });

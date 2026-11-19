@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { STORES, storeName } from "@/lib/catalog";
 import { GST_RATE } from "@/lib/utils";
 
 // Task 128 F-11: the copyright year derives on the UTC+8 clock — the last
@@ -51,9 +52,13 @@ export function Footer() {
               delivered island-wide with 365-day returns.
             </p>
             <div className="mt-5 flex flex-wrap gap-2 text-[13px] font-semibold">
-              <span className="rounded-full bg-white px-3 py-1.5">Tampines</span>
-              <span className="rounded-full bg-white px-3 py-1.5">Jurong</span>
-              <span className="rounded-full bg-white px-3 py-1.5">Alexandra</span>
+              {/* Task 130 F-6: the chips derive from the STORES seed via
+                  storeName — the fourth hand-duplicated store list (a new
+                  store previously needed a coordinated Footer edit too; the
+                  Task-129 derivation missed this one). */}
+              {STORES.map((s) => (
+                <span key={s.slug} className="rounded-full bg-white px-3 py-1.5">{storeName(s.slug)}</span>
+              ))}
               <span className="rounded-full bg-[#ffdb00] px-3 py-1.5">Island-wide delivery</span>
             </div>
           </div>

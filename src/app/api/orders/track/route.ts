@@ -24,7 +24,10 @@ export async function POST(req: Request) {
   // Task 128 F-1: a valid-JSON NON-OBJECT body (`null`) is the same
   // client-fault class — the property reads below are TypeErrors on it
   // (a 500 for a client fault). Guard the shape beside the parse guard.
-  if (typeof body !== "object" || body === null)
+  // Task 130 F-5: arrays join the class (the checkout parity — an array
+  // is typeof "object" and parses cleanly, but it is not the record the
+  // field reads assume; it used to limp to a 422 on fields it never had).
+  if (typeof body !== "object" || body === null || Array.isArray(body))
     return NextResponse.json({ ok: false, error: { code: "BAD_REQUEST", message: "Expected a JSON body." } }, { status: 400 });
   try {
     // Task 126 F-5: TYPE-strict, mirroring the checkout (Task-124 F-5) and

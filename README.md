@@ -164,12 +164,12 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 163 tests at the pure seams
+npm run test             # Vitest unit — 169 tests at the pure seams
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 113 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 116 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
@@ -244,7 +244,7 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 163 unit + 113 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120/121/122/123/124/125/126/127/128/129); counts pinned by tests/unit/docs-counts.test.ts |
+| Test suite | ✅ 169 unit + 116 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120/121/122/123/124/125/126/127/128/129/130); counts pinned by tests/unit/docs-counts.test.ts |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
@@ -280,6 +280,33 @@ verified TRUE (all ten Task-128 seams held; the reference repo stayed
 quiescent with md5-identical catalogs — nothing to port, fifth cycle).
 Suite grew to 163 unit + 113 e2e. Details in `worklog.md` and
 `docs/plans/2026-11-20-task129-remediation-plan.md`.
+
+Current cycle (2026-11-20, Task 130): workspace-refresh re-audit (mobile-nav
+taxonomy re-verified clean at 390/1440 — no Tailwind v4 bug; hydration
+live-verified; baseline gates green at 163/113 with zero DB residue — the
+recycled PG data dir needed its initdb runtime subdirectories restored, the
+SKILL lesson-31 class, first recurrence since Task 129 went fully-fresh)
+that caught **the delivery phantom-unit mint** (availability checked
+island-wide stock while the decrement floored one chosen-store row — a
+17-unit order against 15+3+0 stock passed the aggregate and clamped 2
+units out of thin air, dev-server-verified live; check and decrement now
+read the SAME chosen-store rows for every method — the register's
+"delivery decrement accounting drift" row closed), **the last String()-
+coerced checkout seam** (`storeSlug: ["tampines"]` placed a real 201 —
+now TYPE-strict like its enum siblings), **a latent fullyParallel flake**
+(the saturation spec's 21-review insert raced the "Reviews (0)" assertions
+on the same product — probe moved to a quiet, otherwise-untouched one),
+**the 23505 conflation** (an order_number collision surfaced as a
+customer-facing 500 while the catch could not tell it from an idempotency
+replay — now constraint-name-discriminated, re-mint + retry), the
+**array-body parity** (three sibling routes join checkout's 400), the
+**Footer store-chips derivation** (the fourth hand-duplicated list), the
+**wishlist heading honesty** (resolved count, not persisted slugs), and
+the **priceTotals percent cap**. Plus an eleven-claim docs-truth sweep
+(stale route counts, a pre-Task-125 rate-limit row, retired narratives,
+rotted line-count tables — dropped per the Task-129 precedent). Suite
+grew to 169 unit + 116 e2e. Details in `worklog.md` and
+`docs/plans/2026-11-20-task130-remediation-plan.md`.
 
 Current cycle (2026-11-19, Task 128): workspace-refresh re-audit (mobile-nav
 taxonomy re-verified clean at 390/1440 incl. the F-7 param-close regression

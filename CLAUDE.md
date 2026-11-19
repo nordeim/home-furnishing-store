@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-20 (Task 129: residue-net completion, enum-boundary parity, business derived pin)
+last_updated: 2026-11-20 (Task 130: fulfilment-store coherence, boundary parity completion, suite de-flake)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -129,15 +129,15 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`typecheck:tests` covers the test tree) |
-| `npm run test` | Vitest unit suite (163 tests, pure seams) |
-| `npm run test:e2e` | Playwright e2e (113 tests, production build on :3100) |
+| `npm run test` | Vitest unit suite (169 tests, pure seams) |
+| `npm run test:e2e` | Playwright e2e (116 tests, production build on :3100) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
 **Current state (Tasks 114–129, extended this cycle):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 163 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 169 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
@@ -151,7 +151,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   with the fs-computed reality — count-lockstep is enforced across all five
   operator docs, not remembered). Node environment with a localStorage shim
   (`tests/unit/setup.ts`); no jsdom, no component rendering.
-- **E2E (Playwright, 113 tests)** against the **production build** (the webServer
+- **E2E (Playwright, 116 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
   hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
@@ -371,6 +371,26 @@ fix and passes after.
   whitelist, the checkout page's options and the Header picker derive from
   the `STORES` seed via `storeName()`; and the IDEMPOTENCY_KEY_RE /
   docs-counts fs-pins resolve from `import.meta.dirname` (cwd-proof).
+- **Task-130 seams:** checkout fulfilment is store-scoped for EVERY method
+  (the availability lock query and the decrement read the SAME
+  chosen-store rows — the pre-130 delivery shape checked the island-wide
+  aggregate while the decrement floored one row through `greatest(0,·)`,
+  minting phantom units; the register's redistribution alternative was
+  rejected because the e2e RED-run nets restore inventory post-hoc and a
+  multi-store drain is not reconstructible); `storeSlug` is TYPE-strict
+  like its enum siblings (the last String()-coerced seam — no UI
+  null-encoding to preserve); `isUniqueViolationOn(err, constraint)` in
+  `utils.ts` discriminates 23505s by constraint name (the replay path
+  narrows to `orders_idempotency_key_unique`; an `order_number` collision
+  re-mints and re-runs the fully-rolled-back transaction once); the three
+  sibling POST routes join checkout's `Array.isArray` shape guard (400 for
+  array bodies, not a limping 422); the Footer store chips derive from the
+  `STORES` seed (the fourth hand-duplicated list, e2e-pinned); the
+  wishlist heading counts RESOLVED items once loaded (error keeps the
+  persisted count); `priceTotals` caps BOTH promo branches at the subtotal
+  (a >100% percent promo can no longer mint negative cents); and the
+  saturation spec's 21-review probe moved havbris → pandan-rug-200 (the
+  fullyParallel race with the two "Reviews (0)" havbris assertions).
 
 - **`main` branch only** — no feature branches (operator contract).
 - Conventional Commits, atomic units (`fix:`, `feat:`, `docs:` — history uses

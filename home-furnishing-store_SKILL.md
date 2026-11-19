@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 2.3.0
-last_updated: "2026-11-20 (Task 129: residue-net completion, enum-boundary parity, business derived pin)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 163/163 unit · 113/113 e2e · cold build green · PostgreSQL 17 live-verified (fresh install via docs/setup_pg_z.sh) · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
+version: 2.4.0
+last_updated: "2026-11-20 (Task 130: fulfilment-store coherence, boundary parity completion, suite de-flake)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 169/169 unit · 116/116 e2e · cold build green · PostgreSQL 17 live-verified (fresh install via docs/setup_pg_z.sh) · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -94,8 +94,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 163/163
-npm run test:e2e                                               # 113/113 (live Postgres for the journey)
+npm run test                                                   # 169/169
+npm run test:e2e                                               # 116/116 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -200,8 +200,10 @@ literals against the computed card chips. Schema highlights (`src/db/schema.ts`)
 `rating_avg` is `numeric(3,2)` (arrives as string over JSON — cards accept
 `string | number`); `order_items` is a denormalized snapshot (orders survive
 catalogue edits); 9 tables total. Inventory is seeded 3 rows/product
-(tampines/jurong/alexandra) with `A12-B04`-style aisle bins; decrement on
-checkout is best-effort, non-blocking.
+(tampines/jurong/alexandra) with `A12-B04`-style aisle bins; checkout
+decrements the CHOSEN store's row inside the locked transaction —
+fail-closed, method-independent since Task 130 F-2 (check and decrement
+read the same rows; an arithmetic miss aborts the transaction).
 
 ## 8. Accessibility (WCAG 2.2 AA baseline)
 
@@ -768,6 +770,32 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
     "no promo" encoding (it always sends the key) — refusing it would
     have broken the UI the boundary exists to serve.
 
+49. **A check that reads different rows than its write is a phantom-unit
+    mint (Task 130 F-2).** placeOrder's availability check summed ALL
+    stores for delivery while the decrement hit ONE row with a
+    `greatest(0, …)` clamp — a 17-unit delivery order against 15+3+0 stock
+    passed the aggregate, clamped the store to 0, and 2 units materialised
+    from nowhere; the table then overstated stock for every later refusal.
+    Rule: at any write boundary, the CHECK and the WRITE must read the
+    SAME rows — and when choosing between "widen the write" (multi-store
+    drain) and "narrow the check" (scope to the fulfilment store), weigh
+    the tooling around the seam: the e2e RED-run nets restore inventory
+    post-hoc from the order rows, and a multi-store drain is not
+    reconstructible after the fact — the symmetric-by-construction option
+    wins even when it narrows a capability.
+
+50. **fullyParallel serialises nothing — shared DB state must not overlap
+    across specs in the same file (Task 130 F-3).** The saturation spec
+    inserted 21 reviews on HAVBRIS while two sibling specs asserted
+    `Reviews (0)` on the same product — `fullyParallel: true` parallelises
+    tests WITHIN a file too, so the insert window raced the zero-review
+    assertions (CI was safe only because `workers: 1`). Rule: when a spec
+    mutates shared DB state, grep the suite for every other consumer of
+    that entity BEFORE choosing its fixture — the overlap is an accident
+    of product choice, not a necessity, and quiet entities are plentiful.
+    The same rule applies to inventory: the LOW_STOCK/JSON-LD specs each
+    own a distinct product for a reason.
+
 ## 13. Pitfalls to Avoid
 
 - Adding state/auth/payment SDKs without a decision record (ADR-006 deferrals
@@ -889,8 +917,8 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | Commands & gotchas | `AGENTS.md` |
 | Architecture detail | `Project_Architecture_Document.md` |
 | Decision record | `docs/implementation-plan.md` |
-| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` · `docs/plans/2026-11-18-task117-remediation-plan.md` · `docs/plans/2026-11-18-task118-remediation-plan.md` · `docs/plans/2026-11-18-task119-remediation-plan.md` · `docs/plans/2026-11-18-task120-remediation-plan.md` |
-| Screenshots | `docs/screenshots/01…21-*.png` |
+| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-20-task130-remediation-plan.md` (15 plans: Tasks 114, 117–130) |
+| Screenshots | `docs/screenshots/01…69-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants) |
 | SSH push runbook | `docs/how-to-git-push-using-ssh-wrapper_SKILL.md` |
 | Working history | `worklog.md` (Tasks 113+ NORDHEM; the 1–112 predecessor lineage was operator-trimmed) |
 | Money/validators | `src/lib/utils.ts` |
@@ -899,5 +927,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (163) |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (113) |
+| Unit suite | `tests/unit/*.test.ts` (169) |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (116) — 108 storefront + 8 mobile |

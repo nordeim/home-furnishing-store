@@ -22,8 +22,8 @@ ORM + PostgreSQL.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
-| `npm run test` | Vitest unit suite (163 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
-| `npm run test:e2e` | Playwright e2e (113 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
+| `npm run test` | Vitest unit suite (169 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
+| `npm run test:e2e` | Playwright e2e (116 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
 The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–129):
@@ -156,10 +156,11 @@ AND copy — the family/business halves of the Task-127 F-4 class), the
 **Footer SGT year** (the last bare server-local calendar read in src/), and
 the **producer-side store-key fs-pin** (every createLocalStore key — literal
 or constant — must be a member of PERSISTED_STORAGE_KEYS). The storefront
-spec's interaction-first coverage is now complete: 34 gotoHydrated call
-sites, zero interaction-first bare gotos (mechanically re-verified — the
-Task-127 conversion had left 13, including a /cart site both sweeps
-under-counted). One reference-agent claim was DISPROVEN by direct read
+spec's interaction-first coverage is now complete: 38 gotoHydrated call
+sites in the storefront spec (40 across both files; Task 129's three
+conversions took it from 34), zero interaction-first bare gotos
+(mechanically re-verified — the Task-127 conversion had left 13, including
+a /cart site both sweeps under-counted). One reference-agent claim was DISPROVEN by direct read
 (rate-limit.ts "corruption" — the line is clean) — and the Task-129 pins:
 the **residue-net completion** (three write-capable refusal specs — the
 nullqty order probe, the overlong-review-body probe, the bad-rating/short-name
@@ -182,7 +183,32 @@ file can no longer escape `PERSISTED_STORAGE_KEYS`), the **store-list
 derivation** (route whitelist + checkout options + Header picker derive from
 the `STORES` seed via `storeName()` — the last hand-duplicated store list),
 and the **fs-pin path normalization** (the IDEMPOTENCY_KEY_RE + docs-counts
-pins resolve from `import.meta.dirname`, not cwd).
+pins resolve from `import.meta.dirname`, not cwd). And the Task-130 pins:
+the **fulfilment-store coherence** (delivery availability checked
+island-wide stock while the decrement floored one chosen-store row — a
+17-unit order against 15+3+0 stock passed the aggregate and minted 2
+phantom units through the greatest(0,·) clamp; check and decrement now
+read the SAME chosen-store rows for every method, the register's
+"delivery decrement accounting drift" row closed — e2e-pinned with the
+422 LOW_STOCK probe + the qty-exact-drain positive control, RED observed
+live on the dev server), the **storeSlug TYPE-strictness** (the last
+String()-coerced seam — `storeSlug: ["tampines"]` coerced through the
+whitelist into a real 201, dev-verified; the lesson-43 field-class rule
+one field short), the **saturation-spec de-flake** (the 21-review HAVBRIS
+insert raced the two "Reviews (0)" assertions under fullyParallel —
+probe product moved to pandan-rug-200), the **23505 constraint-name
+discrimination** (`isUniqueViolationOn(err, constraint)` unit-pinned in
+utils.ts; the replay path narrows to orders_idempotency_key_unique and an
+order_number collision re-mints + retries the rolled-back transaction
+once — the register's "orderNumber collision retry" row closed), the
+**array-body parity** (reviews/track/promo-validate join checkout's
+Array.isArray → 400 — the Task-128 register row promoted), the **Footer
+store-chips derivation** (the fourth hand-duplicated list — e2e-pinned
+against the STORES seed), the **wishlist heading honesty** (the resolved
+count once loaded — a departed product's slug no longer renders "(2)"
+above one card; the error state keeps the persisted count), and the
+**priceTotals percent cap** (both promo branches now cap at the subtotal —
+a >100% promo can no longer mint negative cents at the money seam).
 
 **Test counts are documentation claims, pinned by test** (Task 119):
 `tests/unit/docs-counts.test.ts` fs-computes the real counts and fails the run
@@ -297,8 +323,8 @@ When adding tests, pin them to this `src/` — never resurrect ely-beauty specs.
 rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db" npm run build
 npm run typecheck
 npm run lint          # 0 errors expected (the 7-error lint debt was fixed in Task 114)
-npm run test          # 163/163 unit
-npm run test:e2e      # 113/113 e2e (needs a live Postgres for the checkout journey)
+npm run test          # 169/169 unit
+npm run test:e2e      # 116/116 e2e (needs a live Postgres for the checkout journey)
 ```
 
 There is no hosted CI; the local gate is the only gate.

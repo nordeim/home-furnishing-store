@@ -36,7 +36,13 @@ export default function WishlistPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <h1 className="text-[clamp(1.8rem,4vw,2.6rem)] font-black tracking-tight">Your wishlist ({wishlist.length})</h1>
+      {/* Task 130 F-8: the heading counts what the grid can actually show.
+          While loading (or on error) the persisted-slug count is the honest
+          number — resolution is unknowable; once resolved, items.length is
+          the truth (a persisted slug whose product left the catalogue must
+          not render "(2)" above one card — the honesty class the project
+          polices everywhere). */}
+      <h1 className="text-[clamp(1.8rem,4vw,2.6rem)] font-black tracking-tight">Your wishlist ({loading || error ? wishlist.length : items.length})</h1>
       {loading ? <p className="mt-4 text-[#5b5b5b]" role="status">Loading…</p> : error ? (
         <div className="mt-6 rounded-2xl bg-[#fff4f4] p-10 text-center" role="alert">
           <p className="text-[18px] font-black text-[#a00008]">We couldn’t load your wishlist</p>

@@ -3,6 +3,7 @@ import { categories, inspirations, inventory, orderItems, orders, products, prom
 import type { Order } from "@/db/schema";
 import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, matchesProductQuery } from "@/lib/catalog";
 import {
+  isUniqueViolationOn,
   orderNumber,
   priceTotals,
 } from "@/lib/utils";
@@ -197,12 +198,11 @@ export interface PlaceOrderResult {
   replayed: boolean;
 }
 
-// pg unique-constraint violation (23505) — Drizzle surfaces the driver's
-// DatabaseError unwrapped, but check .cause too so a wrapper cannot hide it.
-function isUniqueViolation(err: unknown): boolean {
-  const e = err as { code?: string; cause?: { code?: string } };
-  return e?.code === "23505" || e?.cause?.code === "23505";
-}
+// pg unique-constraint violation (23505) discrimination — Task 130 F-4
+// moved the check to the pure, unit-pinned `isUniqueViolationOn` seam in
+// utils.ts (constraint-name aware): placeOrder needs to tell an idempotency
+// replay from an order_number collision apart, and the old code-only test
+// could not.
 
 // Task 127 F-5: a replay is OWNERSHIP-BOUND — both replay paths require the
 // same email as the bound order (case-insensitive; the track-route match
@@ -275,13 +275,27 @@ export async function placeOrder(input: CheckoutInput): Promise<PlaceOrderResult
   // Task 121 F-2: click-&-collect fulfils from ONE store, so its availability
   // check must be scoped to THAT store's rows — the island-wide aggregate let
   // a Jurong pickup pass on Tampines stock while the PDP honestly showed
-  // "Jurong: Out of stock". Delivery keeps the aggregate (any store can ship;
-  // the single-store decrement source remains the documented deferral).
+  // "Jurong: Out of stock".
+  // Task 130 F-2: the scoping is now METHOD-INDEPENDENT — every order fulfils
+  // from the chosen store. The pre-130 delivery shape checked the island-wide
+  // aggregate ("any store can ship") while the decrement hit ONE row with a
+  // greatest(0, …) clamp — a delivery order larger than the chosen store's
+  // stock PASSED on the aggregate, clamped the row to 0, and the difference
+  // materialised as phantom units the table then overstated forever (the
+  // register's "delivery decrement accounting drift" row). Scoping check and
+  // decrement to the same rows makes them coherent by construction and keeps
+  // the LOW_STOCK refusal agreeing with the PDP's per-store display. The
+  // register's redistribution alternative (drain across stores in id order)
+  // was rejected: the e2e RED-run nets restore inventory post-hoc from the
+  // order rows — a multi-store drain is not reconstructible after the fact.
   const fulfilStore = input.storeSlug || "tampines";
-  const clickCollect = input.deliveryMethod === "click-collect";
 
-  try {
-    return await db.transaction(async (tx) => {
+  // Task 130 F-4: the transaction body is a helper so a minted
+  // order_number collision can be retried with a fresh mint — the whole
+  // first transaction rolls back (locks released, no decrement, no
+  // order row), so the retry is a clean re-run, never a partial one.
+  const createOrder = (minted: string) =>
+    db.transaction(async (tx) => {
       // Lock the touched inventory rows (ordered by id so concurrent carts with
       // overlapping products acquire locks in one deterministic order — no
       // cross-transaction deadlock). Sums are computed in JS: FOR UPDATE cannot
@@ -289,11 +303,7 @@ export async function placeOrder(input: CheckoutInput): Promise<PlaceOrderResult
       const lockedRows = await tx
         .select({ productId: inventory.productId, quantity: inventory.quantity })
         .from(inventory)
-        .where(
-          clickCollect
-            ? and(inArray(inventory.productId, [...qtyByProduct.keys()]), eq(inventory.storeSlug, fulfilStore))
-            : inArray(inventory.productId, [...qtyByProduct.keys()]),
-        )
+        .where(and(inArray(inventory.productId, [...qtyByProduct.keys()]), eq(inventory.storeSlug, fulfilStore)))
         .orderBy(inventory.id)
         .for("update");
       const available = new Map<number, number>();
@@ -307,7 +317,7 @@ export async function placeOrder(input: CheckoutInput): Promise<PlaceOrderResult
       const inserted = await tx
         .insert(orders)
         .values({
-          orderNumber: num,
+          orderNumber: minted,
           idempotencyKey: input.idempotencyKey ?? null,
           email: input.email.trim(),
           fullName: input.fullName.trim(),
@@ -353,6 +363,8 @@ export async function placeOrder(input: CheckoutInput): Promise<PlaceOrderResult
       }
       return { order, replayed: false };
     });
+  try {
+    return await createOrder(num);
   } catch (err) {
     // Task 126 F-1 (race path): two concurrent same-key POSTs both pass the
     // fast-path check; the unique index makes the loser's INSERT fail inside
@@ -360,12 +372,22 @@ export async function placeOrder(input: CheckoutInput): Promise<PlaceOrderResult
     // and the winner's committed order is what this key means now. Task 127
     // F-5: the race path applies the SAME ownership gate — a concurrent
     // same-key different-email POST is refused, never handed the winner's
-    // receipt.
-    if (input.idempotencyKey && isUniqueViolation(err)) {
+    // receipt. Task 130 F-4: the replay test now names the constraint — an
+    // order_number collision on a keyed order must not be misrouted into
+    // replay resolution (which would find nothing and rethrow anyway).
+    if (input.idempotencyKey && isUniqueViolationOn(err, "orders_idempotency_key_unique")) {
       const replay = await resolveReplay(input.idempotencyKey, input.email);
       if (replay === "mismatch")
         throw new OrderRefusalError("REPLAY_MISMATCH", "This order was placed with a different email address — check the address and try again.");
       if (replay) return { order: replay, replayed: true };
+    }
+    // Task 130 F-4 (the register's "orderNumber collision retry" row): a
+    // minted NH-YYYYMMDD-XXXXXX collision is a customer-invisible retry,
+    // never a 500 CHECKOUT_FAILED — the suffix carries ~2^31 entropy, so
+    // the birthday bound bites around 46k orders/day. One retry: a second
+    // collision (~2^-62 joint) is genuinely exceptional and may 500.
+    if (isUniqueViolationOn(err, "orders_order_number_unique")) {
+      return await createOrder(orderNumber());
     }
     throw err;
   }

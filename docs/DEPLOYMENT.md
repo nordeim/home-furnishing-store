@@ -16,7 +16,7 @@ static-catalogue fallback.
 ## 1. Supported shape
 
 - One Next.js 16 App Router app: 20 page routes + 6 API route handlers under
-  `src/app/` (the current build compiles 29 routes).
+  `src/app/` (the current build compiles 31 routes).
 - One PostgreSQL database: 9 tables defined in `src/db/schema.ts`
   (categories, products, stores, inventory, orders,
   order_items, reviews, inspirations, promotions).

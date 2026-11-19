@@ -6,7 +6,7 @@ import { Client } from "pg";
 import { gotoHydrated } from "./helpers";
 // Task 124 F-14: the sitemap count derives from the catalogue constants (the
 // unit suite's approach) — a hardcoded 42 broke on the first catalogue edit.
-import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, catalogMaxDiscountPercent } from "../../src/lib/catalog";
+import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, catalogMaxDiscountPercent, storeName } from "../../src/lib/catalog";
 import { GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, FAMILY_VOUCHER_CENTS, FAMILY_POINTS_PER_VOUCHER, FAMILY_POINTS_PER_DOLLAR, TRADE_RATE, formatSGD } from "../../src/lib/utils";
 
 // Task 126 F-3: the max-discount pins derive from the catalogue (the same
@@ -355,6 +355,14 @@ test.describe("API envelope", () => {
         // the record the field reads assume; before the guard it limped to a
         // 422 "bag" of nothing (the 400 parse class is the honest answer).
         { path: "/api/checkout", body: '["a"]' },
+        // Task 130 F-5: the array classification now spans all four routes —
+        // the three siblings used to let arrays past the shape guard into a
+        // 422 VALIDATION on fields the array never carried (same client
+        // fault as null/primitives, different status — the classification
+        // is part of the contract, not a detail).
+        { path: "/api/reviews", body: '["a"]' },
+        { path: "/api/promotions/validate", body: '["a"]' },
+        { path: "/api/orders/track", body: '["a"]' },
         { path: "/api/reviews", body: "null" },
         { path: "/api/promotions/validate", body: "null" },
         { path: "/api/orders/track", body: "null" },
@@ -394,6 +402,26 @@ test.describe("client resilience (fetch failure ≠ empty state)", () => {
     // The misleading empty-state copy must NOT render while items are saved.
     await expect(page.getByRole("heading", { name: /Your wishlist \(1\)/ })).toBeVisible();
     await expect(page.getByText("Nothing saved yet")).toHaveCount(0);
+  });
+
+  test("wishlist heading counts RESOLVED items, not persisted slugs (Task 130 F-8)", async ({ page }) => {
+    // One real slug + one ghost slug persisted: the grid can only ever show
+    // one card, so "(2)" above one card is a lie (the honesty class the
+    // project polices everywhere). While loading the persisted count is the
+    // honest number — the assertion targets the SETTLED state, where
+    // items.length is the truth. The error state keeps the persisted count
+    // (resolution is unknowable with the API down) — pinned by the sibling
+    // error spec above.
+    await page.addInitScript(() => {
+      localStorage.setItem("nordhem_wish_v1", JSON.stringify(["solbakken-3-seat-sofa", "ghost-product-xyz"]));
+    });
+    await page.goto("/wishlist");
+    await expect(page.getByRole("heading", { name: "Your wishlist (1)" })).toBeVisible();
+    // One card (an <article> per ProductCard — each card carries two anchors:
+    // the image link and the name link, so counting anchors would double).
+    await expect(page.locator("main article")).toHaveCount(1);
+    // The ghost slug never renders a card.
+    await expect(page.locator("main a[href='/product/ghost-product-xyz']")).toHaveCount(0);
   });
 
   test("search shows an error state (not 'No products found') when the API fails", async ({ page }) => {
@@ -1274,11 +1302,18 @@ test.describe("PDP review-count saturation (Task 123 F-10)", () => {
     // getReviews caps the rendered LIST at 20 rows (a display cap), but the
     // JSON-LD reviewCount and the "Reviews (N)" heading used reviews.length —
     // both silently understated the truth beyond 20 live reviews. Insert 21
-    // probe rows for the quiet HAVBRIS and assert the honest 21 (today: 20).
+    // probe rows for a quiet product and assert the honest 21 (today: 20).
+    // Task 130 F-3: the probe product moved havbris → pandan-rug-200 — the
+    // suite runs fullyParallel (within-file too), and while this spec's 21
+    // rows were live, the two "Reviews (0)" havbris assertions in other
+    // specs raced the insert window (an unpinned flake; CI was safe only
+    // because workers: 1). PANDAN RUG 200 is quiet AND untouched by every
+    // other spec (verified by grep) — the overlap was accident of product
+    // choice, not a necessity.
     const client = new Client({ connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db" });
     await client.connect();
     try {
-      const pidRow = await client.query<{ id: number }>("select id from products where slug = 'havbris-lounge-chair'");
+      const pidRow = await client.query<{ id: number }>("select id from products where slug = 'pandan-rug-200'");
       const pid = pidRow.rows[0].id;
       const before = await client.query<{ count: string }>("select count(*) as count from reviews where product_id = $1", [pid]);
       const inserted = await client.query<{ id: number }>(
@@ -1288,7 +1323,7 @@ test.describe("PDP review-count saturation (Task 123 F-10)", () => {
         [pid],
       );
       try {
-        await page.goto("/product/havbris-lounge-chair");
+        await page.goto("/product/pandan-rug-200");
         await expect(page.getByRole("heading", { name: "Reviews (21)" })).toBeVisible();
         const jsonld = await productJsonLd(page);
         const parsed = JSON.parse(jsonld ?? "null") as {
@@ -1893,6 +1928,24 @@ test.describe("store-picker persisted-state fallback (Task 124 F-16 — DISPROVE
   });
 });
 
+test.describe("footer store chips derivation (Task 130 F-6)", () => {
+  test("the footer's store chips derive from the STORES seed — no fourth hand-duplicated list", async ({ page }) => {
+    // Task 129 F-11 derived the store list at the route whitelist, the
+    // checkout options and the Header picker — the Footer chips stayed a
+    // hand-drawn triple. The pin interpolates the seed (the derived-copy
+    // pattern): a fourth store in STORES must appear in the chips without a
+    // coordinated Footer edit, and a reverted hand-list misses it.
+    await page.goto("/");
+    for (const s of STORES) {
+      await expect(page.locator("footer").getByText(storeName(s.slug), { exact: true })).toBeVisible();
+    }
+    await expect(page.locator("footer").getByText("Island-wide delivery", { exact: true })).toBeVisible();
+    // Exactly the seed + the delivery chip — no stragglers, no duplicates.
+    const chips = page.locator("footer span.rounded-full");
+    await expect(chips).toHaveCount(STORES.length + 1);
+  });
+});
+
 test.describe("checkout payload caps (Task 122 F-7)", () => {
   test("an overlong promoCode is refused, not accepted verbatim", async ({ request }) => {
     const res = await request.post("/api/checkout", {
@@ -2065,6 +2118,13 @@ test.describe("checkout enum/promo field type + whitelist strictness (Task 129 F
         ["numeric promoCode (silently null-dropped)", { promoCode: 42 }],
         ["unknown-string deliveryMethod (silently defaults)", { deliveryMethod: "teleport" }],
         ["unknown-string paymentMethod (silently defaults)", { paymentMethod: "crypto" }],
+        // Task 130 F-1: storeSlug was the last String()-coerced seam — the
+        // array coerces to "tampines" and rides the whitelist into a real
+        // 201 (the lesson-43 field-class rule applied one field short of
+        // the enum class in Task 129). No UI null-encoding to preserve —
+        // the checkout page's store select always sends a real string.
+        ["array storeSlug (String-coerces to a real slug)", { storeSlug: ["tampines"] }],
+        ["numeric storeSlug (String()-coerces before the whitelist)", { storeSlug: 5 }],
       ];
       for (const [label, patch] of probes) {
         const res = await request.post("/api/checkout", {
@@ -2101,6 +2161,77 @@ test.describe("checkout enum/promo field type + whitelist strictness (Task 129 F
       expect(nullPromo.status()).toBe(201);
     } finally {
       await deleteProbeOrders("enum-probe@nordhem.sg");
+    }
+  });
+});
+
+test.describe("delivery fulfilment-store coherence (Task 130 F-2)", () => {
+  test("a delivery order is checked against and decrements the CHOSEN store — never phantom island-wide units", async ({ request }) => {
+    // hdb-kitchen-trolley (product 11): tampines 15 / jurong 3 / alexandra 0
+    // — aggregate 18. The pre-fix defect: the availability check summed ALL
+    // stores for delivery (any-store-can-ship) while the decrement hit ONE
+    // row with a greatest(0, …) clamp — a 17-unit delivery order PASSED on
+    // the aggregate, clamped tampines 15 → 0, and 2 units materialised from
+    // nowhere (the table then overstates stock for every later refusal).
+    // Task 130 F-2 scopes the check to the chosen store for EVERY method
+    // (check/decrement/net symmetric by construction — the click-collect
+    // semantics Task 121 F-7 already shipped, now method-independent).
+    // The RED path of the first probe WRITES (today: 201) — netted via
+    // deleteProbeOrders PLUS an inventory snapshot restore (the clamp makes
+    // the ordered qty ≠ the drained qty, so the additive net alone would
+    // re-seed phantom units — the saturation spec's snapshot pattern).
+    const client = new Client({ connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db" });
+    await client.connect();
+    try {
+      const snap = await client.query<{ store_slug: string; quantity: number }>(
+        "select store_slug, quantity from inventory where product_id = 11",
+      );
+      const payload = (qty: number) => ({
+        email: "fulfil-probe@nordhem.sg",
+        fullName: "Fulfil Probe",
+        phone: "+65 91234567",
+        address: "Blk 1 Testing Rd #01-01",
+        postal: "089001",
+        deliveryMethod: "delivery",
+        storeSlug: "tampines",
+        lines: [{ productId: 11, qty }],
+      });
+      try {
+        // RED probe: qty 17 > tampines 15 (but ≤ island-wide 18) must be a
+        // 422 LOW_STOCK that agrees with the PDP's tampines display —
+        // today it is a 201 with 2 phantom units.
+        const over = await request.post("/api/checkout", {
+          headers: { "x-forwarded-for": "10.9.131.1" },
+          data: payload(17),
+        });
+        expect(over.status()).toBe(422);
+        const overBody = (await over.json()) as { ok?: boolean; error?: { code?: string; message?: string } };
+        expect(overBody.error?.code).toBe("LOW_STOCK");
+        expect(overBody.error?.message).toContain("Only 15 left");
+
+        // Positive control: qty 15 == the chosen store's stock places the
+        // order, drains EXACTLY the chosen row, and leaves the sibling
+        // stores untouched (the coherence the fix guarantees).
+        const okOrder = await request.post("/api/checkout", {
+          headers: { "x-forwarded-for": "10.9.131.1" },
+          data: payload(15),
+        });
+        expect(okOrder.status()).toBe(201);
+        const rows = await client.query<{ store_slug: string; quantity: number }>(
+          "select store_slug, quantity from inventory where product_id = 11 order by id",
+        );
+        const byStore = new Map(rows.rows.map((r) => [r.store_slug, r.quantity]));
+        expect(byStore.get("tampines")).toBe(0);
+        expect(byStore.get("jurong")).toBe(3);
+        expect(byStore.get("alexandra")).toBe(0);
+      } finally {
+        await deleteProbeOrders("fulfil-probe@nordhem.sg");
+        for (const r of snap.rows) {
+          await client.query("update inventory set quantity = $1 where product_id = 11 and store_slug = $2", [r.quantity, r.store_slug]);
+        }
+      }
+    } finally {
+      await client.end();
     }
   });
 });

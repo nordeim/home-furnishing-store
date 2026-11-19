@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex, campaignEnd, campaignEndLabel, sgTomorrowISO, sortProductList, DELIVERY_SLOTS, isValidDeliverySlot, availableDeliverySlots, jsonLdScript, IDEMPOTENCY_KEY_RE, mintIdempotencyKey } from "@/lib/utils";
+import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex, campaignEnd, campaignEndLabel, sgTomorrowISO, sortProductList, DELIVERY_SLOTS, isValidDeliverySlot, availableDeliverySlots, jsonLdScript, IDEMPOTENCY_KEY_RE, mintIdempotencyKey, isUniqueViolationOn } from "@/lib/utils";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -37,6 +37,20 @@ describe("priceTotals (server-truth pricing rules)", () => {
   it("fixed promo is capped at the subtotal", () => {
     const t = priceTotals({ subtotalCents: 1500, promo: { kind: "fixed", value: 2000 }, deliveryMethod: "click-collect" });
     expect(t.discountCents).toBe(1500);
+    expect(t.totalCents).toBe(0);
+  });
+  it("percent promo is capped at the subtotal too — a >100% promo must never mint negative money (Task 130 F-7)", () => {
+    // The fixed branch capped; the percent branch did not — an unreachable-
+    // today (seed/DB-controlled promos, no admin API) but defensive parity
+    // gap at the money seam: kind:"percent", value:150 produced discount >
+    // subtotal → negative net/GST/total cents.
+    const t = priceTotals({ subtotalCents: 10000, promo: { kind: "percent", value: 150 }, deliveryMethod: "click-collect" });
+    expect(t.discountCents).toBe(10000);
+    expect(t.totalCents).toBe(0);
+  });
+  it("a 100% percent promo lands exactly at zero (the cap boundary)", () => {
+    const t = priceTotals({ subtotalCents: 10000, promo: { kind: "percent", value: 100 }, deliveryMethod: "click-collect" });
+    expect(t.discountCents).toBe(10000);
     expect(t.totalCents).toBe(0);
   });
   it("percent discount frees delivery when the NET crosses the threshold", () => {
@@ -492,5 +506,39 @@ describe("idempotency key seam (Task 126 F-1)", () => {
     const route = readFileSync(resolve(import.meta.dirname, "../../src/app/api/checkout/route.ts"), "utf8");
     expect(route).toContain("IDEMPOTENCY_KEY_RE");
     expect(route).not.toMatch(/\[A-Za-z0-9-\]/);
+  });
+});
+
+describe("isUniqueViolationOn (Task 130 F-4)", () => {
+  // The Task-127 register annotation anticipated this: placeOrder's 23505
+  // catch checked only the error CODE, so an order_number collision (6 base36
+  // chars ≈ 2^31 entropy) was indistinguishable from an idempotency-key
+  // replay — it fell through to a customer-facing 500. The discriminator
+  // inspects the constraint name on the error (and on .cause — Drizzle can
+  // surface the driver error wrapped).
+  const pg23505 = (constraint: string) =>
+    Object.assign(new Error("duplicate key value violates unique constraint"), {
+      code: "23505",
+      constraint,
+    });
+
+  it("matches a 23505 with the named constraint, unwrapped", () => {
+    expect(isUniqueViolationOn(pg23505("orders_order_number_unique"), "orders_order_number_unique")).toBe(true);
+  });
+
+  it("matches the constraint on a wrapped cause", () => {
+    const wrapped = new Error("wrapped", { cause: pg23505("orders_idempotency_key_unique") });
+    expect(isUniqueViolationOn(wrapped, "orders_idempotency_key_unique")).toBe(true);
+  });
+
+  it("refuses a 23505 whose constraint is a DIFFERENT unique index — the pre-130 conflation class", () => {
+    expect(isUniqueViolationOn(pg23505("orders_idempotency_key_unique"), "orders_order_number_unique")).toBe(false);
+    expect(isUniqueViolationOn(pg23505("orders_order_number_unique"), "orders_idempotency_key_unique")).toBe(false);
+  });
+
+  it("refuses non-23505 errors and non-error input regardless of constraint", () => {
+    expect(isUniqueViolationOn(Object.assign(new Error("x"), { code: "23503", constraint: "orders_order_number_unique" }), "orders_order_number_unique")).toBe(false);
+    expect(isUniqueViolationOn(null, "orders_order_number_unique")).toBe(false);
+    expect(isUniqueViolationOn("23505", "orders_order_number_unique")).toBe(false);
   });
 });
