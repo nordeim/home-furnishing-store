@@ -3,9 +3,11 @@ import { expect, test } from "@playwright/test";
 // database (inventory zeroing + restore, oversell cleanup). pg is a runtime
 // dependency of the app; the connection string mirrors playwright.config.ts.
 import { Client } from "pg";
+import { gotoHydrated } from "./helpers";
 // Task 124 F-14: the sitemap count derives from the catalogue constants (the
 // unit suite's approach) — a hardcoded 42 broke on the first catalogue edit.
 import { CATEGORIES, INSPIRATIONS, PRODUCTS, catalogMaxDiscountPercent } from "../../src/lib/catalog";
+import { GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS } from "../../src/lib/utils";
 
 // Task 126 F-3: the max-discount pins derive from the catalogue (the same
 // seam the hero/strip/offers copy interpolates) — a catalogue edit
@@ -94,7 +96,7 @@ test.describe("product page + SEO", () => {
   test("PDP shows money, stock and reviews; metadata + JSON-LD present", async ({ page }) => {
     await page.goto("/product/solbakken-3-seat-sofa");
     await expect(page.getByRole("heading", { name: "SOLBAKKEN 3-seat sofa" })).toBeVisible();
-    await expect(page.getByText("Price includes 9% GST")).toBeVisible();
+    await expect(page.getByText(`Price includes ${Math.round(GST_RATE * 100)}% GST`)).toBeVisible();
 
     // SEO: OpenGraph + canonical (F-3).
     await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
@@ -128,6 +130,23 @@ test.describe("product page + SEO", () => {
     await expect(page.getByText("Bestseller", { exact: true })).toBeVisible();
     await expect(page.getByText("-19% NOW")).toBeVisible();
     await expect(page.getByText("-19%", { exact: true })).toHaveCount(0);
+  });
+
+  test("PDP delivery copy renders a real ampersand, never the raw entity (Task 127 F-1)", async ({ page }) => {
+    // Task 126's fee-derivation moved the delivery details line into a JS
+    // template literal, where "&amp;" no longer decodes — every PDP rendered
+    // the literal text "Click &amp; Collect" until this pin. Entities decode
+    // only in JSX text children, never inside {`…`} string expressions.
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
+    const details = page
+      .locator("details", { hasText: "Delivery, assembly" })
+      .locator("summary");
+    await details.click();
+    const body = page
+      .locator("details", { hasText: "Delivery, assembly" })
+      .locator("p");
+    await expect(body).toContainText("Click & Collect free in 2 hours");
+    await expect(body).not.toContainText("&amp;");
   });
 
   test("html carries data-scroll-behavior for Next 16 smooth-scroll handling", async ({ page }) => {
@@ -173,6 +192,22 @@ test.describe("API envelope", () => {
     expect(json.data.every((p) => p.categorySlug === "dining")).toBe(true);
     const prices = json.data.map((p) => p.priceCents);
     expect([...prices].sort((a, b) => a - b)).toEqual(prices);
+  });
+
+  test("products API ?max= is whole-number strict (Task 127 F-3)", async ({ request }) => {
+    // Task 126 F-5 made the reviews GET boundary whole-number-strict; this
+    // sibling GET still Number()-coerced its price cap: ?max=abc silently
+    // filtered nothing (NaN) and ?max=1.5 became a fractional-dollar filter.
+    // Malformed values are refused like every read boundary.
+    for (const bad of ["abc", "1.5", "-3"]) {
+      const res = await request.get(`/api/products?max=${encodeURIComponent(bad)}`);
+      expect(res.status(), `max=${bad}`).toBe(422);
+    }
+    const ok = await request.get("/api/products?max=250");
+    expect(ok.status()).toBe(200);
+    const json = (await ok.json()) as { ok: boolean; data: Array<{ priceCents: number }> };
+    expect(json.ok).toBe(true);
+    expect(json.data.every((p) => p.priceCents <= 25000)).toBe(true);
   });
 
   test("products API keyword recall matches the shop-SSR seam (Task 123 F-5)", async ({ request }) => {
@@ -480,7 +515,7 @@ test.describe("a11y: focus, steppers and announcements (Task 120)", () => {
     // WCAG 1.3.5: inputs collecting user information must state their
     // purpose — the card fields (demo payment) carry the standard cc-* tokens
     // like every contact field on the same page.
-    await page.goto("/product/katong-bedside-table");
+    await gotoHydrated(page, "/product/katong-bedside-table");
     await page.getByRole("button", { name: "Add to bag" }).click();
     await page.goto("/checkout");
     await page.getByRole("button", { name: /Card$/ }).click();
@@ -494,7 +529,7 @@ test.describe("a11y: focus, steppers and announcements (Task 120)", () => {
     // (both states under the 3:1 non-text minimum). The selected star now
     // carries a ring (box-shadow in Tailwind v4) — computed-style assertion
     // per the Task-120 focus-indication precedent.
-    await page.goto("/product/havbris-lounge-chair");
+    await gotoHydrated(page, "/product/havbris-lounge-chair");
     const selected = page.getByRole("button", { name: "3 stars" });
     await selected.click();
     await expect(selected).toHaveAttribute("aria-pressed", "true");
@@ -531,7 +566,7 @@ test.describe("a11y: focus, steppers and announcements (Task 120)", () => {
     // setQty(qty-1) — a destructive action reachable from an increment
     // control. The minus must disable at the floor; the dedicated Remove
     // button remains the only remove affordance.
-    await page.goto("/product/solbakken-3-seat-sofa");
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
     await page.getByRole("button", { name: "Add to bag" }).click();
     await page.getByRole("link", { name: /Shopping bag, 1 item/ }).click();
     await expect(page.getByRole("heading", { name: /Your bag \(1\)/ })).toBeVisible();
@@ -545,7 +580,7 @@ test.describe("a11y: focus, steppers and announcements (Task 120)", () => {
     // Task 120 F-18: the promo message rendered role="status" for success AND
     // failure — screen readers may not announce a failure politely queued.
     // ReviewSection already splits; the cart must too.
-    await page.goto("/product/solbakken-3-seat-sofa");
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
     await page.getByRole("button", { name: "Add to bag" }).click();
     await page.getByRole("link", { name: /Shopping bag, 1 item/ }).click();
     await page.getByLabel(/Promo code/i).fill("BOGUSCODE");
@@ -565,7 +600,7 @@ test.describe("cart promo persistence", () => {
   test("a failed promo apply keeps the applied code; Remove clears it", async ({ page }) => {
     // Task 118 F-13: a bad code (or transient fetch failure) used to wipe the
     // applied promo — the user's discount silently vanished from the summary.
-    await page.goto("/product/solbakken-3-seat-sofa");
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
     await page.getByRole("button", { name: "Add to bag" }).click();
     await page.getByRole("link", { name: /Shopping bag, 1 item/ }).click();
     await expect(page.getByRole("heading", { name: /Your bag \(1\)/ })).toBeVisible();
@@ -995,7 +1030,7 @@ test.describe("PDP client-side navigation state (Task 121 F-3)", () => {
     // The count is regex-accepted (Task 123 F-11): a successful review POST on
     // the pinned DB used to break this hard-count pin (gotcha #13's failure
     // mode) — the author assertion below is the real content pin.
-    await page.goto("/product/solbakken-3-seat-sofa");
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
     await expect(page.getByRole("heading", { name: /^Reviews \(\d+\)$/ })).toBeVisible();
     await expect(page.getByText("Mei L.").first()).toBeVisible();
 
@@ -1383,7 +1418,7 @@ test.describe("search grid settle discipline (Task 124 F-3)", () => {
       route.request().url().includes("q=zzzfail") ? route.abort() : route.continue());
 
     // Phase 1 — a successful search: cards on screen.
-    await page.goto("/search?q=oak");
+    await gotoHydrated(page, "/search?q=oak");
     await expect(page.getByRole("status").filter({ hasText: /results? for/ })).toBeVisible({ timeout: 10_000 });
     await expect(page.locator("#main article").first()).toBeVisible();
 
@@ -1451,7 +1486,7 @@ test.describe("click-&-collect temporal honesty (Task 124 F-8)", () => {
   // timers — hydration and effects run normally).
   test("after 14:00 SGT the already-past 'Today 2pm' slot is not offered", async ({ page }) => {
     await page.clock.setFixedTime(new Date("2026-11-19T15:00:00Z")); // 23:00 SGT
-    await page.goto("/product/katong-bedside-table");
+    await gotoHydrated(page, "/product/katong-bedside-table");
     await page.getByRole("button", { name: "Add to bag" }).click();
     await page.goto("/checkout");
     await page.getByRole("button", { name: /Click & Collect/ }).click();
@@ -1461,7 +1496,7 @@ test.describe("click-&-collect temporal honesty (Task 124 F-8)", () => {
 
   test("before 14:00 SGT both click-&-collect slots are offered", async ({ page }) => {
     await page.clock.setFixedTime(new Date("2026-11-19T02:00:00Z")); // 10:00 SGT
-    await page.goto("/product/katong-bedside-table");
+    await gotoHydrated(page, "/product/katong-bedside-table");
     await page.getByRole("button", { name: "Add to bag" }).click();
     await page.goto("/checkout");
     await page.getByRole("button", { name: /Click & Collect/ }).click();
@@ -1472,7 +1507,7 @@ test.describe("click-&-collect temporal honesty (Task 124 F-8)", () => {
 
 test.describe("checkout form error placement (Task 121 F-12)", () => {
   test("a contact-field error surfaces above the form, not inside the Payment section", async ({ page }) => {
-    await page.goto("/product/solbakken-3-seat-sofa");
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
     await page.getByRole("button", { name: "Add to bag" }).click();
     await page.goto("/checkout");
     await page.getByLabel("Full name").fill("Error Probe");
@@ -1510,7 +1545,7 @@ test.describe("checkout fulfilment method switch (Task 121 F-20 pin)", () => {
     // (10:00 SGT, the F-8 sibling's) so the re-derivation assertion is
     // deterministic.
     await page.clock.setFixedTime(new Date("2026-11-19T02:00:00Z")); // 10:00 SGT
-    await page.goto("/product/solbakken-3-seat-sofa");
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
     await page.getByRole("button", { name: "Add to bag" }).click();
     await page.goto("/checkout");
     const slot = page.getByLabel("Time slot");
@@ -1528,7 +1563,7 @@ test.describe("PDP stepper floor (Task 121 F-11)", () => {
   test("PDP quantity minus is disabled at qty 1 (cart-page parity)", async ({ page }) => {
     // Task 120 fixed the CART page stepper floor only — the PDP BuyBox kept a
     // dead enabled control at qty 1.
-    await page.goto("/product/solbakken-3-seat-sofa");
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
     const minus = page.getByRole("button", { name: "Decrease quantity" });
     await expect(minus).toBeDisabled();
     await page.getByRole("button", { name: "Increase quantity" }).click();
@@ -1621,7 +1656,7 @@ test.describe("cart promo min-spend display gate (Task 122 F-5)", () => {
     // kept showing its 10% after items were removed — a discount the server
     // refuses at placeOrder (INVALID_PROMO). The effectivePromo gate must
     // hide it from the preview the moment the subtotal falls below the min.
-    await page.goto("/product/solbakken-3-seat-sofa");
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
     await page.getByRole("button", { name: "Add to bag" }).click();
     await page.goto("/product/katong-bedside-table");
     await page.getByRole("button", { name: "Add to bag" }).click();
@@ -1649,7 +1684,7 @@ test.describe("cart promo message honesty (Task 123 F-2)", () => {
     // vanished Discount row, and the code still submitted to a server
     // INVALID_PROMO at the Pay step. The current bag state must own the
     // message: below the minimum, quote the minimum instead.
-    await page.goto("/product/solbakken-3-seat-sofa");
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
     await page.getByRole("button", { name: "Add to bag" }).click();
     await page.goto("/product/katong-bedside-table");
     await page.getByRole("button", { name: "Add to bag" }).click();
@@ -1832,6 +1867,42 @@ test.describe("checkout qty/productId type strictness (Task 124 F-5)", () => {
   });
 });
 
+test.describe("checkout free-text field type strictness (Task 127 F-2)", () => {
+  test("non-string TYPES on email/fullName/phone/postal/address/deliverySlot are refused, never String()-coerced", async ({ request }) => {
+    // Task 124/125/126 hardened lines (productId/qty), reviews POST and the
+    // three read boundaries — but the checkout route's five free-text fields
+    // still read String(body.x ?? "").trim(), and a single-element array
+    // String()-coerces to its element: a fully array-typed payload passes
+    // every validator and places a 201 order (verified by executed proof at
+    // audit time). The write boundary must refuse crafted TYPES like every
+    // sibling. The RED path of this probe WRITES (today: 201) — the shared
+    // deleteProbeOrders net (order delete + inventory restore) runs in the
+    // finally (the Task-126 F-2 discipline: a net after a failing expect is
+    // dead code).
+    try {
+      const res = await request.post("/api/checkout", {
+        headers: { "x-forwarded-for": "10.9.127.1" },
+        data: {
+          email: ["freetext-probe@nordhem.sg"],
+          fullName: ["Free Text Probe"],
+          phone: ["+65 91234567"],
+          address: ["Blk 1 Testing Rd #01-01"],
+          postal: ["089001"],
+          deliveryMethod: "click-collect",
+          deliverySlot: ["Today 2pm"],
+          storeSlug: "tampines",
+          lines: [{ productId: 1, qty: 1 }],
+        },
+      });
+      const body = (await res.json()) as { ok?: boolean; error?: { code?: string } };
+      expect(res.status()).toBe(422);
+      expect(body.error?.code).toBe("VALIDATION");
+    } finally {
+      await deleteProbeOrders("freetext-probe@nordhem.sg");
+    }
+  });
+});
+
 test.describe("reviews POST type strictness (Task 125 F-2)", () => {
   test("non-number TYPES are refused instead of coerced into junk reviews", async ({ request }) => {
     // Task-124 F-5 made checkout drop non-number TYPES; the reviews boundary
@@ -1989,7 +2060,7 @@ test.describe("business quote stepper floor (Task 122 F-15)", () => {
   test("the quote minus button is disabled at the 0 floor (cart/PDP parity)", async ({ page }) => {
     // Units ship with non-zero defaults (locker starts at 2) — drive one to
     // the floor and pin the disabled state there.
-    await page.goto("/business");
+    await gotoHydrated(page, "/business");
     const minus = page.getByRole("button", { name: "Fewer Staff locker tower" });
     await expect(minus).toBeEnabled();
     await minus.click(); // 2 → 1
@@ -2000,13 +2071,15 @@ test.describe("business quote stepper floor (Task 122 F-15)", () => {
 
 test.describe("checkout summary GST disclosure (Task 122 F-15)", () => {
   test("the checkout summary shows the GST component like the cart does", async ({ page }) => {
-    await page.goto("/product/katong-bedside-table");
+    await gotoHydrated(page, "/product/katong-bedside-table");
     await page.getByRole("button", { name: "Add to bag" }).click();
     await page.getByRole("link", { name: /Shopping bag, 1 item/ }).click();
     await page.getByRole("link", { name: /Go to checkout/i }).click();
     await expect(page.getByRole("heading", { name: "Checkout" })).toBeVisible();
     // Same totals seam as the cart — the disclosure must not vanish here.
-    await expect(page.getByText("Incl. 9% GST")).toBeVisible();
+    // Task 127 F-4: the pin derives from GST_RATE so a rate edit self-corrects
+    // assertion and copy together (the sitemap-count derivation pattern).
+    await expect(page.getByText(`Incl. ${Math.round(GST_RATE * 100)}% GST`)).toBeVisible();
   });
 });
 
@@ -2027,7 +2100,7 @@ test.describe("search URL sync (Task 122 F-17)", () => {
   test("submitting a search reflects it in the URL, and a reload restores the results", async ({ page }) => {
     // Scope to the page form — the header carries two more "Search products"
     // inputs (desktop + mobile variants); strict mode rejects the ambiguity.
-    await page.goto("/search");
+    await gotoHydrated(page, "/search");
     await page.locator("main").getByLabel("Search products").fill("oak");
     await page.locator("main").getByRole("button", { name: "Search" }).click();
     await expect(page).toHaveURL(/\/search\?q=oak/);
@@ -2040,7 +2113,7 @@ test.describe("search URL sync (Task 122 F-17)", () => {
   });
 
   test("a popular chip search also lands in the URL", async ({ page }) => {
-    await page.goto("/search");
+    await gotoHydrated(page, "/search");
     await page.getByRole("button", { name: "sofa", exact: true }).click();
     await expect(page).toHaveURL(/\/search\?q=sofa/);
   });
@@ -2119,7 +2192,7 @@ test.describe("checkout slot clock coherence (Task 125 F-6)", () => {
     // moment it leaves the available set — display and payload must agree.
     // The POST is intercepted (fixed 422 — no DB write, no navigation).
     await page.clock.setFixedTime(new Date("2026-11-19T05:59:00Z")); // 13:59 SGT
-    await page.goto("/product/katong-bedside-table");
+    await gotoHydrated(page, "/product/katong-bedside-table");
     await page.getByRole("button", { name: "Add to bag" }).click();
     await page.goto("/checkout");
     await page.getByRole("button", { name: /Click & Collect/ }).click();
@@ -2236,12 +2309,68 @@ test.describe("checkout idempotency (Task 126 F-1)", () => {
     }
   });
 
+  test("a replay is bound to the order's own email — a leaked key must not disclose the receipt (Task 127 F-5)", async ({ request }) => {
+    // Task 126's replay was possession-only: anyone holding the key (leaked
+    // via logs/XSS) re-POSTed it and received the first order's number —
+    // the PII lookup key for /track-order. The homenest S6-8/S7-2
+    // discipline: both replay paths require the SAME email as the bound
+    // order (case-insensitive); a mismatch is refused, never disclosed.
+    // The canonical-order half: the fast path hoists ABOVE bag/promo
+    // validation, so a post-success same-key resubmit (bag already cleared)
+    // replays instead of EMPTY_BAG-refusing.
+    const payload = {
+      email: "idem-owner-probe@nordhem.sg",
+      fullName: "Idem Owner Probe",
+      phone: "+65 91234567",
+      address: "Blk 1 Testing Rd #01-01",
+      postal: "089001",
+      deliveryMethod: "delivery",
+      deliverySlot: "Standard (3–5 days)",
+      storeSlug: "tampines",
+      paymentMethod: "card",
+      lines: [{ productId: 1, qty: 1 }],
+      idempotencyKey: "e2e-idem-owner-key-001",
+    };
+    try {
+      const first = await request.post("/api/checkout", { headers: { "x-forwarded-for": "10.9.128.1" }, data: payload });
+      expect(first.status()).toBe(201);
+
+      // Mismatched email on the same key: refused (422), and the victim's
+      // order number is NOT in the response (today: 200 + the number).
+      const hijack = await request.post("/api/checkout", {
+        headers: { "x-forwarded-for": "10.9.128.2" },
+        data: { ...payload, email: "attacker-probe@nordhem.sg" },
+      });
+      const hijackBody = (await hijack.json()) as { ok?: boolean; error?: { code?: string }; data?: { orderNumber?: string } };
+      expect(hijack.status()).toBe(422);
+      expect(hijackBody.ok).toBe(false);
+      expect(hijackBody.error?.code).toBe("REPLAY_MISMATCH");
+      expect(hijackBody.data?.orderNumber).toBeUndefined();
+
+      // Canonical replay: an empty-bag resubmit with the same key + email
+      // still replays the bound order (the fast path precedes validation —
+      // the client cleared its bag after the success redirect; today this
+      // would EMPTY_BAG-refuse).
+      const emptyBag = await request.post("/api/checkout", {
+        headers: { "x-forwarded-for": "10.9.128.3" },
+        data: { ...payload, lines: [] },
+      });
+      const emptyBagBody = (await emptyBag.json()) as { ok?: boolean; data?: { orderNumber?: string } };
+      expect(emptyBag.status()).toBe(200);
+      expect(emptyBagBody.ok).toBe(true);
+      expect(emptyBagBody.data?.orderNumber).toBeTruthy();
+    } finally {
+      await deleteProbeOrders("idem-owner-probe@nordhem.sg");
+      await deleteProbeOrders("attacker-probe@nordhem.sg");
+    }
+  });
+
   test("the checkout page mints and sends one idempotency key per mount", async ({ page }) => {
     // The server-side replay is dead code for real users unless the client
     // actually mints and sends the key. The POST is intercepted (fixed 422 —
     // no DB write); the captured payload must carry a well-shaped key, and
     // submitting TWICE must reuse the same key (the double-click window).
-    await page.goto("/product/hdb-kitchen-trolley");
+    await gotoHydrated(page, "/product/hdb-kitchen-trolley");
     await page.getByRole("button", { name: "Add to bag" }).click();
     await page.goto("/checkout");
 
@@ -2355,8 +2484,10 @@ test.describe("SEO completion: twitter card, OG dimensions, priceValidUntil (Tas
     expect(ld).toBeTruthy();
     const parsed = JSON.parse(ld!) as { offers?: { priceValidUntil?: string } };
     expect(parsed.offers?.priceValidUntil).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    // Derive the expectation from the same seam the page uses.
+    // Derive the expectation from the same seam the page uses — the SGT
+    // calendar date of the campaign end (Task 127 F-7: en-CA renders
+    // YYYY-MM-DD in Asia/Singapore).
     const { campaignEnd } = await import("../../src/lib/utils");
-    expect(parsed.offers?.priceValidUntil).toBe(campaignEnd().toISOString().slice(0, 10));
+    expect(parsed.offers?.priceValidUntil).toBe(campaignEnd().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" }));
   });
 });

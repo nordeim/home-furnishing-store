@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CATEGORIES } from "@/lib/catalog";
+import { GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS } from "@/lib/utils";
 import { ProductCard, type CardProduct } from "@/components/ProductCard";
 
 const SORTS = [
@@ -112,7 +113,7 @@ export function ShopInner({ initial }: { initial: ShopInitial }) {
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       <p className="text-[12px] font-black uppercase tracking-[0.16em] text-[#0058a3]">NORDHEM range</p>
       <h1 className="mt-1 text-[clamp(1.8rem,4vw,2.8rem)] font-black tracking-tight">{catName}</h1>
-      <p className="mt-2 text-[15px] text-[#5b5b5b]">{items.length} products · prices include 9% GST · free delivery over $200</p>
+      <p className="mt-2 text-[15px] text-[#5b5b5b]">{items.length} products · prices include {Math.round(GST_RATE * 100)}% GST · free delivery over ${FREE_DELIVERY_THRESHOLD_CENTS / 100}</p>
 
       <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center">
         <div className="flex gap-2 overflow-x-auto no-scrollbar" role="group" aria-label="Filter by room">

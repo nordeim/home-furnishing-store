@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getAllProducts, getInspirations } from "@/lib/server-data";
-import { campaignEndLabel, formatSGD, SITE_ORIGIN, EXPRESS_DELIVERY_FEE_CENTS, FREE_DELIVERY_THRESHOLD_CENTS, STANDARD_DELIVERY_FEE_CENTS } from "@/lib/utils";
+import { campaignEndLabel, formatSGD, SITE_ORIGIN, EXPRESS_DELIVERY_FEE_CENTS, FREE_DELIVERY_THRESHOLD_CENTS, STANDARD_DELIVERY_FEE_CENTS, GST_RATE } from "@/lib/utils";
 import { CATEGORIES, PRODUCTS, STORES, catalogMaxDiscountPercent } from "@/lib/catalog";
 import { ProductCard } from "@/components/ProductCard";
 
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   },
   // Task 125 F-8: derive the counts (the shop-layout Task-122 F-13 pattern)
   // — a catalogue edit self-corrects the SERP copy instead of rotting it.
-  description: `Shop Scandinavian-designed furniture for Singapore homes — ${PRODUCTS.length} products across ${CATEGORIES.length} room categories with island-wide delivery, free Click & Collect at Tampines, Jurong and Alexandra, and 365-day returns. Prices include 9% GST.`,
+  description: `Shop Scandinavian-designed furniture for Singapore homes — ${PRODUCTS.length} products across ${CATEGORIES.length} room categories with island-wide delivery, free Click & Collect at Tampines, Jurong and Alexandra, and 365-day returns. Prices include ${Math.round(GST_RATE * 100)}% GST.`,
   alternates: { canonical: "/" },
   openGraph: {
     title: "NORDHEM Singapore — Scandinavian furniture, beds, dining & more",

@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 2.0.0
-last_updated: "2026-11-19 (Task 126: idempotent checkout, test-residue parity, derived copy)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 156/156 unit · 104/104 e2e · cold build green · PostgreSQL 17 live-verified · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
+version: 2.1.0
+last_updated: "2026-11-19 (Task 127: boundary-type parity, replay ownership, derived-copy completion)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 161/161 unit · 108/108 e2e · cold build green · PostgreSQL 17 live-verified · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -63,8 +63,8 @@ Philosophy, in priority order:
 Environment contract: **`DATABASE_URL` is the only variable the code reads**
 (`src/db/index.ts` throws at module load without it). `drizzle.config.json`
 pins `postgresql://postgres:postgres@127.0.0.1:5432/app_db`. Precedence trap:
-an exported shell `DATABASE_URL` beats `.env` (dotenv never overrides) — pin
-per command when in doubt.
+an exported shell `DATABASE_URL` beats `.env` (Next's own env loader never
+overrides an existing env) — pin per command when in doubt.
 
 ## 3. Bootstrapping & Configuration
 
@@ -90,8 +90,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 156/156
-npm run test:e2e                                               # 104/104 (live Postgres for the journey)
+npm run test                                                   # 161/161
+npm run test:e2e                                               # 108/108 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -396,7 +396,7 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
    `[msg` into `sg`, making a valid file look like a syntax error that
    contradicted a green gate. Verify exact bytes (hexdump/base64) before
    diagnosing "impossible" states.
-2. **Shell env beats dotenv, always.** The ely-beauty lineage hit it
+2. **Shell env beats the .env file, always.** The ely-beauty lineage hit it
    (`DATABASE_URL=file:…` shadow); NORDHEM hit it again in the sandbox. Pin
    env per command in every server/e2e invocation and document the trap.
 3. **A green gate can be stale.** `tsbuildinfo` and a warm `.next` cache can
@@ -671,10 +671,45 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
     decrement — so nothing double-burns). The key must be client-minted
     once per INTENT (per checkout-page mount: a remount is a new intent,
     an error-path retry is the same one), survive non-secure contexts
-    (crypto.randomUUID throws on plain HTTP — the Math.random fallback),
-    and replay with possession-as-authority (an unguessable token needs no
-    email gate). Answer 200 on replay vs 201 on create — the client treats
-    both identically, the semantics stay honest.
+    (crypto.randomUUID throws on plain HTTP — the getRandomValues
+    fallback), and — Task 127's completion — replay with
+    ownership-as-authority: bind BOTH replay paths to the bound order's
+    own identity field (email, case-insensitive) and run the fast path
+    BEFORE payload validation (a post-success resubmit with an emptied
+    bag must replay, not EMPTY_BAG-refuse; a leaked key must get a
+    refusal, never the victim's receipt). Answer 200 on replay vs 201 on
+    create — the client treats both identically, the semantics stay
+    honest.
+
+42. **JSX entities do not decode inside template literals (Task 127 F-1).**
+    Moving copy from JSX text children into `{`…`}` silently changes its
+    semantics: `&amp;` renders as `&amp;`, not `&`. The Task-126
+    fee-derivation did exactly this and every PDP shipped "Click &amp;
+    Collect" with all gates green (no spec asserted the string). Rule:
+    after a JSX-text → template-literal refactor, grep the migrated
+    string for `&[a-z]+;` — and pin user-visible copy strings that no
+    test asserts.
+
+43. **String() coercion is a boundary hole even when every validator
+    passes (Task 127 F-2).** Three cycles of TYPE-strictness hardening
+    (lines, reviews POST, read boundaries) missed the checkout route's
+    five FREE-TEXT fields — `String(body.x ?? "").trim()` happily
+    coerces `["a@b.sg"]` into a valid email, and a fully array-typed
+    payload placed a real 201 order. The discipline: audit boundary
+    strictness by FIELD CLASS (free-text, enum, numeric, array-of-
+    structs), not by route — a class fixed on one route is still open on
+    its siblings until each is checked.
+
+44. **An SGT seam that reads the server-local calendar is a latent
+    timezone bug (Task 127 F-7).** `campaignEnd()` computed `new
+    Date(now.getFullYear(), 11, 28)` — fine on an SGT server, 16 hours
+    wrong on UTC (priceValidUntil rolled to next year during the
+    campaign's final day). When a codebase has ONE time-zone discipline
+    (UTC+8 arithmetic + getUTC* reads), EVERY date seam follows it; and
+    when a seam returns a true-SGT instant, its LABEL must format with
+    `timeZone: "Asia/Singapore"` (else the instant renders a day early
+    on any other server) and its ISO-date consumers must render the SGT
+    CALENDAR date (en-CA YYYY-MM-DD), never the UTC slice.
 
 ## 13. Pitfalls to Avoid
 
@@ -807,5 +842,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (156) |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (104) |
+| Unit suite | `tests/unit/*.test.ts` (161) |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (108) |

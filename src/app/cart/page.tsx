@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useCart } from "@/lib/cart-store";
 import { effectivePromo, findPromoMinimumCents } from "@/lib/catalog";
-import { formatSGD, priceTotals, FREE_DELIVERY_THRESHOLD_CENTS } from "@/lib/utils";
+import { formatSGD, priceTotals, FREE_DELIVERY_THRESHOLD_CENTS, GST_RATE } from "@/lib/utils";
 
 export default function CartPage() {
   const { lines, setQty, remove, promoCode, setPromo, subtotalCents } = useCart();
@@ -136,7 +136,7 @@ export default function CartPage() {
             <div className="flex justify-between"><dt>Subtotal</dt><dd className="font-bold">{formatSGD(t.subtotalCents)}</dd></div>
             {t.discountCents > 0 && <div className="flex justify-between text-[#2e6b34]"><dt>Discount</dt><dd className="font-bold">−{formatSGD(t.discountCents)}</dd></div>}
             <div className="flex justify-between"><dt>Delivery</dt><dd className="font-bold">{t.deliveryFeeCents === 0 ? "FREE" : formatSGD(t.deliveryFeeCents)}</dd></div>
-            <div className="flex justify-between text-[#5b5b5b]"><dt>Incl. 9% GST</dt><dd>{formatSGD(t.gstCents)}</dd></div>
+            <div className="flex justify-between text-[#5b5b5b]"><dt>Incl. {Math.round(GST_RATE * 100)}% GST</dt><dd>{formatSGD(t.gstCents)}</dd></div>
             <div className="flex justify-between border-t border-[#ddd] pt-3 text-[18px] font-black"><dt>Total</dt><dd>{formatSGD(t.totalCents)}</dd></div>
           </dl>
           <Link href="/checkout" className="mt-4 block rounded-full bg-[#0058a3] py-3.5 text-center font-black text-white hover:bg-[#004382] focus-ring">Go to checkout →</Link>

@@ -31,6 +31,13 @@ export default async function OffersPage() {
   const all = await getAllProducts();
   const deals = all.filter((p) => p.compareAtCents && p.compareAtCents > p.priceCents);
   const bundles = all.filter((p) => ["hdb-kitchen-trolley", "makan-extendable-table", "tampines-storage-bed"].includes(p.slug));
+  // Task 127 F-4: the starter-kit banner derives FLAT20's numbers from the
+  // same PROMOS row the cards above render — editing the promo self-corrects
+  // the banner instead of rotting it (the derived-copy discipline).
+  const flat20 = PROMOS.find((p) => p.code === "FLAT20");
+  const flat20Copy = flat20
+    ? `for $${flat20.value / 100} off orders over $${flat20.minSubtotalCents / 100}.`
+    : "for a discount on your order.";
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
@@ -55,7 +62,7 @@ export default async function OffersPage() {
 
       <div className="mt-10 rounded-2xl bg-[#111] p-8 text-white">
         <h2 className="text-[22px] font-black">First-home starter kit</h2>
-        <p className="mt-1 text-white/75">Bed + extendable table + kitchen trolley — our first-home picks. Pair the set with code <strong className="text-[#ffdb00]">FLAT20</strong> for $20 off orders over $250.</p>
+        <p className="mt-1 text-white/75">Bed + extendable table + kitchen trolley — our first-home picks. Pair the set with code <strong className="text-[#ffdb00]">FLAT20</strong> {flat20Copy}</p>
         <div className="mt-4 flex flex-wrap gap-2 text-[14px]">
           {bundles.map((b) => <span key={b.id} className="rounded-full bg-white/10 px-4 py-2">{b.name} · {formatSGD(b.priceCents)}</span>)}
         </div>

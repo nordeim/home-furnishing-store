@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-19 (Task 125: test integrity, boundary parity, identity/origin seams)
+last_updated: 2026-11-19 (Task 127: boundary-type parity, replay ownership, derived-copy completion)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -129,15 +129,15 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`typecheck:tests` covers the test tree) |
-| `npm run test` | Vitest unit suite (156 tests, pure seams) |
-| `npm run test:e2e` | Playwright e2e (104 tests, production build on :3100) |
+| `npm run test` | Vitest unit suite (161 tests, pure seams) |
+| `npm run test:e2e` | Playwright e2e (108 tests, production build on :3100) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
-**Current state (Tasks 114–126, extended this cycle):** a NORDHEM-native suite is wired into the gates.
+**Current state (Tasks 114–127, extended this cycle):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 156 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 161 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
@@ -151,7 +151,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   with the fs-computed reality — count-lockstep is enforced across all five
   operator docs, not remembered). Node environment with a localStorage shim
   (`tests/unit/setup.ts`); no jsdom, no component rendering.
-- **E2E (Playwright, 104 tests)** against the **production build** (the webServer
+- **E2E (Playwright, 108 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
   hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
@@ -306,6 +306,30 @@ fix and passes after.
   1200×627, and the PDP Offer carries `priceValidUntil` from the rolling
   `campaignEnd()` seam; `dotenv` is REMOVED from dependencies (Next's own
   env loader reads `.env` — the precedence note names the real actor).
+- **Task-127 seams:** the checkout route's five free-text fields +
+  `deliverySlot` are TYPE-strict (present-non-string → 422 — a
+  single-element array used to String()-coerce past every validator into a
+  real order; absent fields still fall to the documented defaults);
+  `/api/products?max=` accepts whole-number strings only (the reviews-GET
+  discipline — `abc`/`1.5` are 422s, never silent NaN); both idempotent
+  replay paths bind to the bound order's own email via `resolveReplay()`
+  (mismatch → 422 `REPLAY_MISMATCH`, never disclosure — the homenest
+  S6-8/S7-2 ownership discipline) and the fast path runs BEFORE bag/promo
+  validation (an emptied-bag post-success resubmit replays; the route
+  defers its empty-bag refusal to placeOrder when a key is present);
+  `mintIdempotencyKey`'s non-secure fallback consumes `getRandomValues`
+  bytes (128-bit hex — only `randomUUID` is secure-context-gated;
+  Math.random survives as the both-absent last resort); `campaignEnd()`
+  derives the year and the Dec-28-00:00-SGT instant on the UTC+8 clock (the
+  label formats with `timeZone: "Asia/Singapore"`; the PDP's
+  `priceValidUntil` renders the SGT calendar date via `en-CA`, not the UTC
+  ISO slice); the GST/threshold/FLAT20/family-voucher copy interpolates its
+  constants (`Math.round(GST_RATE * 100)`, `FREE_DELIVERY_THRESHOLD_CENTS`,
+  the PROMOS row, `FAMILY_VOUCHER_CENTS`/`FAMILY_POINTS_PER_VOUCHER` — a
+  rate edit self-corrects copy and pins together); template-literal copy
+  carries plain `&` (JSX entities do NOT decode inside `{`…`}` — the
+  Task-126 regression class); and the storefront spec's interaction-first
+  blocks navigate through `gotoHydrated` like the mobile spec's.
 
 - **`main` branch only** — no feature branches (operator contract).
 - Conventional Commits, atomic units (`fix:`, `feat:`, `docs:` — history uses
@@ -332,8 +356,8 @@ fix and passes after.
   websocket — the page never hydrated. `next.config.ts` pins
   `allowedDevOrigins: ["127.0.0.1"]` (unit-pinned; see AGENTS.md gotcha #11).
 - "App connects to the wrong DB / health 500 with the DB up": an exported shell
-  `DATABASE_URL` overrides `.env` (dotenv never overrides). Check
-  `env | grep DATABASE` and pin the value per command.
+  `DATABASE_URL` overrides `.env` (Next's own env loader never overrides an
+  existing env). Check `env | grep DATABASE` and pin the value per command.
 
 ## Communication & Documentation
 

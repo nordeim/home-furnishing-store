@@ -38,14 +38,26 @@ export const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9-]{8,64}$/;
  * Mint one idempotency key per checkout-page mount. crypto.randomUUID is the
  * canonical token but is only available on secure contexts (https OR
  * loopback) — plain-HTTP LAN deployments would crash at mount, so fall back
- * to a Math.random token (still unguessable enough for a dedupe token; the
- * homenest session-70 lesson). Pure — safe on server and client renders.
+ * to crypto.getRandomValues bytes (Task 127 F-6; the homenest session-7
+ * S7-10 discipline — only randomUUID is secure-context-gated). Pure — safe
+ * on server and client renders.
  */
 export function mintIdempotencyKey(): string {
   try {
     return crypto.randomUUID();
   } catch {
-    return `k${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+    // Task 127 F-6 (homenest session-7 S7-10): only randomUUID is
+    // secure-context-gated — getRandomValues is available on insecure origins
+    // too, so the non-secure fallback consumes real crypto bytes (128-bit
+    // hex) instead of the predictable Date.now + Math.random pair. The final
+    // branch is the both-primitives-absent last resort (ancient runtimes).
+    try {
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    } catch {
+      return `k${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+    }
   }
 }
 
@@ -225,13 +237,25 @@ export function visibleBadges(
 // Task 121 F-19: the campaign banner's end label was computed as "28 Dec of
 // the current year" — inside the Dec 29–31 window the banner advertised an
 // already-past end date. Pure functions so the roll is unit-pinnable.
+// Task 127 F-7: the campaign calendar is SINGAPORE's — the year and the
+// end instant are derived on the UTC+8 clock (the orderNumber/sgTomorrowISO
+// discipline), not the server-local calendar (a UTC server rolled the date
+// 16 hours early, from Dec 28 08:00 SGT — the campaign's final day).
+const SGT_CAMPAIGN_OFFSET_MS = 8 * 60 * 60 * 1000;
+function campaignEndSGT(year: number): Date {
+  // Dec 28 00:00 Singapore time === Dec 27 16:00 UTC.
+  return new Date(Date.UTC(year, 11, 28) - SGT_CAMPAIGN_OFFSET_MS);
+}
 export function campaignEnd(now: Date = new Date()): Date {
-  const thisYear = new Date(now.getFullYear(), 11, 28);
-  return thisYear.getTime() < now.getTime() ? new Date(now.getFullYear() + 1, 11, 28) : thisYear;
+  const sgt = new Date(now.getTime() + SGT_CAMPAIGN_OFFSET_MS);
+  const end = campaignEndSGT(sgt.getUTCFullYear());
+  return end.getTime() < now.getTime() ? campaignEndSGT(sgt.getUTCFullYear() + 1) : end;
 }
 
 export function campaignEndLabel(now: Date = new Date()): string {
-  return campaignEnd(now).toLocaleDateString("en-SG", { day: "numeric", month: "short" });
+  // Formatted on the Singapore calendar so the label reads "28 Dec" on any
+  // server timezone (the instant itself is Dec 27 16:00 UTC in 2026).
+  return campaignEnd(now).toLocaleDateString("en-SG", { day: "numeric", month: "short", timeZone: "Asia/Singapore" });
 }
 
 // Task 122 F-1 (the skipped Task-121 F-10): Singapore is UTC+8 year-round —

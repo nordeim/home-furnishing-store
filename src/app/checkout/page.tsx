@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useCart } from "@/lib/cart-store";
 import { effectivePromo } from "@/lib/catalog";
-import { availableDeliverySlots, formatSGD, mintIdempotencyKey, priceTotals, EXPRESS_DELIVERY_FEE_CENTS, FREE_DELIVERY_THRESHOLD_CENTS, STANDARD_DELIVERY_FEE_CENTS } from "@/lib/utils";
+import { availableDeliverySlots, formatSGD, mintIdempotencyKey, priceTotals, EXPRESS_DELIVERY_FEE_CENTS, FREE_DELIVERY_THRESHOLD_CENTS, GST_RATE, STANDARD_DELIVERY_FEE_CENTS } from "@/lib/utils";
 
 type Method = "delivery" | "click-collect" | "express";
 
@@ -172,7 +172,7 @@ export default function CheckoutPage() {
             <div className="flex justify-between"><dt className="text-white/70">Subtotal</dt><dd className="font-bold">{formatSGD(t.subtotalCents)}</dd></div>
             {t.discountCents > 0 && <div className="flex justify-between text-[#8fe388]"><dt>Discount {promoCode && `(${promoCode})`}</dt><dd className="font-bold">−{formatSGD(t.discountCents)}</dd></div>}
             <div className="flex justify-between"><dt className="text-white/70">Delivery</dt><dd className="font-bold">{t.deliveryFeeCents === 0 ? "FREE" : formatSGD(t.deliveryFeeCents)}</dd></div>
-            <div className="flex justify-between text-white/60"><dt>Incl. 9% GST</dt><dd>{formatSGD(t.gstCents)}</dd></div>
+            <div className="flex justify-between text-white/60"><dt>Incl. {Math.round(GST_RATE * 100)}% GST</dt><dd>{formatSGD(t.gstCents)}</dd></div>
             <div className="flex justify-between border-t border-white/15 pt-3 text-[19px] font-black"><dt>Total</dt><dd>{formatSGD(t.totalCents)}</dd></div>
           </dl>
           <button disabled={busy} className="mt-4 w-full rounded-full bg-[#ffdb00] py-4 font-black text-black hover:bg-white disabled:opacity-60 focus-ring">

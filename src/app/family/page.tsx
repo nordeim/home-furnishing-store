@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { familyVoucherCents, formatSGD } from "@/lib/utils";
+import { familyVoucherCents, formatSGD, FAMILY_VOUCHER_CENTS, FAMILY_POINTS_PER_VOUCHER } from "@/lib/utils";
 
 export default function FamilyPage() {
   const [spend, setSpend] = useState(1200);
@@ -19,7 +19,7 @@ export default function FamilyPage() {
           <ul className="mt-4 space-y-2 text-[15px] text-white/85">
             <li>✓ Vouchers apply to the whole catalogue, every day</li>
             <li>✓ Free Click & Collect + free coffee Mon–Fri</li>
-            <li>✓ 10 points per $1 — $5 voucher every 1,000 pts</li>
+            <li>✓ 10 points per $1 — ${FAMILY_VOUCHER_CENTS / 100} voucher every {FAMILY_POINTS_PER_VOUCHER.toLocaleString("en-SG")} pts</li>
             <li>✓ Free assembly on your birthday month*</li>
           </ul>
           {/* The join form confirms honestly (Task 119 F-6): the business and

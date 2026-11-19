@@ -22,8 +22,8 @@ ORM + PostgreSQL.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
-| `npm run test` | Vitest unit suite (156 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
-| `npm run test:e2e` | Playwright e2e (104 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
+| `npm run test` | Vitest unit suite (161 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
+| `npm run test:e2e` | Playwright e2e (108 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
 The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–126):
@@ -103,11 +103,34 @@ og:image declares its true 1200×627, the PDP Offer carries priceValidUntil
 from the rolling campaignEnd seam), the **PERSISTED_STORAGE_KEYS seam**
 (both crash boundaries import the one list — fs-pinned), and the
 **docs-truth .env.example pins** (the SITE_ORIGIN note + the Next-loader
-attribution). One Task-124 finding was DISPROVEN (browser evidence) and one
-Task-126 audit finding was DISPROVEN by insert-order analysis (the
-ensureSeed "partial-seed blind spot" — categories/stores/products/promotions/
-inspirations all insert BEFORE inventory, so the products+inventory early
-return can never skip them; see the plan's AUD-3).
+attribution) — and the Task-127 pins: the **PDP ampersand copy pin** (the
+Task-126 fee-derivation moved the delivery line into a template literal
+where `&amp;` stopped decoding — every PDP rendered "Click &amp; Collect";
+JSX entities decode only in text children), the **checkout free-text TYPE
+parity** (a single-element-array payload String()-coerced past every
+validator and placed a 201 order — email/fullName/phone/postal/address/
+deliverySlot now refuse present-non-string with 422, the lines/reviews/
+read-boundary posture mirrored at the last coercing seam), the
+**`?max=` whole-number guard** on /api/products (the reviews-GET
+discipline), the **replay-ownership pair** (both idempotency paths bind to
+the order's own email — a leaked key gets 422 REPLAY_MISMATCH, never the
+victim's order number; and the fast path hoists above validation so an
+emptied-bag resubmit replays instead of EMPTY_BAG-refusing), the
+**getRandomValues mint fallback** (128-bit crypto hex where the primitive
+exists; Math.random only as the both-absent last resort — deterministic-stub
+pins), the **SGT campaign calendar** (campaignEnd derives the year and the
+Dec-28-00:00-SGT instant on the UTC+8 clock; the label formats with
+timeZone Asia/Singapore; priceValidUntil renders the SGT date, not the UTC
+ISO slice), and the **derived-copy completion** (GST ×7, the $200 shop pair,
+FLAT20 on /offers, the family voucher rule ×3 — all interpolate their
+constants; the GST + family e2e pins derive). The storefront spec's 21
+interaction-first blocks now navigate through `gotoHydrated` (the mobile
+spec's Task-125 G-5 discipline — the docs' "interaction-first specs" claim
+is true for both files). One Task-124 finding was DISPROVEN (browser
+evidence) and one Task-126 audit finding was DISPROVEN by insert-order
+analysis (the ensureSeed "partial-seed blind spot" — categories/stores/
+products/promotions/inspirations all insert BEFORE inventory, so the
+products+inventory early return can never skip them; see the plan's AUD-3).
 The predecessor's 73-unit/15-e2e dead
 tree was retired with it — do not resurrect ely-beauty specs; pin new ones to
 this `src/`.
@@ -164,8 +187,9 @@ docs in the same commit as any test change (count-lockstep, no exceptions).
    mask the email (`maskEmail` in `src/lib/mask.ts`) and never render the street
    address there; full detail stays behind the email match on `/track-order`.
 10. **Shell env beats `.env`.** An exported `DATABASE_URL` silently overrides the
-   `.env` file (dotenv never overrides). If the app connects to the wrong DB,
-   pin the value per command: `DATABASE_URL="postgresql://…" npm run dev`.
+   `.env` file (Next's own env loader never overrides an existing env; the
+   dotenv package was removed in Task 126). If the app connects to the wrong
+   DB, pin the value per command: `DATABASE_URL="postgresql://…" npm run dev`.
 11. **Dev hydration needs `allowedDevOrigins`.** Next 16 blocks cross-origin
    dev-resource requests: open the dev server via `http://127.0.0.1:3000`
    while the banner host is `localhost` and the `/_next/hmr` websocket is
@@ -224,8 +248,8 @@ When adding tests, pin them to this `src/` — never resurrect ely-beauty specs.
 rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db" npm run build
 npm run typecheck
 npm run lint          # 0 errors expected (the 7-error lint debt was fixed in Task 114)
-npm run test          # 156/156 unit
-npm run test:e2e      # 104/104 e2e (needs a live Postgres for the checkout journey)
+npm run test          # 161/161 unit
+npm run test:e2e      # 108/108 e2e (needs a live Postgres for the checkout journey)
 ```
 
 There is no hosted CI; the local gate is the only gate.

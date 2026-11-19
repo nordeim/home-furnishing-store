@@ -296,6 +296,33 @@ describe("campaignEnd / campaignEndLabel (Task 121 F-19)", () => {
   });
 });
 
+describe("campaignEnd on the Singapore calendar (Task 127 F-7)", () => {
+  // The SGT seams (orderNumber, sgTomorrowISO, availableDeliverySlots) all do
+  // pure UTC+8 math; campaignEnd read the SERVER-LOCAL calendar, so a UTC
+  // server rolled the date 16 hours early (from Dec 28 08:00 SGT — the
+  // campaign's final day). The campaign calendar is Singapore's.
+  // Dec 28 00:00 SGT 2026 === 2026-12-27T16:00:00Z.
+  it("the campaign's final SGT day still reports this year (the UTC-server divergence)", () => {
+    // Dec 27 17:00Z = Dec 28 01:00 SGT — past the SGT-midnight end, so the
+    // roll already happened in Singapore (a UTC-local implementation said 2026).
+    expect(campaignEnd(new Date("2026-12-27T17:00:00Z")).getUTCFullYear()).toBe(2027);
+  });
+
+  it("the exact end instant belongs to the ending year (strict <)", () => {
+    // Dec 27 15:59:59Z = Dec 27 23:59:59 SGT → 2026; Dec 27 16:00:00Z is
+    // exactly Dec 28 00:00:00 SGT — the end instant itself still resolves to
+    // the ending campaign (2026); one second later rolls (2027).
+    expect(campaignEnd(new Date("2026-12-27T15:59:59Z")).getUTCFullYear()).toBe(2026);
+    expect(campaignEnd(new Date("2026-12-27T16:00:00Z")).getUTCFullYear()).toBe(2026);
+    expect(campaignEnd(new Date("2026-12-27T16:00:01Z")).getUTCFullYear()).toBe(2027);
+  });
+
+  it("the returned instant is Dec 28 00:00 Singapore time (any server TZ)", () => {
+    expect(campaignEnd(new Date("2026-06-01T00:00:00Z")).toISOString()).toBe("2026-12-27T16:00:00.000Z");
+    expect(campaignEnd(new Date("2026-12-27T17:00:00Z")).toISOString()).toBe("2027-12-27T16:00:00.000Z");
+  });
+});
+
 // Task 122 F-6: the Task-121 shared sort seam (API + shop SSR) had zero unit
 // pins and no SSR-order assertion — a regression re-sorting only ONE caller
 // passed all 153 tests. These pins cover every documented key plus the
@@ -411,5 +438,43 @@ describe("idempotency key seam (Task 126 F-1)", () => {
     expect(IDEMPOTENCY_KEY_RE.test("short")).toBe(false); // < 8 chars
     expect(IDEMPOTENCY_KEY_RE.test("x".repeat(65))).toBe(false); // > 64 chars
     expect(IDEMPOTENCY_KEY_RE.test("has space in it")).toBe(false); // invalid char
+  });
+
+  it("uses getRandomValues when randomUUID is unavailable — not Math.random (Task 127 F-6)", () => {
+    // homenest session-7 S7-10: only randomUUID is secure-context-gated;
+    // getRandomValues is available everywhere. The Task-126 fallback leaned
+    // on Date.now + Math.random (predictable); the fallback must consume the
+    // crypto bytes when the primitive exists.
+    const original = globalThis.crypto;
+    const bytes = new Uint8Array(16);
+    Object.defineProperty(globalThis, "crypto", {
+      value: { randomUUID: undefined, getRandomValues: (arr: Uint8Array) => { for (let i = 0; i < arr.length; i++) arr[i] = bytes[i] ?? 0; return arr; } },
+      configurable: true,
+    });
+    try {
+      const key = mintIdempotencyKey();
+      // A 16-byte → 32-hex-char token derived from the (deterministic stub)
+      // bytes — proving the crypto path, not the Math.random "k…" path.
+      expect(key).toBe("00000000000000000000000000000000");
+      expect(key).not.toMatch(/^k/);
+    } finally {
+      Object.defineProperty(globalThis, "crypto", { value: original, configurable: true });
+    }
+  });
+
+  it("the getRandomValues fallback mints distinct keys (real crypto)", () => {
+    const original = globalThis.crypto;
+    Object.defineProperty(globalThis, "crypto", {
+      value: { randomUUID: undefined, getRandomValues: original.getRandomValues.bind(original) },
+      configurable: true,
+    });
+    try {
+      const a = mintIdempotencyKey();
+      const b = mintIdempotencyKey();
+      expect(IDEMPOTENCY_KEY_RE.test(a)).toBe(true);
+      expect(a).not.toBe(b);
+    } finally {
+      Object.defineProperty(globalThis, "crypto", { value: original, configurable: true });
+    }
   });
 });

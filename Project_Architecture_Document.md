@@ -1,4 +1,4 @@
-# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.11.0
+# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.12.0
 
 **Classification:** Internal Engineering Reference
 **Status:** DEFINITIVE, PRODUCTION-LOCKED BLUEPRINT
@@ -7,6 +7,88 @@
 **Audience:** Senior Engineers, Tech Leads, DevOps, and Onboarding Engineers (human and AI)
 **Rule:** Every architectural decision in this document traces to a specific rationale.
 Nothing is here "because it's popular."
+
+#### Revision Block — v1.12.0 (Task 127 — boundary-type parity, replay ownership, derived-copy completion)
+
+- `[COR]` **The Task-126 entity regression (F-1, MEDIUM — the cycle's only
+  user-visible bug)**: Task 126's fee-derivation moved the PDP delivery line
+  into a JS template literal, where `&amp;` no longer decodes — every PDP
+  rendered the literal text "Click &amp; Collect" (browser-confirmed on the
+  dev server at audit; JSX entities decode only in text children, never
+  inside `{`…`}` string expressions). Plain `&` in the literal + an e2e pin
+  asserting the rendered ampersand and the absence of the raw entity.
+  Lesson: a JSX-text→template-literal refactor silently changes entity
+  semantics — grep the migrated string for `&amp;`.
+- `[SEC]` **Checkout free-text TYPE parity (F-2, MEDIUM)**: `String(body.x
+  ?? "").trim()` on email/fullName/phone/postal/address + deliverySlot let a
+  single-element ARRAY payload coerce past every validator and place a real
+  201 order (executed proof at audit) — the exact crafted-TYPE class Tasks
+  124/125/126 refused at lines, reviews POST and the read boundaries, but
+  the primary write boundary's free-text fields were missed. Present-but-
+  non-string fields are now 422 VALIDATION (absent fields still fall to the
+  documented defaults/min-length refusals); e2e probe with the finally-net.
+- `[SEC]` **Read-boundary completion (F-3, LOW)**: `/api/products?max=`
+  Number()-coerced (`?max=abc` → NaN → silently no filter; `?max=1.5` →
+  fractional dollars) — the Task-126 F-5 whole-number discipline extended to
+  the sibling GET: `/^\d+$/` guard → 422.
+- `[COR]` **Derived-copy completion (F-4, LOW — 13 sites in 4 clusters)**: the
+  Task-126 F-3 rollout missed the `$200` threshold (shop metadata + visible
+  strip — one SERP-facing), the `9% GST` rate (×7 incl. two metadata + the
+  e2e pin — all now `Math.round(GST_RATE * 100)`), FLAT20's `$20/$250`
+  hand-copy on /offers (derives from the same PROMOS row the cards render),
+  and the family voucher rule (×3 — `FAMILY_VOUCHER_CENTS`/
+  `FAMILY_POINTS_PER_VOUCHER` now feed page + metadata; the e2e family pin
+  derives). A rate/threshold edit self-corrects copy and pins together.
+- `[SEC]` **Replay ownership + canonical order (F-5, LOW — the homenest
+  S6-8/S7-2 discipline, the last un-ported piece of the Task-126 F-1
+  triad)**: possession-only replay let a key leaked via logs/XSS disclose
+  the victim's order number (the PII lookup key for /track-order). Both
+  replay paths (fast + 23505 race) now require `existing.email ===
+  input.email` (case-insensitive; mismatch → 422 `REPLAY_MISMATCH`, never
+  disclosure); the fast path hoists ABOVE bag/promo validation (a
+  post-success resubmit with an emptied bag replays instead of
+  EMPTY_BAG-refusing — the Stripe-canonical posture); the route defers its
+  empty-bag refusal to placeOrder when a key is present.
+- `[SEC]` **Mint fallback hardening (F-6, LOW — homenest session-7 S7-10)**:
+  the `mintIdempotencyKey` non-secure-context fallback consumed the
+  predictable `Date.now + Math.random` pair where `crypto.getRandomValues`
+  is available (only `randomUUID` is secure-context-gated) — the fallback
+  now mints a 128-bit crypto hex; Math.random survives only as the
+  both-primitives-absent last resort (deterministic-stub unit pins).
+- `[COR]` **campaignEnd on the Singapore calendar (F-7, LOW)**: the one SGT
+  seam reading the server-LOCAL calendar — a UTC server rolled
+  `priceValidUntil` to next year from Dec 28 08:00 SGT (the campaign's final
+  day). The year and the end instant now derive on the UTC+8 clock (Dec 28
+  00:00 SGT = Dec 27 16:00 UTC); the label formats with
+  `timeZone: "Asia/Singapore"` ("28 Dec" on any server); the PDP's
+  priceValidUntil renders the SGT calendar date (en-CA YYYY-MM-DD) instead
+  of the UTC ISO slice (which was a day early on any non-SGT server).
+- `[TST]` **Hydration gating completed (F-9, LOW)**: the storefront spec's
+  21 interaction-first blocks used bare `page.goto` + immediate click — the
+  exact pre-hydration no-op race `gotoHydrated` exists for (Task 125 G-5
+  had gated the mobile spec only; the docs claimed "the interaction-first
+  specs navigate through gotoHydrated" against 0 storefront call sites).
+  Mechanically identified (goto followed by an interaction within the
+  block) and converted; the DOM-assertion-only specs (JSON-LD, metadata,
+  javaScriptEnabled:false pair) stay bare by design.
+- `[DOC]` **Docs-truth (F-8)**: five operator-doc sites still named the
+  removed `dotenv` package in the env-precedence guidance (Task 126 F-4
+  fixed `.env.example` only) — swept to "Next's own env loader never
+  overrides an existing env".
+- `[REG]` **Register annotation (F-10)**: the orderNumber-collision deferral
+  is slightly wider than "no retry" — the 23505 catch keys on the ERROR
+  CLASS, so an orderNumber unique violation (random 6-char suffix) runs the
+  futile replay lookup before rethrowing; the un-deferral path is pg's
+  `err.constraint` name discrimination (idempotency_key vs order_number).
+  Rejected this cycle: qty clamp-vs-refuse (L-8 — the clamp IS the
+  documented AGENTS contract, a different class from crafted-TYPE
+  coercion); deploy-order note (I-4 — DEPLOYMENT.md §4→§5→§6 already
+  sequences it). Standing deferrals unchanged (TRUST_PROXY, CSP, jsdom,
+  delivery-decrement redistribution, store-picker wiring, React cache(),
+  health-503, token codemod, bundle curation, unthrottled GETs).
+- `[SAN]` Gates: lint 0/0 · typechecks clean · **161 unit / 108 e2e** ·
+  cold build green · zero DB residue after the full suite (verified by
+  direct SQL) · counts pinned across all five operator docs.
 
 #### Revision Block — v1.11.0 (Task 126 — idempotent checkout, test-residue parity, derived copy)
 
@@ -683,7 +765,7 @@ non-app artifacts remain in the tree (§10).
 | DB driver | `pg` (node-postgres) | 8.20.0 | Pooled connections, `drizzle-orm/node-postgres` adapter |
 | Database | PostgreSQL | 15+ recommended | Relational catalogue/orders; `drizzle-kit push` for schema |
 | Lint | ESLint flat config + `eslint-config-next/core-web-vitals` | 9.39.4 | One linter, Next-aware rules |
-| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–126) — 156 unit + 104 e2e, all green (§7) |
+| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–127) — 161 unit + 108 e2e, all green (§7) |
 | Imagery | Pexels CDN | — | Licensed stock, zero local pipeline (ADR-007) |
 
 ### 1.3 Architecture Decision Records (ADRs)
@@ -1214,8 +1296,8 @@ the code, never to hit a number.
 rm -rf .next && DATABASE_URL=… npm run build   # cold build (cache can mask the scan-guard failure)
 npm run typecheck && npm run typecheck:tests  # app scope + test tree
 npm run lint                                   # 0 errors / 0 warnings
-npm run test                                   # 156/156 unit
-npm run test:e2e                               # 104/104 e2e (live Postgres for the journey)
+npm run test                                   # 161/161 unit
+npm run test:e2e                               # 108/108 e2e (live Postgres for the journey)
 # runtime smoke of touched routes against `npm run start`
 ```
 
@@ -1279,7 +1361,7 @@ npm run dev                       # http://localhost:3000
 | `npm run dev` / `build` / `start` | root | Dev / cold production build / serve |
 | `npm run lint` | root | ESLint (flat; `skills/` ignored) |
 | `npm run typecheck` / `typecheck:tests` | root | App-scope / test-tree `tsc --noEmit` |
-| `npm run test` / `test:e2e` | root | Vitest unit (156) / Playwright e2e (104, production build on :3100) |
+| `npm run test` / `test:e2e` | root | Vitest unit (161) / Playwright e2e (108, production build on :3100) |
 | `npx drizzle-kit push` | root | Apply `src/db/schema.ts` |
 | `python3 docs/ssh_git_wrapper_v3.py --key-file K --remote git@github.com:nordeim/home-furnishing-store.git` | repo | Verified SSH push to main (see the runbook) |
 
@@ -1465,8 +1547,8 @@ re-verified in-browser on the dead-DB path ($1,200/yr → $60 vouchers) —
 | `src/app/product/[slug]/page.tsx` | ~204 | PDP: metadata, gallery, stock/aisle, reviews, related |
 | `src/app/api/checkout/route.ts` | ~130 | Validation, rate limit, `placeOrder` delegation, envelope |
 | `src/components/Header.tsx` | ~180 | Utility strip, search, store picker (external store), category nav, mobile drawer (Escape-close) |
-| `tests/unit/` | 9 files | 156 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges/DELIVERY_SLOTS/orderNumber-SGT, catalog incl. findPromoMinimumCents, local-store incl. the promo predicate, mask, robots/sitemap, env/compose/config + scan-guard pins) |
-| `tests/e2e/` | 2 specs | 104 Playwright tests: mobile-navigation (iPhone-13 emulation, 390×844), storefront/commerce journeys, API boundary validation, fetch-failure resilience, slot coherence, review-count truth |
+| `tests/unit/` | 9 files | 161 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges/DELIVERY_SLOTS/orderNumber-SGT, catalog incl. findPromoMinimumCents, local-store incl. the promo predicate, mask, robots/sitemap, env/compose/config + scan-guard pins) |
+| `tests/e2e/` | 2 specs | 108 Playwright tests: mobile-navigation (iPhone-13 emulation, 390×844), storefront/commerce journeys, API boundary validation, fetch-failure resilience, slot coherence, review-count truth |
 | `src/components/ProductCard.tsx` | ~92 | Card + `Rating`; wishlist/add-to-bag affordances |
 | `docs/implementation-plan.md` | 42 | Stack decision record, deviations ledger, acceptance criteria |
 | `docs/reference-investigation.md` | 45 | Reference-site evidence (Verified/Reasoned/Assumed/Unknown) |

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAllProducts, getInventory, getProductBySlug, getReviewCount, getReviews } from "@/lib/server-data";
-import { formatSGD, stars, visibleBadges, SITE_ORIGIN, jsonLdScript, campaignEnd, STANDARD_DELIVERY_FEE_CENTS, FREE_DELIVERY_THRESHOLD_CENTS, EXPRESS_DELIVERY_FEE_CENTS } from "@/lib/utils";
+import { formatSGD, stars, visibleBadges, SITE_ORIGIN, jsonLdScript, campaignEnd, STANDARD_DELIVERY_FEE_CENTS, FREE_DELIVERY_THRESHOLD_CENTS, EXPRESS_DELIVERY_FEE_CENTS, GST_RATE } from "@/lib/utils";
 import { CATEGORIES } from "@/lib/catalog";
 import { ProductCard } from "@/components/ProductCard";
 import { BuyBox } from "@/components/BuyBox";
@@ -92,7 +92,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       // rolling campaignEnd seam (no invented date) — the festive market is
       // the site's own price-refresh claim ("offers refreshed with the
       // season"), so the Offer's validity is the campaign's end date.
-      priceValidUntil: campaignEnd().toISOString().slice(0, 10),
+      // Task 127 F-7: formatted on the SINGAPORE calendar (en-CA renders
+      // YYYY-MM-DD) — the seam returns the true Dec-28-00:00-SGT instant,
+      // whose UTC ISO date is a day early on any non-SGT server.
+      priceValidUntil: campaignEnd().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" }),
       ...(stock.length > 0
         ? { availability: availableQty > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock" }
         : {}),
@@ -163,7 +166,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               <p className="text-[17px] text-[#5b5b5b] line-through">{formatSGD(p.compareAtCents)}</p>
             )}
           </div>
-          <p className="text-[13px] text-[#5b5b5b]">Price includes 9% GST · or 3 interest-free payments from {formatSGD(Math.floor(p.priceCents / 3))}</p>
+          <p className="text-[13px] text-[#5b5b5b]">Price includes {Math.round(GST_RATE * 100)}% GST · or 3 interest-free payments from {formatSGD(Math.floor(p.priceCents / 3))}</p>
 
           <p className="mt-5 text-[15px] leading-relaxed">{p.description}</p>
 
@@ -185,7 +188,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <details className="mt-2 rounded-xl ring-1 ring-[#ece8df]">
             <summary className="cursor-pointer p-4 font-bold">Delivery, assembly & returns</summary>
             <p className="px-4 pb-4 text-[14px] leading-relaxed text-[#444]">
-              {`Delivery from $${STANDARD_DELIVERY_FEE_CENTS / 100} (free over $${FREE_DELIVERY_THRESHOLD_CENTS / 100}) · Express next-day $${EXPRESS_DELIVERY_FEE_CENTS / 100} · Click &amp; Collect free in 2 hours ·`}
+              {`Delivery from $${STANDARD_DELIVERY_FEE_CENTS / 100} (free over $${FREE_DELIVERY_THRESHOLD_CENTS / 100}) · Express next-day $${EXPRESS_DELIVERY_FEE_CENTS / 100} · Click & Collect free in 2 hours ·`}
               Assembly from $25 · 365-day returns with proof of purchase.
             </p>
           </details>

@@ -11,7 +11,14 @@ export async function GET(req: Request) {
     const q = (url.searchParams.get("q") ?? "").toLowerCase();
     const cat = url.searchParams.get("cat") ?? "all";
     const sort = url.searchParams.get("sort") ?? "featured";
-    const max = Number(url.searchParams.get("max") ?? "0");
+    // Task 127 F-3: ?max= is a whole-dollar price cap — Number() coercion
+    // silently accepted ?max=abc (NaN → no filter) and ?max=1.5 (fractional
+    // dollars). The reviews-GET whole-number discipline (Task 126 F-5):
+    // present-but-malformed is a 422, never a silent fallback.
+    const rawMax = url.searchParams.get("max");
+    if (rawMax !== null && !/^\d+$/.test(rawMax))
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "max must be a whole dollar amount." } }, { status: 422 });
+    const max = Number(rawMax ?? "0");
 
     let list = await getAllProducts();
     if (cat !== "all") list = list.filter((p) => p.categorySlug === cat);

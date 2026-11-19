@@ -204,8 +204,36 @@ function isUniqueViolation(err: unknown): boolean {
   return e?.code === "23505" || e?.cause?.code === "23505";
 }
 
+// Task 127 F-5: a replay is OWNERSHIP-BOUND — both replay paths require the
+// same email as the bound order (case-insensitive; the track-route match
+// discipline). Task 126's possession-only replay let a key leaked via logs
+// or XSS disclose the victim's order number — the PII lookup key for
+// /track-order (the homenest S6-8/S7-2 threat model). Returns the bound
+// order on a match, "mismatch" on a different email (refuse, never
+// disclose), or null when the key has no order yet (fresh intent).
+async function resolveReplay(key: string, email: string): Promise<Order | "mismatch" | null> {
+  const existing = await db
+    .select()
+    .from(orders)
+    .where(eq(orders.idempotencyKey, key))
+    .limit(1);
+  if (!existing[0]) return null;
+  return existing[0].email.toLowerCase() === email.trim().toLowerCase() ? existing[0] : "mismatch";
+}
+
 export async function placeOrder(input: CheckoutInput): Promise<PlaceOrderResult> {
   await ensureSeed();
+  // Task 127 F-5 (canonical order): the replay fast path runs BEFORE bag/promo
+  // validation — a true replay (same key, order already placed) must answer
+  // with the bound order even if the re-sent payload's bag emptied after the
+  // success redirect or its promo was deactivated between attempts. Only a
+  // key with NO bound order falls through to validation as a fresh intent.
+  if (input.idempotencyKey) {
+    const replay = await resolveReplay(input.idempotencyKey, input.email);
+    if (replay === "mismatch")
+      throw new OrderRefusalError("REPLAY_MISMATCH", "This order was placed with a different email address — check the address and try again.");
+    if (replay) return { order: replay, replayed: true };
+  }
   const all = await getAllProducts();
   const byId = new Map(all.map((p) => [p.id, p]));
   // Re-derive money server-side; never trust client totals.
@@ -251,19 +279,6 @@ export async function placeOrder(input: CheckoutInput): Promise<PlaceOrderResult
   // the single-store decrement source remains the documented deferral).
   const fulfilStore = input.storeSlug || "tampines";
   const clickCollect = input.deliveryMethod === "click-collect";
-
-  // Task 126 F-1 (fast path): a key that already has its order replays it —
-  // a double-click, a network retry or an impatient re-submit must not place
-  // a second order or burn stock twice. The key is an unguessable
-  // client-minted token, so possession IS the authority (no email gate).
-  if (input.idempotencyKey) {
-    const existing = await db
-      .select()
-      .from(orders)
-      .where(eq(orders.idempotencyKey, input.idempotencyKey))
-      .limit(1);
-    if (existing[0]) return { order: existing[0], replayed: true };
-  }
 
   try {
     return await db.transaction(async (tx) => {
@@ -342,14 +357,15 @@ export async function placeOrder(input: CheckoutInput): Promise<PlaceOrderResult
     // Task 126 F-1 (race path): two concurrent same-key POSTs both pass the
     // fast-path check; the unique index makes the loser's INSERT fail inside
     // its transaction — which rolls the whole thing back (no decrement) —
-    // and the winner's committed order is what this key means now.
+    // and the winner's committed order is what this key means now. Task 127
+    // F-5: the race path applies the SAME ownership gate — a concurrent
+    // same-key different-email POST is refused, never handed the winner's
+    // receipt.
     if (input.idempotencyKey && isUniqueViolation(err)) {
-      const existing = await db
-        .select()
-        .from(orders)
-        .where(eq(orders.idempotencyKey, input.idempotencyKey))
-        .limit(1);
-      if (existing[0]) return { order: existing[0], replayed: true };
+      const replay = await resolveReplay(input.idempotencyKey, input.email);
+      if (replay === "mismatch")
+        throw new OrderRefusalError("REPLAY_MISMATCH", "This order was placed with a different email address — check the address and try again.");
+      if (replay) return { order: replay, replayed: true };
     }
     throw err;
   }

@@ -29,6 +29,27 @@ export async function POST(req: Request) {
     // verbatim. Order fields are REFUSED, never silently truncated (a
     // truncated delivery address is a broken order, and truncation must
     // never transform invalid input into a valid one at a write boundary).
+    // Task 127 F-2: the free-text fields are also TYPE-strict — String()
+    // coercion let a single-element ARRAY pass every validator below
+    // (String(["a@b.sg"]) === "a@b.sg"), the last coercing seam at this
+    // boundary (lines went type-strict in Task 124 F-5). Present-but-not-a-
+    // string is a 422; an ABSENT field still falls through to the empty
+    // string and the existing min-length refusals.
+    for (const field of ["email", "fullName", "phone", "postal", "address"] as const) {
+      if (field in body && typeof body[field] !== "string")
+        return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "One or more fields have an invalid type — please resend your order details." } }, { status: 422 });
+    }
+    // Task 126 F-1: optional client-minted idempotency key — a double-submit
+    // or network retry re-POSTs the same bag and must replay the first order
+    // instead of placing a second. Malformed keys are dropped to null (dedupe
+    // is an enhancement, never a persisted field; a key-less POST behaves
+    // exactly as before). Extracted early (Task 127 F-5) so the canonical
+    // replay can bypass the empty-bag refusal below — a post-success
+    // resubmit carries an already-cleared bag.
+    const idempotencyKey =
+      typeof body.idempotencyKey === "string" && /^[A-Za-z0-9-]{8,64}$/.test(body.idempotencyKey)
+        ? body.idempotencyKey
+        : null;
     const email = String(body.email ?? "").trim();
     const fullName = String(body.fullName ?? "").trim();
     const phone = String(body.phone ?? "").trim();
@@ -70,7 +91,12 @@ export async function POST(req: Request) {
     if (address.length < 6) return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Enter your block, street and unit number." } }, { status: 422 });
     if (email.length > 254 || fullName.length > 80 || phone.length > 20 || address.length > 200)
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "One or more fields are too long — keep each under its stated limit." } }, { status: 422 });
-    if (rawLines.length === 0 || lines.length === 0) return NextResponse.json({ ok: false, error: { code: "EMPTY_BAG", message: "Your bag is empty." } }, { status: 422 });
+    // Task 127 F-5: with an idempotency key present, the empty-bag refusal
+    // defers to placeOrder — the canonical replay (key already bound to an
+    // order with this email) must answer with that order even though the
+    // client cleared its bag after the success redirect. A key with NO bound
+    // order still EMPTY_BAG-refuses inside placeOrder (fresh intent).
+    if ((rawLines.length === 0 || lines.length === 0) && !idempotencyKey) return NextResponse.json({ ok: false, error: { code: "EMPTY_BAG", message: "Your bag is empty." } }, { status: 422 });
 
     // Task 121 F-7: storeSlug is validated against the three real stores (the
     // order/track pages render it as copy via storeName — a crafted slug
@@ -81,6 +107,12 @@ export async function POST(req: Request) {
     const storeSlug = String(body.storeSlug ?? "tampines");
     if (!STORE_SLUGS.includes(storeSlug))
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Choose one of our three stores." } }, { status: 422 });
+    // Task 127 F-2: deliverySlot joins the TYPE-strict set — String() coercion
+    // let a single-element array ride into the DELIVERY_SLOTS coherence check
+    // below (same class as the five free-text fields above; an absent slot
+    // still falls to the documented default).
+    if ("deliverySlot" in body && typeof body.deliverySlot !== "string")
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Choose one of the offered time slots." } }, { status: 422 });
     const deliverySlot = String(body.deliverySlot ?? "Standard (3–5 days)");
     if (deliverySlot.length > 80)
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Choose one of the offered time slots." } }, { status: 422 });
@@ -97,16 +129,6 @@ export async function POST(req: Request) {
     const promoCode = typeof body.promoCode === "string" ? body.promoCode : null;
     if (promoCode !== null && promoCode.length > 32)
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "One or more fields are too long — keep each under its stated limit." } }, { status: 422 });
-
-    // Task 126 F-1: optional client-minted idempotency key — a double-submit
-    // or network retry re-POSTs the same bag and must replay the first order
-    // instead of placing a second. Malformed keys are dropped to null (dedupe
-    // is an enhancement, never a persisted field; a key-less POST behaves
-    // exactly as before).
-    const idempotencyKey =
-      typeof body.idempotencyKey === "string" && /^[A-Za-z0-9-]{8,64}$/.test(body.idempotencyKey)
-        ? body.idempotencyKey
-        : null;
 
     const { order, replayed } = await placeOrder({
       email,

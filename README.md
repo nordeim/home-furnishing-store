@@ -164,12 +164,12 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 156 tests at the pure seams
+npm run test             # Vitest unit — 161 tests at the pure seams
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 104 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 108 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
@@ -244,11 +244,42 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 156 unit + 104 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120/121/122/123/124/125/126); counts pinned by tests/unit/docs-counts.test.ts |
+| Test suite | ✅ 161 unit + 108 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120/121/122/123/124/125/126/127); counts pinned by tests/unit/docs-counts.test.ts |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
+
+Current cycle (2026-11-19, Task 127): workspace-refresh re-audit (mobile-nav
+taxonomy re-verified clean at 390/1440 incl. the F-7 param-close regression
+check — no Tailwind v4 bug; hydration live-verified; baseline gates green at
+156/104 with zero DB residue — the PG snapshot needed its initdb runtime
+subdirectories restored, the SKILL lesson-31 class) that caught **the
+Task-126 entity regression** (the fee-derivation moved the PDP delivery line
+into a template literal where `&amp;` stopped decoding — every PDP rendered
+"Click &amp; Collect"; browser-confirmed), **the checkout free-text TYPE
+gap** (a single-element-array payload String()-coerced past every validator
+and placed a real order — executed proof; email/fullName/phone/postal/
+address/deliverySlot now refuse present-non-string with 422, mirroring the
+lines/reviews/read-boundary posture at the last coercing seam), **the
+`?max=` read-boundary residue** (abc/1.5 silently Number()-coerced on
+/api/products), **replay ownership** (both idempotency paths bind to the
+bound order's own email — a key leaked via logs/XSS gets 422
+REPLAY_MISMATCH, never the victim's order number; and the fast path hoists
+above validation so an emptied-bag resubmit replays — the Stripe-canonical
+posture), **the predictable mint fallback** (Math.random →
+crypto.getRandomValues 128-bit hex), **campaignEnd on the Singapore
+calendar** (a UTC server rolled priceValidUntil 16 hours early; the label
+now formats with timeZone Asia/Singapore and the PDP renders the SGT
+calendar date), **derived-copy completion** (GST ×7, the $200 shop pair
+incl. SERP metadata, FLAT20 on /offers, the family voucher rule ×3 — all
+interpolate their constants), and the **docs-truth dotenv sweep** (5
+operator-doc sites still named the removed package). The storefront spec's
+21 interaction-first blocks now navigate through gotoHydrated (the claim
+was true for the mobile spec only). Two audit findings rejected with
+evidence (the qty clamp IS the documented contract; DEPLOYMENT.md already
+sequences the schema push). Suite grew to 161 unit + 108 e2e. Details in
+`worklog.md` and `docs/plans/2026-11-19-task127-remediation-plan.md`.
 
 Current cycle (2026-11-19, Task 126): workspace-refresh re-audit (mobile-nav
 taxonomy re-verified clean at 390/1440 incl. the F-7 param-close regression
@@ -416,7 +447,7 @@ lineage-drift pins) — same plan directory.
 | `Error: DATABASE_URL is required` at startup | `src/db/index.ts` throws without it. Set any Postgres URL in `.env` (even unreachable — the storefront falls back to the static catalogue; writes need a live DB). |
 | `/api/health` returns 500 | The database is unreachable — expected on the static fallback; bring Postgres up and re-check. |
 | Checkout returns 500 `CHECKOUT_FAILED` | Almost certainly the DB (write path has no fallback). Verify `DATABASE_URL`, `drizzle-kit push`, and that first-read seeding has run. |
-| `DATABASE_URL` returns the wrong DB / health 500 with the DB up | An exported shell `DATABASE_URL` overrides `.env` (dotenv never overrides). Check `env \| grep DATABASE` and pin the value per command. |
+| `DATABASE_URL` returns the wrong DB / health 500 with the DB up | An exported shell `DATABASE_URL` overrides `.env` (Next's own env loader never overrides an existing env). Check `env \| grep DATABASE` and pin the value per command. |
 | `npx playwright test` can't find a browser | Run `npm run test:e2e:install` once (installs the pinned Chromium build). |
 | e2e checkout journey fails with `CHECKOUT_FAILED` | The journey needs a live Postgres (writes have no fallback). Start the DB, `drizzle-kit push`, and re-run. |
 | Push rejected by wrapper: default remote wrong | The wrapper's built-in default still points at `nordeim/ely-beauty`. Always pass `--remote git@github.com:nordeim/home-furnishing-store.git` (runbook: `docs/how-to-git-push-using-ssh-wrapper_SKILL.md`). |
