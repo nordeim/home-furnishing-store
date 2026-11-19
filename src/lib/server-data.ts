@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { categories, inspirations, inventory, orderItems, orders, products, promotions, reviews, stores } from "@/db/schema";
-import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES } from "@/lib/catalog";
+import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, matchesProductQuery } from "@/lib/catalog";
 import {
   orderNumber,
   priceTotals,
@@ -90,7 +90,7 @@ export async function searchProducts(q: string, cat?: string): Promise<ProductRo
   return all.filter((p) => {
     if (cat && cat !== "all" && p.categorySlug !== cat) return false;
     if (!needle) return true;
-    return `${p.name} ${p.tagline} ${p.description} ${p.sku} ${p.categorySlug}`.toLowerCase().includes(needle);
+    return matchesProductQuery(p, needle);
   });
 }
 

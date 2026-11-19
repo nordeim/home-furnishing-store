@@ -48,15 +48,18 @@ export async function POST(req: Request) {
     const lines = rawLines
       .map((l) => {
         const line = (l ?? {}) as Record<string, unknown>;
-        const productId = Number(line.productId);
-        // Task 122 F-8: Number(null) === 0 is FINITE, so a null qty used to
-        // min-clamp to 1 and place a quiet single-unit order — null/undefined
-        // must drop the line like every other non-numeric qty.
+        // Task 124 F-5: TYPE-strict boundary. The Task-122 F-8 value-level
+        // check (null/undefined) still let crafted TYPES through —
+        // Number(true) === 1, Number([5]) === 5 and Number("3") === 3 are
+        // all finite, so a boolean/array/string qty coerced to a real
+        // quantity and placed a quiet order (Number("7") likewise coerced a
+        // string productId). A non-number type now drops the line like every
+        // other non-numeric value; qty still clamps through clampInt.
+        const rawProductId = line.productId;
         const rawQty = line.qty;
-        const qtyNum = rawQty == null ? Number.NaN : Number(rawQty);
-        return Number.isInteger(productId) && productId > 0
-          ? { productId, qty: clampInt(qtyNum, 1, 99, Number.NaN) }
-          : null;
+        if (typeof rawProductId !== "number" || !Number.isInteger(rawProductId) || rawProductId <= 0) return null;
+        if (typeof rawQty !== "number" || !Number.isFinite(rawQty)) return null;
+        return { productId: rawProductId, qty: clampInt(rawQty, 1, 99, Number.NaN) };
       })
       .filter((l): l is { productId: number; qty: number } => l !== null && Number.isInteger(l.qty));
 

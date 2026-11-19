@@ -32,6 +32,12 @@ function SearchInner() {
   const [error, setError] = useState(false);
   // Bumping this re-runs the search effect (retry button) without changing q.
   const [retry, setRetry] = useState(0);
+  // Task 124 F-13: the settle discipline covers the retry axis too — the
+  // retry counter that re-runs the effect needs its own settled marker, or
+  // the old error box stays on screen through the debounce window after a
+  // Try-again click (loading only flips inside the 250ms timeout, which the
+  // lint rule forbids setting synchronously in the effect body).
+  const [settledRetry, setSettledRetry] = useState(0);
 
   const needle = q.trim();
 
@@ -68,6 +74,7 @@ function SearchInner() {
         if (!cancelled) {
           setLoading(false);
           setSettledFor(needle);
+          setSettledRetry(retry);
         }
       }
     }, 250);
@@ -93,12 +100,12 @@ function SearchInner() {
         </div>
       )}
       {loading && <p className="mt-6 text-[#5b5b5b]" role="status">Searching…</p>}
-      {/* Task 123 F-4: the error box gates on the settled needle exactly like
-          the result verdicts below — after a FAILED search, typing a new
-          needle used to keep the old "couldn't load results" box on screen
-          through the debounce + fetch window (loading is false during it). A
-          changed needle hides it until its own search settles. */}
-      {error && !loading && settledFor === needle && (
+      {/* Task 123 F-4 + Task 124 F-13: the error box gates on BOTH settle
+          axes — the needle (a changed needle hides the old box through the
+          debounce + fetch window) and the retry counter (a Try-again click
+          hides it through its own window; loading only flips inside the
+          250ms timeout, so it cannot be the gate alone). */}
+      {error && !loading && settledFor === needle && settledRetry === retry && (
         <div className="mt-4 rounded-xl bg-[#fff4f4] p-10 text-center" role="alert">
           <p className="text-[18px] font-black text-[#a00008]">We couldn’t load results</p>
           <p className="mt-1 text-[#5b5b5b]">The catalogue service didn’t answer. Check your connection and try again.</p>
@@ -108,9 +115,15 @@ function SearchInner() {
       {!loading && !error && needle && settledFor === needle && (
         <p className="mt-6 text-[15px]" role="status"><strong>{shown.length}</strong> result{shown.length === 1 ? "" : "s"} for “{needle}”</p>
       )}
-      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {shown.map((p) => <ProductCard key={p.id} p={{ ...p, ratingAvg: String(p.ratingAvg) }} />)}
-      </div>
+      {/* Task 124 F-3: the grid gates on the settle discipline too — a failed
+          re-search used to keep rendering the PREVIOUS query's cards beneath
+          the error box (items was never cleared on error). The grid belongs
+          to the settled needle's own verdict, like everything else. */}
+      {!error && !loading && needle && settledFor === needle && (
+        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {shown.map((p) => <ProductCard key={p.id} p={{ ...p, ratingAvg: String(p.ratingAvg) }} />)}
+        </div>
+      )}
       {!loading && !error && needle && settledFor === needle && shown.length === 0 && (
         <div className="mt-4 rounded-xl bg-[#f5f3ee] p-10 text-center">
           <p className="text-[18px] font-black">No products found for “{needle}”</p>

@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-19 (Task 123: journey residue, promo-display truth, boundary/docs honesty)
+last_updated: 2026-11-19 (Task 124: docs-truth completion, settle discipline, boundary strictness)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -75,8 +75,8 @@ PostgreSQL (node-postgres) · ESLint 9 flat config.
   helpers in `src/lib/utils.ts` (`formatSGD`, `priceTotals`, `clampInt`,
   `isValidEmail/Phone/Postal`, `stars`, `DELIVERY_SLOTS`, `isValidDeliverySlot`).
 - Path alias `@/*` → `./src/*`. `npm run typecheck` covers the app scope
-  (`src/**`, `next.config.ts`) only — the inherited `tests/`/`scripts/` are from
-  the predecessor repo and are not part of the app compile.
+  (`src/**`, `next.config.ts`) only; the NORDHEM-native test tree is covered by
+  `npm run typecheck:tests` (`tsconfig.tests.json`) — both scopes are live gates.
 
 ### Tailwind CSS v4 (CSS-first)
 
@@ -101,7 +101,7 @@ PostgreSQL (node-postgres) · ESLint 9 flat config.
 - SEO surfaces are code: `robots.ts` disallows utility/personal routes, the
   sitemap lists indexable routes only (never both), PDPs carry canonical +
   OpenGraph + `schema.org/Product` JSON-LD, and `<html>` carries
-  ˋdata-scroll-behavior="smooth"ˋ (the CSS pairs with it in globals.css).
+  `data-scroll-behavior="smooth"` (the CSS pairs with it in globals.css).
 
 ## Development Workflow
 
@@ -129,15 +129,15 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`typecheck:tests` covers the test tree) |
-| `npm run test` | Vitest unit suite (128 tests, pure seams) |
-| `npm run test:e2e` | Playwright e2e (78 tests, production build on :3100) |
+| `npm run test` | Vitest unit suite (138 tests, pure seams) |
+| `npm run test:e2e` | Playwright e2e (89 tests, production build on :3100) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
-**Current state (Task 121):** a NORDHEM-native suite is wired into the gates.
+**Current state (Tasks 114–123, extended this cycle):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 128 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 138 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
@@ -151,7 +151,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   with the fs-computed reality — count-lockstep is enforced across all five
   operator docs, not remembered). Node environment with a localStorage shim
   (`tests/unit/setup.ts`); no jsdom, no component rendering.
-- **E2E (Playwright, 78 tests)** against the **production build** (the webServer
+- **E2E (Playwright, 89 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
   hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
@@ -222,6 +222,26 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   the API keyword filter matches `categorySlug` (one recall with the
   shop-SSR seam); the search error box gates on `settledFor === needle`
   like the verdicts.
+- **Task-124 seams:** the docs-counts file now also pins the health-envelope
+  BODY across the operator docs (three sites had kept the pre-Task-123 bare
+  `{ ok: true }` claim); the search page's grid AND the Try-again window
+  gate on the full settle discipline (`settledFor === needle` AND
+  `settledRetry === retry` — a failed re-search no longer renders the
+  previous query's cards, and a retry hides the error box through its
+  debounce window); the checkout route drops non-number TYPE qty/productId
+  values (the Task-122 F-8 value check let `true`/`[5]`/`"3"` coerce into
+  real orders); the cart's unknown-code notice says "isn't a valid code"
+  (`findPromoMinimumCents` null — never "$0.00 minimum");
+  `availableDeliverySlots(method, now?)` in `utils.ts` is the temporal slot
+  seam (the click-collect "Today 2pm" hides after 14:00 SGT — the boundary
+  keeps the full `DELIVERY_SLOTS` sets: method coherence unchanged, stale
+  tabs get grace); `matchesProductQuery` in `catalog.ts` is the ONE recall
+  definition (API + shop SSR + a needle-case fix: capitalized queries used
+  to return 0); the five utility client routes carry noindex layouts
+  (belt-and-suspenders with robots.txt); the journey spec's finally deletes
+  by email + spec-start window (a post-201 assertion failure used to strand
+  the row); product cards show stars without the invented seed
+  `ratingCount`.
 
 TDD is the default for logic changes: red → green → refactor, one seam at a
 time (`skills/tdd`). Bug fixes require a regression test that fails before the
@@ -298,7 +318,7 @@ pooled client). No services, no workers, no external APIs (imagery is Pexels CDN
 | `/api/checkout` | POST | validated, rate-limited, server re-prices |
 | `/api/orders/track` | POST | order number + email match |
 | `/api/reviews` | GET/POST | by `productId`; rating 1–5 |
-| `/api/health` | GET | `{ ok: true }` iff DB reachable |
+| `/api/health` | GET | `{ ok: true, data: { db: "up" } }` iff DB reachable (500 + `DB_DOWN` error envelope without) |
 
 ### Database / Data Layer
 
@@ -324,5 +344,6 @@ throughout.
 - Adding state libraries, auth, or payment SDKs without an explicit decision
   record — the current deferrals are documented contracts.
 - Editing files under `skills/` (vendored reference, excluded from all gates) or
-  treating the inherited `tests/` as runnable.
+  resurrecting ely-beauty specs (the current `tests/` tree is NORDHEM-native —
+  pin new specs to THIS `src/`).
 - Pushing without the cold-build gate, or with a key anywhere inside the repo.

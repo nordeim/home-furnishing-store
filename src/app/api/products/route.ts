@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAllProducts } from "@/lib/server-data";
+import { matchesProductQuery } from "@/lib/catalog";
 import { sortProductList } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -14,12 +15,12 @@ export async function GET(req: Request) {
 
     let list = await getAllProducts();
     if (cat !== "all") list = list.filter((p) => p.categorySlug === cat);
-    // Task 123 F-5: the keyword filter matches the searchProducts seam
-    // (server-data.ts) exactly — categorySlug included. The API used to match
+    // Task 123 F-5 + Task 124 F-12: the keyword filter IS the
+    // searchProducts seam — both consume matchesProductQuery (categorySlug
+    // included; one recall definition). The API used to match
     // name/tagline/description/sku only, so q=outdoor returned 0 while the
-    // shop SSR grid returned the two outdoor-category products: one
-    // catalogue, one recall.
-    if (q) list = list.filter((p) => `${p.name} ${p.tagline} ${p.description} ${p.sku} ${p.categorySlug}`.toLowerCase().includes(q));
+    // shop SSR grid returned the two outdoor-category products.
+    if (q) list = list.filter((p) => matchesProductQuery(p, q));
     if (max > 0) list = list.filter((p) => p.priceCents <= max * 100);
 
     // Display sort lives in the shared sortProductList seam (Task 121 F-17)

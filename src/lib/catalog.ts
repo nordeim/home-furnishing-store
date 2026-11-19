@@ -141,6 +141,22 @@ export const PROMOS: PromoLike[] = [
   { code: "FLAT20", label: "$20 off orders over $250", kind: "fixed", value: 2000, minSubtotalCents: 25000 },
 ];
 
+// Task 124 F-12: ONE recall definition. The API keyword filter and the
+// shop-SSR searchProducts seam carried the identical literal expression
+// (the Task-123 F-5 fix re-synchronized them by hand) — nothing structural
+// prevented the next drift. Both seams now consume this helper (the
+// sortProductList pattern: one seam, every consumer).
+export function matchesProductQuery(
+  p: { name: string; tagline: string; description: string; sku: string; categorySlug: string },
+  needle: string,
+): boolean {
+  // Both sides lowercase: the haystack AND the needle. The duplicated
+  // originals lowercased only the haystack, so a capitalized query
+  // ("OUTDOOR", "Sofa") returned 0 results on both the API and the shop
+  // SSR — caught by the F-12 seam pins the day the extraction landed.
+  return `${p.name} ${p.tagline} ${p.description} ${p.sku} ${p.categorySlug}`.toLowerCase().includes(needle.toLowerCase());
+}
+
 export function findProduct(slug: string): SeedProduct | undefined {
   return PRODUCTS.find((p) => p.slug === slug);
 }

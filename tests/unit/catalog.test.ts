@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, findPromo, effectivePromo, findPromoMinimumCents, storeName } from "@/lib/catalog";
+import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, findPromo, effectivePromo, findPromoMinimumCents, storeName, matchesProductQuery } from "@/lib/catalog";
 
 describe("catalogue invariants (seed + static fallback contract)", () => {
   it("ships the documented counts", () => {
@@ -124,5 +124,28 @@ describe("storeName (display label for store slugs in customer copy)", () => {
   it("capitalizes unknown slugs as a graceful fallback and tolerates blanks", () => {
     expect(storeName("unknown-store")).toBe("Unknown-store");
     expect(storeName("")).toBe("");
+  });
+});
+
+describe("matchesProductQuery (the one recall seam — Task 124 F-12)", () => {
+  // GREEN-on-arrival pins (the sortProductList precedent): the Task-123 F-5
+  // fix re-synchronized two duplicated literals by hand; both the API
+  // keyword filter and the shop-SSR searchProducts seam now consume this
+  // helper. These pins hold the seam's contract.
+  const outdoor = PRODUCTS.find((p) => p.slug === "veranda-balcony-set");
+  it("matches the categorySlug axis (the F-5 recall divergence)", () => {
+    expect(outdoor).toBeDefined();
+    expect(matchesProductQuery(outdoor!, "outdoor")).toBe(true);
+  });
+  it("matches name, tagline, description and sku axes", () => {
+    const p = PRODUCTS[0];
+    expect(matchesProductQuery(p, p.name.toLowerCase())).toBe(true);
+    expect(matchesProductQuery(p, p.tagline.toLowerCase())).toBe(true);
+    expect(matchesProductQuery(p, p.description.split(" ")[0].toLowerCase())).toBe(true);
+    expect(matchesProductQuery(p, p.sku.toLowerCase())).toBe(true);
+  });
+  it("is case-insensitive both ways and refuses non-matching needles", () => {
+    expect(matchesProductQuery(outdoor!, "OUTDOOR")).toBe(true);
+    expect(matchesProductQuery(outdoor!, "zzz-no-match-zzz")).toBe(false);
   });
 });

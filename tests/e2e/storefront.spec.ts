@@ -3,6 +3,9 @@ import { expect, test } from "@playwright/test";
 // database (inventory zeroing + restore, oversell cleanup). pg is a runtime
 // dependency of the app; the connection string mirrors playwright.config.ts.
 import { Client } from "pg";
+// Task 124 F-14: the sitemap count derives from the catalogue constants (the
+// unit suite's approach) — a hardcoded 42 broke on the first catalogue edit.
+import { PRODUCTS, INSPIRATIONS } from "../../src/lib/catalog";
 
 // PDP specs must select the Product JSON-LD node, not the first script — the
 // root layout's site-level Organization/WebSite graph precedes it in the DOM.
@@ -104,9 +107,10 @@ test.describe("SEO endpoints", () => {
     expect(txt).toContain("Sitemap: https://nordhem.sg/sitemap.xml");
   });
 
-  test("sitemap serves 42 URLs (12 static + 24 products + 6 rooms)", async ({ request }) => {
+  test("sitemap serves 12 static + every product + every room URL (Task 124 F-14: derived, not hardcoded)", async ({ request }) => {
     const xml = await (await request.get("/sitemap.xml")).text();
-    expect((xml.match(/<url>/g) ?? []).length).toBe(42);
+    const expected = 12 + PRODUCTS.length + INSPIRATIONS.length;
+    expect((xml.match(/<url>/g) ?? []).length).toBe(expected);
     expect(xml).toContain("https://nordhem.sg/product/solbakken-3-seat-sofa");
     expect(xml).not.toContain("/order/");
   });
@@ -142,10 +146,17 @@ test.describe("API envelope", () => {
     expect(json.ok).toBe(true);
     expect(json.data.length).toBe(2);
     expect(json.data.map((p) => p.slug).sort()).toEqual(["monstera-planter-duo", "veranda-balcony-set"]);
+    // Task 124 F-12: the seam lowercases the NEEDLE too — a capitalized
+    // query used to return 0 results (only the haystack was lowercased).
+    const caps = await request.get("/api/products?q=Outdoor");
+    const capsJson = (await caps.json()) as { ok: boolean; data: Array<{ slug: string }> };
+    expect(capsJson.ok).toBe(true);
+    expect(capsJson.data.length).toBe(2);
   });
 
   test("checkout validates input (422 envelope)", async ({ request }) => {
     const res = await request.post("/api/checkout", {
+      headers: { "x-forwarded-for": "10.9.124.10" },
       data: { email: "not-an-email", lines: [] },
     });
     expect(res.status()).toBe(422);
@@ -156,6 +167,7 @@ test.describe("API envelope", () => {
 
   test("promo validation rejects below-minimum spend (422)", async ({ request }) => {
     const res = await request.post("/api/promotions/validate", {
+      headers: { "x-forwarded-for": "10.9.124.11" },
       data: { code: "WELCOME10", subtotalCents: 5000 }, // min $150
     });
     expect(res.status()).toBe(422);
@@ -166,6 +178,7 @@ test.describe("API envelope", () => {
 
   test("reviews POST rejects an invalid productId with 422 (not a 500 FK crash)", async ({ request }) => {
     const res = await request.post("/api/reviews", {
+      headers: { "x-forwarded-for": "10.9.124.12" },
       data: { productId: -1, author: "E2E Tester", rating: 5, title: "n/a", body: "validation probe" },
     });
     expect(res.status()).toBe(422);
@@ -195,6 +208,7 @@ test.describe("API envelope", () => {
 
   test("reviews POST rejects a bad rating / short name with 422", async ({ request }) => {
     const res = await request.post("/api/reviews", {
+      headers: { "x-forwarded-for": "10.9.124.13" },
       data: { productId: 1, author: "X", rating: 9, body: "n/a" },
     });
     expect(res.status()).toBe(422);
@@ -277,6 +291,12 @@ test.describe("bag → checkout → order journey (live DB)", () => {
       [makanId],
     );
     let placedOrder: string | null = null;
+    // Task 124 F-2: the finally deletes by the probe's OWN identity (email
+    // + spec-start window), not by the captured order number — a 201 that
+    // commits the order followed by ANY assertion failure used to strand
+    // the row (placedOrder stayed null; the Task-123 F-1 cleanup had a
+    // hole exactly where the residue it targeted came from).
+    const specStart = new Date(Date.now() - 60_000);
     try {
     // 1. PDP → add to bag
     await page.goto("/product/makan-extendable-table");
@@ -335,13 +355,23 @@ test.describe("bag → checkout → order journey (live DB)", () => {
     const persistedPromo = await page.evaluate(() => JSON.parse(localStorage.getItem("nordhem_promo") ?? "null"));
     expect(persistedPromo).toBeNull();
     } finally {
-      if (placedOrder) {
-        await client.query(
-          "delete from order_items where order_id in (select id from orders where order_number = $1)",
-          [placedOrder],
-        );
-        await client.query("delete from orders where order_number = $1", [placedOrder]);
-      }
+      // Identity-based (F-2): the journey email + a spec-start window own
+      // the cleanup — independent of whether placedOrder was ever captured.
+      // The window starts a minute before the spec began (clock skew grace)
+      // and can never touch a previous session's rows (the email is this
+      // spec's own). The settle wait first: a failure injected IMMEDIATELY
+      // after the Pay click aborts the spec while the checkout POST is
+      // still in flight — the order would land after a zero-wait delete
+      // (browser-reproduced this cycle).
+      await page.waitForTimeout(1_500).catch(() => {});
+      await client.query(
+        "delete from order_items where order_id in (select id from orders where email = $1 and created_at >= $2)",
+        ["journey@nordhem.sg", specStart.toISOString()],
+      );
+      await client.query(
+        "delete from orders where email = $1 and created_at >= $2",
+        ["journey@nordhem.sg", specStart.toISOString()],
+      );
       for (const row of origStock.rows) {
         await client.query(
           "update inventory set quantity = $1 where product_id = $2 and store_slug = $3",
@@ -384,7 +414,57 @@ test.describe("API rate limits (20/min/IP fixed window)", () => {
   });
 });
 
+test.describe("card rating honesty (Task 124 F-11)", () => {
+  test("product cards show stars without the invented seed review count", async ({ page }) => {
+    // Task-121 F-6 removed the seed count from the PDP header (a live
+    // "Reviews (2)" section contradicted it on the same page); the card
+    // grids kept quoting the seed ratingCount ("(412)") — the same product
+    // showed (412) on its card and Reviews (2) on its PDP. The count is
+    // display fiction (the ratingAvg stance is a documented deferral);
+    // cards now show the stars alone, like the PDP header.
+    await page.goto("/shop");
+    const solbakkenCard = page.locator("article", { has: page.getByRole("heading", { name: "SOLBAKKEN 3-seat sofa" }) });
+    await expect(solbakkenCard).toBeVisible();
+    // No "(412)"-style count beside the stars…
+    await expect(solbakkenCard.getByText(/^\(\d+\)$/)).toHaveCount(0);
+    // …and the star glyph's accessible name no longer claims a review count.
+    // (The product <img> also carries the implicit img role — scope to the
+    // rating span, the only span[role=img] in the card.)
+    const label = await solbakkenCard.locator('span[role="img"]').getAttribute("aria-label");
+    expect(label).toMatch(/^Rated [\d.]+ out of 5$/);
+  });
+});
+
 test.describe("a11y: focus, steppers and announcements (Task 120)", () => {
+  test("checkout card inputs carry their autocomplete purpose tokens (Task 124 F-9)", async ({ page }) => {
+    // WCAG 1.3.5: inputs collecting user information must state their
+    // purpose — the card fields (demo payment) carry the standard cc-* tokens
+    // like every contact field on the same page.
+    await page.goto("/product/katong-bedside-table");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await page.goto("/checkout");
+    await page.getByRole("button", { name: /Card$/ }).click();
+    await expect(page.getByLabel("Card number")).toHaveAttribute("autocomplete", "cc-number");
+    await expect(page.getByLabel("Expiry")).toHaveAttribute("autocomplete", "cc-exp");
+    await expect(page.getByLabel("CVC")).toHaveAttribute("autocomplete", "cc-csc");
+  });
+
+  test("the selected review star carries a non-color state cue (Task 124 F-10)", async ({ page }) => {
+    // WCAG 1.4.11: selected/unselected stars differed by text color alone
+    // (both states under the 3:1 non-text minimum). The selected star now
+    // carries a ring (box-shadow in Tailwind v4) — computed-style assertion
+    // per the Task-120 focus-indication precedent.
+    await page.goto("/product/havbris-lounge-chair");
+    const selected = page.getByRole("button", { name: "3 stars" });
+    await selected.click();
+    await expect(selected).toHaveAttribute("aria-pressed", "true");
+    const shadow = await selected.evaluate((el) => getComputedStyle(el).boxShadow);
+    expect(shadow, `expected a ring box-shadow on the selected star, got "${shadow}"`).not.toBe("none");
+    const unselected = page.getByRole("button", { name: "4 stars" });
+    const unselectedShadow = await unselected.evaluate((el) => getComputedStyle(el).boxShadow);
+    expect(unselectedShadow).toBe("none");
+  });
+
   test("dark-panel form inputs show a visible focus indication", async ({ page }) => {
     // Task 120 F-7: the Family/Business/Planning-tools email inputs and the
     // BuyBox qty input stripped the outline with no focus:ring substitute —
@@ -664,6 +744,21 @@ test.describe("SEO metadata blanket (Task 119)", () => {
     // linked; the page itself must declare noindex wherever it IS readable.
     await page.goto("/order/NH-20260101-000001");
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+  });
+
+  test("utility client pages carry page-level noindex (Task 124 F-17)", async ({ page }) => {
+    // The same belt-and-suspenders for the robots-disallowed utility routes:
+    // cart/checkout/track-order/wishlist/search relied on robots.txt alone
+    // — a disallowed URL can still enter the index URL-only if externally
+    // linked (the homenest-store-s posture: every private surface declares
+    // it). Each route layout now ships the noindex metadata.
+    for (const path of ["/cart", "/checkout", "/track-order", "/wishlist", "/search"]) {
+      await page.goto(path);
+      await expect(
+        page.locator('meta[name="robots"]'),
+        `${path} must declare noindex`,
+      ).toHaveAttribute("content", /noindex/);
+    }
   });
 
   test("site-level Organization/WebSite JSON-LD present on every page", async ({ page }) => {
@@ -1216,6 +1311,104 @@ test.describe("search stale-error discipline (Task 123 F-4)", () => {
   });
 });
 
+test.describe("search grid settle discipline (Task 124 F-3)", () => {
+  test("a failed re-search empties the grid — the previous query's cards must not render under the error box", async ({ page }) => {
+    // Task-123 F-4 gated the error BOX and the verdicts on settledFor, but
+    // the product grid renders `shown = needle ? items : []` unconditionally
+    // and `items` is never cleared on error — after a successful search for
+    // A and a failed search for B, A's full grid renders beneath B's
+    // "We couldn't load results" box (the mirrored half of the F-4 class).
+    await page.route("**/api/products**", (route) =>
+      route.request().url().includes("q=zzzfail") ? route.abort() : route.continue());
+
+    // Phase 1 — a successful search: cards on screen.
+    await page.goto("/search?q=oak");
+    await expect(page.getByRole("status").filter({ hasText: /results? for/ })).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator("#main article").first()).toBeVisible();
+
+    // Phase 2 — the re-search fails: the grid must go EMPTY under the error
+    // box (today it keeps rendering the oak cards).
+    await page.locator("#main").getByLabel("Search products").fill("zzzfail");
+    await page.locator("#main").getByRole("button", { name: "Search" }).click();
+    const errorBox = page.locator("#main").getByRole("alert").filter({ hasText: /couldn.t load results/i });
+    await expect(errorBox).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator("#main article")).toHaveCount(0);
+  });
+});
+
+test.describe("search retry settle discipline (Task 124 F-13)", () => {
+  test("clicking Try again hides the error box through the debounce window, not only after it", async ({ page }) => {
+    // F-4's settledFor gate covers CHANGED needles; the retry axis kept the
+    // weaker gate — setLoading(true) runs inside the 250ms timeout, so after
+    // Try again the old error box stays on screen through the debounce
+    // window. The settle discipline must cover the retry counter too.
+    await page.addInitScript(() => {
+      const w = window as unknown as { __freezeDebounce?: boolean };
+      w.__freezeDebounce = false;
+      const orig = window.setTimeout.bind(window);
+      window.setTimeout = ((fn: TimerHandler, timeout?: number, ...args: unknown[]) => {
+        if (w.__freezeDebounce && typeof timeout === "number" && timeout >= 200 && timeout <= 300) {
+          return orig(() => {}, 2_000_000_000);
+        }
+        return orig(fn, timeout, ...args);
+      }) as typeof window.setTimeout;
+    });
+    // Every fetch fails for this spec — the retry never succeeds, we only
+    // assert the error box's VISIBILITY through the windows.
+    await page.route("**/api/products**", (route) => route.abort());
+
+    // Phase 1 — the search fails and settles: the error box shows.
+    await page.goto("/search?q=zzzfail");
+    const errorBox = page.locator("#main").getByRole("alert").filter({ hasText: /couldn.t load results/i });
+    await expect(errorBox).toBeVisible({ timeout: 10_000 });
+
+    // Phase 2 — freeze the debounce, click Try again: through the whole
+    // pre-settle window the error box must be HIDDEN (today it stays).
+    await page.evaluate(() => {
+      (window as unknown as { __freezeDebounce?: boolean }).__freezeDebounce = true;
+    });
+    await errorBox.getByRole("button", { name: "Try again" }).click();
+    await page.waitForTimeout(400);
+    await expect(errorBox).toHaveCount(0);
+
+    // Phase 3 — unfreeze and submit once more: the swallowed timeout cannot
+    // be revived (the freeze replaced its callback with a no-op), so a fresh
+    // action re-runs the effect; its own settle brings the box back — the
+    // retry's OWN verdict owns the screen.
+    await page.evaluate(() => {
+      (window as unknown as { __freezeDebounce?: boolean }).__freezeDebounce = false;
+    });
+    await page.locator("#main").getByRole("button", { name: "Search" }).click();
+    await expect(errorBox).toBeVisible({ timeout: 10_000 });
+  });
+});
+
+test.describe("click-&-collect temporal honesty (Task 124 F-8)", () => {
+  // The slot labels are time-relative; the options now derive from
+  // availableDeliverySlots(method, now) — "Today 2pm" hides once its own
+  // 14:00 SGT cutoff passes. page.clock.setFixedTime fakes ONLY Date (not
+  // timers — hydration and effects run normally).
+  test("after 14:00 SGT the already-past 'Today 2pm' slot is not offered", async ({ page }) => {
+    await page.clock.setFixedTime(new Date("2026-11-19T15:00:00Z")); // 23:00 SGT
+    await page.goto("/product/katong-bedside-table");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await page.goto("/checkout");
+    await page.getByRole("button", { name: /Click & Collect/ }).click();
+    const options = await page.getByLabel("Time slot").locator("option").allTextContents();
+    expect(options).toEqual(["Tomorrow 10am"]);
+  });
+
+  test("before 14:00 SGT both click-&-collect slots are offered", async ({ page }) => {
+    await page.clock.setFixedTime(new Date("2026-11-19T02:00:00Z")); // 10:00 SGT
+    await page.goto("/product/katong-bedside-table");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await page.goto("/checkout");
+    await page.getByRole("button", { name: /Click & Collect/ }).click();
+    const options = await page.getByLabel("Time slot").locator("option").allTextContents();
+    expect(options).toEqual(["Today 2pm", "Tomorrow 10am"]);
+  });
+});
+
 test.describe("checkout form error placement (Task 121 F-12)", () => {
   test("a contact-field error surfaces above the form, not inside the Payment section", async ({ page }) => {
     await page.goto("/product/solbakken-3-seat-sofa");
@@ -1408,6 +1601,57 @@ test.describe("cart promo message honesty (Task 123 F-2)", () => {
     await expect(page.getByText(/WELCOME10 applied/i)).toHaveCount(0);
     await expect(page.getByText(/WELCOME10 needs a \$150\.00 minimum/i)).toBeVisible();
   });
+
+  test("an unknown persisted code gets the 'not valid' notice — never a $0.00 minimum (Task 124 F-4)", async ({ page }) => {
+    // findPromoMinimumCents returns null for codes not in PROMOS, and the
+    // F-2 notice derivation fell back to `?? 0` — a crafted/legacy
+    // nordhem_promo value (≤32 chars, so it passes the predicate) rendered
+    // "BOGUSCODE needs a $0.00 minimum — add more to use it" while the
+    // server answers "This code is not valid." at ANY subtotal. The exact
+    // display/server-truth class F-2 closed, on the unknown-code branch.
+    await page.addInitScript(() => {
+      // The external stores read localStorage once at module load — seed
+      // BEFORE app boot (the documented addInitScript discipline).
+      localStorage.setItem("nordhem_cart_v1", JSON.stringify([
+        { productId: 1, slug: "solbakken-3-seat-sofa", name: "SOLBAKKEN 3-seat sofa", sku: "NH-SOF-001", imageUrl: "x", unitPriceCents: 129900, qty: 1 },
+      ]));
+      localStorage.setItem("nordhem_promo", JSON.stringify("BOGUSCODE"));
+    });
+    await page.goto("/cart");
+    await expect(page.getByRole("heading", { name: /Your bag \(1\)/ })).toBeVisible();
+    await expect(page.getByText(/\$0\.00 minimum/i)).toHaveCount(0);
+    await expect(page.getByText(/BOGUSCODE isn.t a valid code/i)).toBeVisible();
+    // The Remove affordance already present is the honest way out.
+    await page.getByRole("button", { name: /^Remove code BOGUSCODE$/ }).click();
+    await expect(page.getByText(/BOGUSCODE/i)).toHaveCount(0);
+  });
+});
+
+test.describe("store-picker persisted-state fallback (Task 124 F-16 — DISPROVEN, kept as pin)", () => {
+  test("a crafted nordhem_store value renders the Tampines fallback — the select never renders blank", async ({ page }) => {
+    // The audit claimed a crafted nordhem_store value (any-string predicate)
+    // renders a blank select. Browser-disproven live (agent-browser, fresh
+    // navigations, hydration verified): React renders the unmatched
+    // controlled value by showing the FIRST option — the select displays
+    // "Tampines" (selectedIndex 0), exactly the degradation the predicate
+    // fix would produce. A valid-value control ("Jurong" → selected) proved
+    // the seeding path works, so this is a real disproof, not a test gap.
+    // Per the Task-121 lesson-21 precedent the spec stays as a PIN of the
+    // fallback-display contract; no predicate change (no speculative fix).
+    await page.addInitScript(() => {
+      localStorage.setItem("nordhem_store", JSON.stringify("Bogus Store"));
+    });
+    await page.goto("/");
+    // Wait for hydration before reading — the SSR snapshot renders the
+    // "Tampines" fallback and the crafted value only takes over after the
+    // client store reads localStorage (the documented hydration-race trap;
+    // a bare inputValue() can pass against unfixed code).
+    await page.waitForFunction(() => Object.keys(document.body).some((k) => k.startsWith("__react")));
+    const select = page.getByLabel(/Choose a store/i).or(page.locator("header select#store-pick"));
+    await expect(select).toBeVisible();
+    const value = await select.inputValue();
+    expect(value).toBe("Tampines");
+  });
 });
 
 test.describe("checkout payload caps (Task 122 F-7)", () => {
@@ -1464,6 +1708,46 @@ test.describe("checkout qty:null drop semantics (Task 122 F-8)", () => {
     const body = (await res.json()) as { ok?: boolean; error?: { code?: string } };
     expect(res.status()).toBe(422);
     expect(body.error?.code).toBe("EMPTY_BAG");
+  });
+});
+
+test.describe("checkout qty/productId type strictness (Task 124 F-5)", () => {
+  test("non-number TYPES drop the line instead of coercing to a real quantity", async ({ request }) => {
+    // Task-122 F-8 closed null/undefined; Number(true)===1, Number([5])===5
+    // and Number("3")===3 are all finite, so value-level checks still let
+    // crafted TYPES place quiet single-unit orders (and Number("7") coerced
+    // a string productId). A non-number type must drop the line like every
+    // other non-numeric value — an all-dropped bag is EMPTY_BAG.
+    // The RED path of this probe WRITES (today: 201) — safety-net cleanup.
+    const client = new Client({ connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db" });
+    await client.connect();
+    try {
+      for (const [label, line] of [
+        ["boolean qty", { productId: 1, qty: true }],
+        ["single-element array qty", { productId: 1, qty: [5] }],
+        ["numeric string qty", { productId: 1, qty: "3" }],
+        ["string productId", { productId: "1", qty: 1 }],
+      ] as const) {
+        const res = await request.post("/api/checkout", {
+          headers: { "x-forwarded-for": "10.9.124.1" },
+          data: {
+            email: "typeqty-probe@nordhem.sg",
+            fullName: "Type Qty Probe",
+            phone: "+65 91234567",
+            address: "Blk 1 Testing Rd #01-01",
+            postal: "089001",
+            lines: [line],
+          },
+        });
+        const body = (await res.json()) as { ok?: boolean; error?: { code?: string } };
+        expect(res.status(), label).toBe(422);
+        expect(body.error?.code, label).toBe("EMPTY_BAG");
+      }
+    } finally {
+      await client.query("delete from order_items where order_id in (select id from orders where email = 'typeqty-probe@nordhem.sg')");
+      await client.query("delete from orders where email = 'typeqty-probe@nordhem.sg'");
+      await client.end();
+    }
   });
 });
 

@@ -19,19 +19,23 @@ export interface CardProduct {
   isNew: boolean;
 }
 
-export function Rating({ avg, count }: { avg: string | number; count: number }) {
+// Task 124 F-11: the count span and the "from N reviews" label claim are
+// GONE — ratingCount is seed fiction (412) that the live PDP contradicts
+// ("Reviews (2)"); the PDP header dropped it in Task-121 F-6 and the cards
+// now match. The stars remain (ratingAvg is a documented invented-content
+// deferral); ratingCount stays DATA (sortProductList), never display.
+export function Rating({ avg }: { avg: string | number }) {
   const v = typeof avg === "string" ? parseFloat(avg) : avg;
   // The shared stars() seam (unit-pinned): a 4.5 renders 4 full + a half —
   // inline Math.round used to show 5 full stars while the aria-label said 4.5.
   const s = stars(v);
   return (
-    <span className="inline-flex items-center gap-1 text-[13px] text-[#5b5b5b]" role="img" aria-label={`Rated ${v} out of 5 from ${count} reviews`}>
+    <span className="inline-flex items-center gap-1 text-[13px] text-[#5b5b5b]" role="img" aria-label={`Rated ${v} out of 5`}>
       <span className="tracking-tight text-[#e5a000]" aria-hidden="true">
         {"★".repeat(s.full)}
         {s.half && <span className="text-[#e5a000]/40">★</span>}
         {"☆".repeat(s.empty)}
       </span>
-      <span>({count})</span>
     </span>
   );
 }
@@ -77,7 +81,7 @@ export function ProductCard({ p }: { p: CardProduct }) {
             <p className="mt-0.5 text-[13px] text-[#5b5b5b]">{p.tagline}</p>
           </div>
         </div>
-        <Rating avg={p.ratingAvg} count={p.ratingCount} />
+        <Rating avg={p.ratingAvg} />
         <div className="mt-auto flex items-end justify-between gap-2 pt-2">
           <div>
             <p className="text-[19px] font-black tracking-tight">{formatSGD(p.priceCents)}</p>

@@ -22,11 +22,11 @@ ORM + PostgreSQL.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
-| `npm run test` | Vitest unit suite (128 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
-| `npm run test:e2e` | Playwright e2e (78 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
+| `npm run test` | Vitest unit suite (138 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
+| `npm run test:e2e` | Playwright e2e (89 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
-The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–123):
+The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–124):
 `tests/unit` (9 files) + `tests/e2e` (mobile-navigation + storefront specs
 incl. the fetch-failure resilience pair, the API rate-limit pins, PDP badge
 dedupe, cart promo persistence, JSON-LD live-inventory + LOW_STOCK commerce
@@ -51,7 +51,23 @@ journey finally-cleanup + promo-clear (`nordhem_promo` dies with the
 order it was used on), the API categorySlug recall parity, the search
 stale-error discipline, the PDP review-count saturation (true count(*)
 vs the capped 20-row list), `orderNumber`'s SGT date segment, the
-promo-store 32-char predicate, and the /api/health envelope alignment.
+promo-store 32-char predicate, and the /api/health envelope alignment —
+and the Task-124 pins: the docs-truth health-envelope pins (three operator
+sites must carry the shipped body), the search grid + retry settle
+discipline (the grid and the Try-again window gate on the settled needle
+AND retry), the checkout qty/productId TYPE-strictness (boolean/array/
+string drop the line, never coerce), the unknown-promo notice ("isn't a
+valid code", never "$0.00 minimum"), `availableDeliverySlots` (the
+click-collect "Today 2pm" hides after its own 14:00 SGT cutoff), the
+`matchesProductQuery` shared recall seam (whose pins exposed and fixed the
+capitalized-needle 0-results bug), the card rating honesty (no invented
+"(412)" count), the cc-*/name autocomplete tokens, the star-button
+non-color state cue, the utility-route noindex layouts, and the journey's
+identity-based finally cleanup (email + spec-start window — a post-201
+assertion failure strands the row no longer). One Task-124 finding was
+DISPROVEN by browser evidence (the crafted `nordhem_store` blank-select
+claim — React renders the first option as the fallback; the spec stayed as
+a pin, no code change).
 The predecessor's 73-unit/15-e2e dead
 tree was retired with it — do not resurrect ely-beauty specs; pin new ones to
 this `src/`.
@@ -165,8 +181,8 @@ When adding tests, pin them to this `src/` — never resurrect ely-beauty specs.
 rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db" npm run build
 npm run typecheck
 npm run lint          # 0 errors expected (the 7-error lint debt was fixed in Task 114)
-npm run test          # 128/128 unit
-npm run test:e2e      # 78/78 e2e (needs a live Postgres for the checkout journey)
+npm run test          # 138/138 unit
+npm run test:e2e      # 89/89 e2e (needs a live Postgres for the checkout journey)
 ```
 
 There is no hosted CI; the local gate is the only gate.

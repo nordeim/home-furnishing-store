@@ -65,11 +65,17 @@ export function ReviewSection({ productId, initial, total }: { productId: number
         </ul>
         <form onSubmit={submit} className="h-fit rounded-2xl bg-[#f5f3ee] p-5">
           <h3 className="font-black">Write a review</h3>
-          <label className="mt-3 block text-[13px] font-bold">Your name<input value={author} onChange={(e) => setAuthor(e.target.value)} required minLength={2} maxLength={60} className="mt-1 w-full rounded-lg border border-[#ddd] bg-white px-3 py-2 font-normal outline-none focus:border-[#0058a3]" placeholder="e.g. Priya R." /></label>
+          <label className="mt-3 block text-[13px] font-bold">Your name<input value={author} onChange={(e) => setAuthor(e.target.value)} required minLength={2} maxLength={60} autoComplete="name" className="mt-1 w-full rounded-lg border border-[#ddd] bg-white px-3 py-2 font-normal outline-none focus:border-[#0058a3]" placeholder="e.g. Priya R." /></label>
           <label className="mt-3 block text-[13px] font-bold">Rating
             <span className="mt-1 flex gap-1" role="group" aria-label="Star rating">
               {[1, 2, 3, 4, 5].map((n) => (
-                <button type="button" key={n} aria-pressed={rating === n} aria-label={`${n} star${n > 1 ? "s" : ""}`} onClick={() => setRating(n)} className={`grid h-9 w-9 place-items-center rounded-full text-[20px] focus-ring ${n <= rating ? "text-[#e5a000]" : "text-[#ccc]"}`}>★</button>
+                // Task 124 F-10 (WCAG 1.4.11): selected/unselected used to
+                // differ by text color alone (#e5a000 vs #ccc — both under
+                // the 3:1 non-text minimum on the form background). The
+                // selected star additionally carries a ring + filled chip —
+                // a non-color cue for low-vision users (aria-pressed covers
+                // AT users).
+                <button type="button" key={n} aria-pressed={rating === n} aria-label={`${n} star${n > 1 ? "s" : ""}`} onClick={() => setRating(n)} className={`grid h-9 w-9 place-items-center rounded-full text-[20px] focus-ring ${n <= rating ? "bg-white font-black text-[#e5a000] ring-2 ring-[#e5a000]" : "text-[#ccc]"}`}>★</button>
               ))}
             </span>
           </label>

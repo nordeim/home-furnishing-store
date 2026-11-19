@@ -105,6 +105,26 @@ export function isValidDeliverySlot(method: string, slot: string): boolean {
   return allowed.includes(slot);
 }
 
+// Task 124 F-8: the click-&-collect labels are TIME-RELATIVE ("Today 2pm")
+// but were offered around the clock — an order placed at 23:00 persisted
+// "Today 2pm" into confirmation/tracking copy promising a slot 9 hours in
+// the past. The UI derives its options from this seam (the SGT discipline
+// of sgTomorrowISO/orderNumber); the API boundary keeps validating against
+// the full DELIVERY_SLOTS sets — a stale tab submitting a just-expired
+// slot is grace, not junk (method coherence remains the boundary contract).
+export const CLICK_COLLECT_TODAY_CUTOFF_SGT_HOUR = 14; // the slot's own time
+
+export function availableDeliverySlots(method: string, now: Date = new Date()): string[] {
+  const allowed = DELIVERY_SLOTS[method] ?? DELIVERY_SLOTS.delivery;
+  if (method !== "click-collect") return allowed;
+  // SGT wall clock (UTC+8) — the store's locale, not the server's.
+  const SGT_OFFSET_MS = 8 * 60 * 60 * 1000;
+  const sgt = new Date(now.getTime() + SGT_OFFSET_MS);
+  return sgt.getUTCHours() >= CLICK_COLLECT_TODAY_CUTOFF_SGT_HOUR
+    ? allowed.filter((s) => s !== "Today 2pm")
+    : allowed;
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 export function isValidEmail(v: string): boolean {
   return EMAIL_RE.test(v.trim());

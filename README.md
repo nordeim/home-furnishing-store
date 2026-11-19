@@ -44,7 +44,7 @@ charge") with real authentication explicitly deferred.
 | 🏠 **Inspiration rooms** | 6 shoppable room stories (BTO, makan nights, WFH corner…) linking to live PDPs |
 | 🧮 **Interactive tools** | Family points calculator, Business instant quote, buy-back estimator, room explorer + booking |
 | 🌱 **Full retail surface** | Offers, services, 3 stores, food, sustainability, help, search, wishlist |
-| ♿ **Accessibility** | Skip link, labels, focus rings, toggle-button groups (`role="group"` + `aria-pressed`), live regions, responsive to 360px |
+| ♿ **Accessibility** | Skip link, labels, focus rings, toggle-button groups (`role="group"` + `aria-pressed`), live regions, autocomplete purpose tokens (incl. cc-*), non-color state cues, responsive to 360px |
 | 🛡️ **Degrade, never fail** | Static-catalogue fallback on every DB read; `/api/health` reports DB status |
 
 ## Architecture
@@ -144,7 +144,7 @@ storefront runs on the static fallback).
 **Verify setup**
 
 - `curl http://localhost:3000/api/products` → `{"ok":true,"data":[…24 products…]}`
-- `curl http://localhost:3000/api/health` → `{"ok":true}` with a live DB (500 without — expected on the static fallback)
+- `curl http://localhost:3000/api/health` → `{"ok":true,"data":{"db":"up"}}` with a live DB (500 without — expected on the static fallback)
 - Browse `/shop`, add to bag from a product page, apply `WELCOME10` at `/checkout`
   with a $150+ subtotal, place the demo order, then track it at `/track-order`
   with the order number + the email you entered (full persistence requires the DB).
@@ -164,12 +164,12 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 128 tests at the pure seams
+npm run test             # Vitest unit — 138 tests at the pure seams
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 78 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 89 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
@@ -200,10 +200,10 @@ NORDHEM behaviour. TDD is the default for logic changes.
 |----------|--------|------|-------------|
 | `/api/products` | GET | public | Filter (`q`, `cat`, `max`) and sort (`featured`, `popular`, `price-asc/desc`, `rating`, `new`) the catalogue |
 | `/api/promotions/validate` | POST | public | `{ code, subtotalCents }` → promo or `INVALID_PROMO` with min-spend message |
-| `/api/checkout` | POST | public | ⚠️ Places an order (demo, no charge). Validates email/phone/postal/address with length caps, `storeSlug` against the three real stores, and `deliverySlot` ≤ 80 (refuse, never truncate); parse-guards malformed JSON (400); rate-limits 20/min/IP (Retry-After); **re-derives all money server-side via `priceTotals()`**; validates qty against live inventory **atomically** (one transaction with row locks — a concurrent last-unit pair gets exactly one 201 + one 422 `LOW_STOCK`); click-&-collect checks the chosen store's rows only; returns `{ orderNumber }` only |
+| `/api/checkout` | POST | public | ⚠️ Places an order (demo, no charge). Validates email/phone/postal/address with length caps, `storeSlug` against the three real stores, and `deliverySlot` against the shared `DELIVERY_SLOTS` map (method-coherent whitelist, refuse-never-truncate — Task 123 F-3); parse-guards malformed JSON (400); rate-limits 20/min/IP (Retry-After); **re-derives all money server-side via `priceTotals()`**; validates qty against live inventory **atomically** (one transaction with row locks — a concurrent last-unit pair gets exactly one 201 + one 422 `LOW_STOCK`); click-&-collect checks the chosen store's rows only; returns `{ orderNumber }` only |
 | `/api/orders/track` | POST | public | `{ orderNumber, email }` → order + items (email must match) |
 | `/api/reviews` | GET/POST | public | List by `productId` / publish a review (rating 1–5, name ≥ 2 chars) |
-| `/api/health` | GET | public | `{ ok: true }` iff the database answers `select 1` |
+| `/api/health` | GET | public | `{ ok: true, data: { db: "up" } }` iff the database answers `select 1` (500 + `DB_DOWN` error envelope without — Task 123 F-9 aligned it to the every-route envelope) |
 
 All responses use the envelope `{ ok: true, data } | { ok: false, error: { code, message } }`.
 
@@ -244,13 +244,42 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 128 unit + 78 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120/121/122/123); counts pinned by tests/unit/docs-counts.test.ts |
+| Test suite | ✅ 138 unit + 89 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120/121/122/123/124); counts pinned by tests/unit/docs-counts.test.ts |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
 
-Current cycle (2026-11-19, Task 123): workspace-refresh re-audit (mobile-nav
+Current cycle (2026-11-19, Task 124): workspace-refresh re-audit (mobile-nav
+taxonomy re-verified clean at 390/1440 — no Tailwind v4 bug; baseline gates
+green at 128/78 with a fully clean restored DB — zero residue, both indexes
+intact this cycle) that caught **three operator-doc sites still documenting
+the pre-Task-123 `/api/health` body** (CLAUDE's API table + README's curl
+line and API table — now pinned by unit tests so envelope claims can't rot
+again), **the search results grid surviving a failed re-search** (the
+previous query's cards rendered beneath the new query's error box — the
+mirrored half of the Task-123 F-4 fix; the grid and the Try-again window
+now gate on the full settle discipline), **the journey e2e cleanup
+stranding its order on any post-201 assertion failure** (the finally now
+deletes by email + spec-start window — browser-reproduced with an injected
+failure), **a real capitalized-search recall bug** (`q=Outdoor` returned 0
+— only the haystack was lowercased; found by the new `matchesProductQuery`
+seam pins, fixed in the one shared recall definition), the checkout qty
+boundary still coercing `true`/`[5]`/`"3"` into real orders (type-strict
+now), the unknown-promo notice quoting a "$0.00 minimum"
+(`findPromoMinimumCents` null branch), the click-collect "Today 2pm" slot
+sold at 23:00 (`availableDeliverySlots` hides it after its own 14:00 SGT
+cutoff), the invented "(412)" seed review count on product cards (stars
+only, like the PDP), missing cc-*/name autocomplete tokens, the star-rating
+buttons' color-only state (ring added), utility routes relying on
+robots.txt alone (five noindex layouts), and the e2e sitemap pin's
+hardcoded 42 (derived from the catalogue now). One audit finding was
+**disproven by browser evidence** (the crafted `nordhem_store` blank-select
+claim — React renders the first option as the fallback; the spec stayed as
+a pin). Suite grew to 138 unit + 89 e2e. Details in `worklog.md` and
+`docs/plans/2026-11-19-task124-remediation-plan.md`.
+
+Previous cycle (Task 123): workspace-refresh re-audit (mobile-nav
 taxonomy re-verified clean at 390/1440 — no Tailwind v4 bug; baseline gates
 green after re-pushing the Task-122 inventory unique index the restored
 sandbox snapshot had lost, and cleaning the journey-residue the pinned DB

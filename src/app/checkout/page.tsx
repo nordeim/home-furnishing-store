@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useCart } from "@/lib/cart-store";
 import { effectivePromo } from "@/lib/catalog";
-import { DELIVERY_SLOTS, formatSGD, priceTotals } from "@/lib/utils";
+import { availableDeliverySlots, formatSGD, priceTotals } from "@/lib/utils";
 
 type Method = "delivery" | "click-collect" | "express";
 
@@ -97,7 +97,7 @@ export default function CheckoutPage() {
                 honest semantics (Tab-reachable, correctly announced). */}
             <div className="mt-3 grid gap-2 sm:grid-cols-3" role="group" aria-label="Delivery method">
               {([["delivery", "Delivery", "From $12 · free $200+"], ["click-collect", "Click & Collect", "Free · ready in 2 hrs"], ["express", "Express", "Next-day · $29"]] as Array<[Method, string, string]>).map(([v, title, sub]) => (
-                <button type="button" key={v} aria-pressed={method === v} onClick={() => { setMethod(v); set("slot", DELIVERY_SLOTS[v][0]); }}
+                <button type="button" key={v} aria-pressed={method === v} onClick={() => { setMethod(v); set("slot", availableDeliverySlots(v)[0]); }}
                   className={`rounded-xl border-2 p-4 text-left focus-ring ${method === v ? "border-[#0058a3] bg-[#f0f6fc]" : "border-[#eee]"}`}>
                   <span className="block font-black">{title}</span><span className="text-[13px] text-[#5b5b5b]">{sub}</span>
                 </button>
@@ -111,7 +111,11 @@ export default function CheckoutPage() {
               </label>
               <label className="text-[13px] font-bold">Time slot
                 <select value={form.slot} onChange={(e) => set("slot", e.target.value)} className={input}>
-                  {DELIVERY_SLOTS[method].map((s) => <option key={s}>{s}</option>)}
+                  {/* Task 124 F-8: options come from the temporal seam — the
+                      already-past "Today 2pm" pickup slot hides after 14:00 SGT
+                      (the API boundary still accepts the full set: grace for
+                      stale tabs, method coherence unchanged). */}
+                  {availableDeliverySlots(method).map((s) => <option key={s}>{s}</option>)}
                 </select>
               </label>
             </div>
@@ -127,9 +131,13 @@ export default function CheckoutPage() {
             </div>
             {form.pay === "card" && (
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <label className="text-[13px] font-bold sm:col-span-2">Card number<input inputMode="numeric" placeholder="4111 1111 1111 1111" className={input} /></label>
-                <label className="text-[13px] font-bold">Expiry<input placeholder="MM/YY" className={input} /></label>
-                <label className="text-[13px] font-bold">CVC<input inputMode="numeric" placeholder="123" maxLength={4} className={input} /></label>
+                {/* Task 124 F-9 (WCAG 1.3.5): the card fields carry their
+                    standard autocomplete purpose tokens like every contact
+                    field on the page — the demo-payment stance never excuses
+                    a missing input purpose. */}
+                <label className="text-[13px] font-bold sm:col-span-2">Card number<input inputMode="numeric" placeholder="4111 1111 1111 1111" className={input} autoComplete="cc-number" /></label>
+                <label className="text-[13px] font-bold">Expiry<input placeholder="MM/YY" className={input} autoComplete="cc-exp" /></label>
+                <label className="text-[13px] font-bold">CVC<input inputMode="numeric" placeholder="123" maxLength={4} className={input} autoComplete="cc-csc" /></label>
               </div>
             )}
           </section>

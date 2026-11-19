@@ -138,3 +138,27 @@ test("PAD §11 key-files test counts === fs reality", () => {
   expect(Number(e2e?.[1])).toBe(e2eFiles.length);
   expect(Number(e2e?.[2])).toBe(e2eCount);
 });
+
+// Task 124 F-1: the docs-counts pin guards COUNTS; these pins guard the other
+// live-tense claim class — the /api/health BODY. The Task-123 F-9 envelope
+// change swept DEPLOYMENT.md but missed three sites in CLAUDE/README (the
+// same docs then carried both the old bare `{ ok: true }` and the new
+// envelope narrative). Every health claim site must now tell the shipped
+// truth (src/app/api/health/route.ts), or the run fails.
+test("CLAUDE.md /api/health table row tells the envelope truth (Task 124 F-1)", () => {
+  const row = readFileSync("CLAUDE.md", "utf8").match(/\| `\/api\/health`[^\n]*/)?.[0] ?? "";
+  expect(row, "CLAUDE.md /api/health table row not found").not.toBe("");
+  expect(row).toContain('data: { db: "up" }');
+});
+
+test("README /api/health quick-start line tells the envelope truth (Task 124 F-1)", () => {
+  const line = readFileSync("README.md", "utf8").match(/- `curl http:\/\/localhost:3000\/api\/health`[^\n]*/)?.[0] ?? "";
+  expect(line, "README quick-start health curl line not found").not.toBe("");
+  expect(line).toContain('"data":{"db":"up"}');
+});
+
+test("README /api/health table row tells the envelope truth (Task 124 F-1)", () => {
+  const row = readFileSync("README.md", "utf8").match(/\| `\/api\/health`[^\n]*/)?.[0] ?? "";
+  expect(row, "README /api/health table row not found").not.toBe("");
+  expect(row).toContain('data: { db: "up" }');
+});

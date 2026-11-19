@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 1.7.0
-last_updated: "2026-11-19 (Task 123: journey residue, promo-display truth, boundary/docs honesty)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 128/128 unit · 78/78 e2e · cold build green (29 routes) · PostgreSQL 17 live-verified · counts pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
+version: 1.8.0
+last_updated: "2026-11-19 (Task 124: docs-truth completion, settle discipline, boundary strictness)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 138/138 unit · 89/89 e2e · cold build green (29 routes) · PostgreSQL 17 live-verified · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -13,8 +13,10 @@ project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 128/128 
 > Task 118 dev-hydration/lineage-drift cycle, the Task 119 server-truth/SEO
 > blanket cycle, the Task 120 API-boundary/atomic-checkout/docs-truth cycle,
 > the Task 121 client-state/commerce-honesty/SSR-content cycle, the Task 122
-> skipped-fix/crash-boundary/display-honesty cycle, and the Task 123
-> journey-residue/promo-display-truth/boundary-docs-honesty cycle. `AGENTS.md` is the quick operator
+> skipped-fix/crash-boundary/display-honesty cycle, the Task 123
+> journey-residue/promo-display-truth/boundary-docs-honesty cycle, and the
+> Task 124 docs-truth-completion/settle-discipline/boundary-strictness
+> cycle. `AGENTS.md` is the quick operator
 > reference, the PAD is the full blueprint, and this skill is the
 > pattern/lesson layer an agent needs before touching the code. When code and
 > this document disagree, **the code wins** — then fix this document in the
@@ -87,8 +89,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 128/128
-npm run test:e2e                                               # 78/78 (live Postgres for the journey)
+npm run test                                                   # 138/138
+npm run test:e2e                                               # 89/89 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -569,6 +571,44 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
     pg_twophase, pg_subtrans, pg_logical/{snapshots,mappings},
     pg_multixact/{offsets,members}) before pg_ctl start.
 
+32. **A settle gate must cover EVERY axis a verdict has (Task 124 F-3/F-13).**
+    The Task-123 F-4 fix gated the search error BOX on the settled needle —
+    but the product GRID still rendered the previous query's cards beneath a
+    failed re-search's error box, and the Try-again retry kept the box
+    through its own debounce window (loading only flips inside the 250ms
+    timeout the lint rule forbids setting sync). Rule: when a settle-gate
+    lands, enumerate every UI element that renders from the same data
+    (grid, verdicts, error box, counts) AND every trigger that changes the
+    data (needle change, retry, param change) — gate them all on the same
+    settled marker (`settledFor === needle && settledRetry === retry`).
+
+33. **A cleanup keyed on a captured success strands on failure (Task 124
+    F-2).** The journey's finally deleted by an order number captured only
+    AFTER the confirmation assertions — a 201 followed by any assertion
+    failure left `placedOrder` null and the row stranded (browser-
+    reproduced with an injected `expect(false)`; the settle wait is needed
+    too: a failure injected immediately after the Pay click aborts the spec
+    while the POST is in flight and the order lands AFTER a zero-wait
+    delete). Rule: probe cleanup keys on the probe's OWN identity (email +
+    spec-start window), never on a value captured post-hoc.
+
+34. **Pin docs CLAIMS, not just counts (Task 124 F-1).** The docs-counts
+    pin guarded test totals while three operator-doc sites still documented
+    the pre-Task-123 `/api/health` body — envelope claims rotted straight
+    through a cycle whose title was "docs honesty". The pin file now asserts
+    the shipped body text appears at every live health-claim site. Rule:
+    when a self-truthing mechanism exists, ask what OTHER claim classes the
+    docs make, and pin the load-bearing ones the same way.
+
+35. **A pinned seam is an audit multiplier (Task 124 F-12).** The API filter
+    and the shop-SSR searchProducts carried identical duplicated literals
+    that line-auditing had just re-synchronized by hand (Task-123 F-5);
+    extracting `matchesProductQuery` and pinning it exposed a live bug
+    neither the audit nor the e2e caught — the needle was never lowercased,
+    so "Outdoor" returned 0 results on both seams. Rule: duplicated logic
+    is not just drift risk, it is audit blindness; extract the seam and the
+    pins write the bug reports the audit missed.
+
 ## 13. Pitfalls to Avoid
 
 - Adding state/auth/payment SDKs without a decision record (ADR-006 deferrals
@@ -700,5 +740,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (128) |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (78) |
+| Unit suite | `tests/unit/*.test.ts` (138) |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (89) |

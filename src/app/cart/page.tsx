@@ -33,10 +33,16 @@ export default function CartPage() {
   // "WELCOME10 applied" beside a vanished Discount row (browser-reproduced),
   // and the code still submitted to a server INVALID_PROMO. The CURRENT bag
   // state owns the message: below the minimum, quote the minimum instead.
+  // Task 124 F-4: unknown codes have no minimum — findPromoMinimumCents
+  // returns null and the `?? 0` fallback rendered "BOGUSCODE needs a $0.00
+  // minimum" while the server refuses the code at ANY subtotal. The
+  // unknown-code branch gets its own honest notice instead.
   const promoMinCents = promoCode ? findPromoMinimumCents(promoCode) : null;
   const promoMsg =
     promoCode && !promo
-      ? { ok: false, text: `${promoCode} needs a ${formatSGD(promoMinCents ?? 0)} minimum — add more to use it` }
+      ? promoMinCents === null
+        ? { ok: false, text: `${promoCode} isn't a valid code — remove it and try again.` }
+        : { ok: false, text: `${promoCode} needs a ${formatSGD(promoMinCents)} minimum — add more to use it` }
       : (applyMsg ?? (promoCode ? { ok: true, text: `${promoCode} applied` } : null));
 
   async function applyPromo() {

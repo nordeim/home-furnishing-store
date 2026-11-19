@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex, campaignEnd, campaignEndLabel, sgTomorrowISO, sortProductList, DELIVERY_SLOTS, isValidDeliverySlot } from "@/lib/utils";
+import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex, campaignEnd, campaignEndLabel, sgTomorrowISO, sortProductList, DELIVERY_SLOTS, isValidDeliverySlot, availableDeliverySlots } from "@/lib/utils";
 
 describe("formatSGD", () => {
   // The currency symbol depends on the node build's ICU data ($ vs S$) — assert
@@ -139,6 +139,35 @@ describe("DELIVERY_SLOTS + isValidDeliverySlot (Task 123 F-3)", () => {
     expect(isValidDeliverySlot("delivery", "Junk slot")).toBe(false);
     expect(isValidDeliverySlot("express", "")).toBe(false);
     expect(isValidDeliverySlot("click-collect", "Next-day by 6pm")).toBe(false);
+  });
+});
+
+describe("availableDeliverySlots — click-&-collect temporal honesty (Task 124 F-8)", () => {
+  // SGT (UTC+8) fixed instants. 2026-11-19T05:59:00Z is 13:59 SGT (before
+  // the 14:00 cutoff); 2026-11-19T06:00:00Z is 14:00 SGT sharp; the SGT
+  // morning instant is 2026-11-19T02:00:00Z = 10:00 SGT.
+  const SGT_BEFORE_CUTOFF = new Date("2026-11-19T05:59:00Z");
+  const SGT_AT_CUTOFF = new Date("2026-11-19T06:00:00Z");
+  const SGT_LATE_EVENING = new Date("2026-11-19T15:00:00Z"); // 23:00 SGT
+
+  it("before 14:00 SGT, click-&-collect offers both slots", () => {
+    expect(availableDeliverySlots("click-collect", SGT_BEFORE_CUTOFF)).toEqual(["Today 2pm", "Tomorrow 10am"]);
+    expect(availableDeliverySlots("click-collect", new Date("2026-11-19T02:00:00Z"))).toEqual(["Today 2pm", "Tomorrow 10am"]);
+  });
+
+  it("from 14:00 SGT, the already-past 'Today 2pm' slot stops being offered", () => {
+    expect(availableDeliverySlots("click-collect", SGT_AT_CUTOFF)).toEqual(["Tomorrow 10am"]);
+    expect(availableDeliverySlots("click-collect", SGT_LATE_EVENING)).toEqual(["Tomorrow 10am"]);
+  });
+
+  it("timeless methods are unaffected by the clock", () => {
+    expect(availableDeliverySlots("delivery", SGT_BEFORE_CUTOFF)).toEqual(DELIVERY_SLOTS.delivery);
+    expect(availableDeliverySlots("delivery", SGT_LATE_EVENING)).toEqual(DELIVERY_SLOTS.delivery);
+    expect(availableDeliverySlots("express", SGT_LATE_EVENING)).toEqual(DELIVERY_SLOTS.express);
+  });
+
+  it("unknown methods mirror isValidDeliverySlot's delivery-set coercion", () => {
+    expect(availableDeliverySlots("pickup", SGT_LATE_EVENING)).toEqual(DELIVERY_SLOTS.delivery);
   });
 });
 
