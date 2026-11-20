@@ -1,4 +1,4 @@
-# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.21.0
+# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.22.0
 
 **Classification:** Internal Engineering Reference
 **Status:** DEFINITIVE, PRODUCTION-LOCKED BLUEPRINT
@@ -67,6 +67,50 @@ Nothing is here "because it's popular."
   count 177/116 → 177/117; SKILL §11's lockstep list omitted
   `docs/DEPLOYMENT.md`; the AGENTS/PAD unit-suite summaries omitted the
   server-data fulfilment-seam fs-pin (the tenth unit file).
+
+#### Revision Block — v1.22.0 (Task 137 — PDP unified-outage-signal unification, ReviewSection recovery state, cart-promo envelope-trust completion, outage-branch pin coverage, shop-strip honesty)
+
+- `[COR]` **The PDP reviews-outage signal was SPLIT, not unified (F-1,
+  MEDIUM)**: the two review seams degrade independently (separate
+  try/catch; a transient per-query failure — pool exhaustion,
+  `query_timeout` — can hit one and not the other), and the page ORs the
+  nulls into `reviewsUnavailable` — but the JSON-LD `aggregateRating` gate
+  trusted `reviewCount` ALONE and the section's `initial` passed the live
+  list through. The partial-outage branches contradicted themselves:
+  reviews-ok/count-null rendered the "Reviews are unavailable right now"
+  note DIRECTLY ABOVE the live reviews, and reviews-null/count-ok
+  published an aggregateRating the visible page disavowed (the exact
+  Task-121 F-6 rule the code's own comment quotes). The signal is now ONE
+  combined rule — EITHER null suppresses the list, the count claim AND the
+  structured-data rating together — and `ReviewSection`'s unavailable state
+  is RECOVERABLE client state (`useState(!!unavailable)` flipped `false`
+  on a successful POST: the note unmounts and the heading resumes its
+  count when the write provably landed — the SSR note used to stay frozen
+  above the recovered list). Two fs-pins (TRUE RED against the split forms).
+- `[COR]` **The cart's promo-apply was the fourth envelope-trust laggard
+  (F-2, MEDIUM — the only POST consumer without a data gate)**: a
+  well-formed `200 {ok:true}` with NO `data` was treated as success — the
+  code persisted into `nordhem_promo` and the false "X applied — discount"
+  message rendered. The Task-135/136 class closed at its last sibling:
+  `if (!json.ok || !json.data) throw` (e2e-pinned: the route-fulfilled
+  probe asserts the scoped alert, no applied copy, and no Remove button).
+- `[TST]` **The Task-136 outage branches shipped unpinned (F-3, LOW)**: a
+  regression swapping `getOrderByNumber`'s `"outage"` for `null`, or the
+  order outage copy for the not-found copy, or the reviews-GET `DB_DOWN`
+  envelope for a false empty list would pass every existing gate. The
+  seam's URIError-vs-outage discrimination and the four rendered surfaces
+  are now fs-pinned — mutation-proven (the Task-131 F-2 precedent for
+  DB-touching branches not e2e-reachable without killing the live server).
+- `[COR]` **The shop strip quoted a stale count above the error state
+  (F-5, LOW — the wishlist-heading honesty sibling, Task 130 F-8)**:
+  `items.length` rendered unconditionally, so during the error state the
+  strip quoted the PREVIOUS view's rows above the error box. The count
+  claim is now gated on `!(loading || error)`; the GST/free-delivery tail
+  is static truth and stays (e2e-pinned by the Task-136 probe extension).
+- `[DOC]` **Docs-truth: zero mismatches this cycle** (the six-doc audit
+  re-verified all live-tense claims against fs reality). Suite grew to
+  190 unit + 131 e2e (44 gotoHydrated storefront sites, 46 across both
+  files).
 
 #### Revision Block — v1.21.0 (Task 136 — shop-grid envelope-trust completion, DB-funnel golden-rule restoration, reviews degrade honesty, promo in-tx coherence, docs truth)
 
@@ -1361,7 +1405,7 @@ non-app artifacts remain in the tree (§10).
 | DB driver | `pg` (node-postgres) | 8.20.0 | Pooled connections, `drizzle-orm/node-postgres` adapter |
 | Database | PostgreSQL | 15+ recommended | Relational catalogue/orders; `drizzle-kit push` for schema |
 | Lint | ESLint flat config + `eslint-config-next/core-web-vitals` | 9.39.4 | One linter, Next-aware rules |
-| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–136) — 186 unit + 130 e2e, all green (§7) |
+| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–137) — 190 unit + 131 e2e, all green (§7) |
 | Imagery | Pexels CDN | — | Licensed stock, zero local pipeline (ADR-007) |
 
 ### 1.3 Architecture Decision Records (ADRs)
@@ -1867,12 +1911,12 @@ auth is a design event, not a patch.
 
 ## 7. Testing Strategy
 
-### 7.1 Test Distribution — Current State (Tasks 114–136: NORDHEM-native)
+### 7.1 Test Distribution — Current State (Tasks 114–137: NORDHEM-native)
 
 | Category | Files | Status | Location |
 |----------|-------|--------|----------|
-| Unit (Vitest) | 10 files, 186 tests | ✅ Green — pure seams: `utils` money/validators + `familyVoucherCents` + `visibleBadges` + the `SORT_KEYS` whitelist/derivation pins (Task 135 F-2), `catalog` invariants + `findPromo` + `storeName`, `local-store` external-store contract (+ the Task-133 uniqueness layer, + the Task-134/135 three-writer qty-clamp fs-pin), `mask`, robots/sitemap SEO policy, env/compose/config + scan-guard lineage pins, `rate-limit` factory (Task 119), the `orderStepIndex` ladder seam (Task 120), the `server-data` fulfilment-seam fs-pin (Task 131 F-2) + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin (Task 136 F-2/F-3/F-4), **docs-counts pin** (Task 119; Task 120 extended it to the PAD; Task 131 F-7 added DEPLOYMENT.md — fails the run on any stale live-tense count claim in AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT) | `tests/unit/` |
-| E2E (Playwright) | 2 specs, 130 tests | ✅ Green — production build on `:3100`, pinned `DATABASE_URL`: mobile-navigation project (390×844), desktop storefront/commerce journeys (incl. the live-DB checkout round-trip), API boundary validation (422/400 incl. the Task-133 int4-overflow pair + the Task-135 cat/sort 422 pair), wishlist/search fetch-failure resilience + the Task-135 envelope-trust pair + the Task-136 shop-grid envelope probe, JSON-LD live-inventory + LOW_STOCK 422 (Task 119, via direct pinned-DB manipulation with restore), the SEO metadata blanket (Task 119; Task 120 completed it for the six title-only routes and pinned the /family earn-rate), the checkout boundary set (Task 120: malformed-JSON 400, field-cap 422, concurrent last-unit oversell → exactly one 201/one 422 LOW_STOCK), and the a11y pins (focus indication, stepper floor, alert role) | `tests/e2e/` |
+| Unit (Vitest) | 10 files, 190 tests | ✅ Green — pure seams: `utils` money/validators + `familyVoucherCents` + `visibleBadges` + the `SORT_KEYS` whitelist/derivation pins (Task 135 F-2), `catalog` invariants + `findPromo` + `storeName`, `local-store` external-store contract (+ the Task-133 uniqueness layer, + the Task-134/135 three-writer qty-clamp fs-pin), `mask`, robots/sitemap SEO policy, env/compose/config + scan-guard lineage pins, `rate-limit` factory (Task 119), the `orderStepIndex` ladder seam (Task 120), the `server-data` fulfilment-seam fs-pin (Task 131 F-2) + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin (Task 136 F-2/F-3/F-4) + the PDP unified-outage-signal + recovery pins + the outage-branch characterization pins (Task 137 F-1/F-3, mutation-proven), **docs-counts pin** (Task 119; Task 120 extended it to the PAD; Task 131 F-7 added DEPLOYMENT.md — fails the run on any stale live-tense count claim in AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT) | `tests/unit/` |
+| E2E (Playwright) | 2 specs, 131 tests | ✅ Green — production build on `:3100`, pinned `DATABASE_URL`: mobile-navigation project (390×844), desktop storefront/commerce journeys (incl. the live-DB checkout round-trip), API boundary validation (422/400 incl. the Task-133 int4-overflow pair + the Task-135 cat/sort 422 pair), wishlist/search fetch-failure resilience + the Task-135 envelope-trust pair + the Task-136 shop-grid envelope probe + the Task-137 cart promo-apply envelope probe, JSON-LD live-inventory + LOW_STOCK 422 (Task 119, via direct pinned-DB manipulation with restore), the SEO metadata blanket (Task 119; Task 120 completed it for the six title-only routes and pinned the /family earn-rate), the checkout boundary set (Task 120: malformed-JSON 400, field-cap 422, concurrent last-unit oversell → exactly one 201/one 422 LOW_STOCK), and the a11y pins (focus indication, stepper floor, alert role) | `tests/e2e/` |
 | Type coverage | `tsconfig.tests.json` | ✅ `npm run typecheck:tests` (node + vitest/globals types) | repo root |
 
 The predecessor's 73-unit/15-e2e tree (ely-beauty imports, undeclared
@@ -1904,8 +1948,8 @@ the code, never to hit a number.
 rm -rf .next && DATABASE_URL=… npm run build   # cold build (cache can mask the scan-guard failure)
 npm run typecheck && npm run typecheck:tests  # app scope + test tree
 npm run lint                                   # 0 errors / 0 warnings
-npm run test                                   # 186/186 unit
-npm run test:e2e                               # 130/130 e2e (live Postgres for the journey)
+npm run test                                   # 190/190 unit
+npm run test:e2e                               # 131/131 e2e (live Postgres for the journey)
 # runtime smoke of touched routes against `npm run start`
 ```
 
@@ -1969,7 +2013,7 @@ npm run dev                       # http://localhost:3000
 | `npm run dev` / `build` / `start` | root | Dev / cold production build / serve |
 | `npm run lint` | root | ESLint (flat; `skills/` ignored) |
 | `npm run typecheck` / `typecheck:tests` | root | App-scope / test-tree `tsc --noEmit` |
-| `npm run test` / `test:e2e` | root | Vitest unit (186) / Playwright e2e (130, production build on :3100) — `npm run test:watch` re-runs the unit suite on change |
+| `npm run test` / `test:e2e` | root | Vitest unit (190) / Playwright e2e (131, production build on :3100) — `npm run test:watch` re-runs the unit suite on change |
 | `npx drizzle-kit push` | root | Apply `src/db/schema.ts` |
 | `python3 docs/ssh_git_wrapper_v3.py --key-file K --remote git@github.com:nordeim/home-furnishing-store.git` | repo | Verified SSH push to main (see the runbook) |
 
@@ -2160,8 +2204,8 @@ directions across remediation cycles. The file inventory is the reference;
 | `src/app/product/[slug]/page.tsx` | — | PDP: metadata, gallery, stock/aisle, reviews, related |
 | `src/app/api/checkout/route.ts` | — | Validation (TYPE-strict incl. the storeSlug guard — Task 130 F-1), rate limit, `placeOrder` delegation, envelope |
 | `src/components/Header.tsx` | — | Utility strip, search, store picker (external store), category nav, mobile drawer (Escape-close) |
-| `tests/unit/` | 10 files | 186 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges/DELIVERY_SLOTS/orderNumber-SGT/isUniqueViolationOn/MAX_INT4 + the SORT_KEYS seam pins, catalog incl. findPromoMinimumCents, local-store incl. the promo predicate + the Task-133 uniqueness layer + the Task-135 qty-writer clamp fs-pin, mask, robots/sitemap, env/compose/config + scan-guard pins, server-data incl. the fulfilment-seam fs-pin (Task 131 F-2) + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin (Task 136)) |
-| `tests/e2e/` | 2 specs | 130 Playwright tests: mobile-navigation (iPhone-13 emulation, 390×844), storefront/commerce journeys, API boundary validation (incl. the int4-overflow pair — Task 133 F-1 — and the unknown cat/sort 422 pair — Task 135 F-2), fetch-failure resilience + the envelope-trust pair (Task 135 F-5) + the shop-grid envelope probe (Task 136 F-1), slot coherence, review-count truth, fulfilment-store coherence (Task 130 F-2), the wishlist all-ghost honesty pin (Task 132 F-3), the duplicate-payload degraded-honesty pins (wish Task 133 F-3 + cart Task 134 F-1), the /order/ lowercase-lookup + normalized-decode pins (Task 133 F-5 + Task 134 F-2), and the stepper ceiling pins (Task 134 F-3) |
+| `tests/unit/` | 10 files | 190 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges/DELIVERY_SLOTS/orderNumber-SGT/isUniqueViolationOn/MAX_INT4 + the SORT_KEYS seam pins, catalog incl. findPromoMinimumCents, local-store incl. the promo predicate + the Task-133 uniqueness layer + the Task-135 qty-writer clamp fs-pin, mask, robots/sitemap, env/compose/config + scan-guard pins, server-data incl. the fulfilment-seam fs-pin (Task 131 F-2) + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin (Task 136) + the PDP unified-outage-signal + recovery pins + the outage-branch characterization pins (Task 137)) |
+| `tests/e2e/` | 2 specs | 131 Playwright tests: mobile-navigation (iPhone-13 emulation, 390×844), storefront/commerce journeys, API boundary validation (incl. the int4-overflow pair — Task 133 F-1 — and the unknown cat/sort 422 pair — Task 135 F-2), fetch-failure resilience + the envelope-trust pair (Task 135 F-5) + the shop-grid envelope probe (Task 136 F-1) + the cart promo-apply envelope probe (Task 137 F-2), slot coherence, review-count truth, fulfilment-store coherence (Task 130 F-2), the wishlist all-ghost honesty pin (Task 132 F-3), the duplicate-payload degraded-honesty pins (wish Task 133 F-3 + cart Task 134 F-1), the /order/ lowercase-lookup + normalized-decode pins (Task 133 F-5 + Task 134 F-2), and the stepper ceiling pins (Task 134 F-3) |
 | `src/components/ProductCard.tsx` | — | Card + `Rating`; wishlist/add-to-bag affordances |
 | `docs/implementation-plan.md` | — | Stack decision record, deviations ledger, acceptance criteria |
 | `docs/reference-investigation.md` | — | Reference-site evidence (Verified/Reasoned/Assumed/Unknown) |

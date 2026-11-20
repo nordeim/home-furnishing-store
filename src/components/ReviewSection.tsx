@@ -6,6 +6,12 @@ export interface ReviewVM { id: number; author: string; rating: number; title: s
 
 export function ReviewSection({ productId, initial, total, unavailable }: { productId: number; initial: ReviewVM[]; total?: number; unavailable?: boolean }) {
   const [list, setList] = useState<ReviewVM[]>(initial);
+  // Task 137 F-1: the SSR unavailable state is RECOVERABLE client state — a
+  // successful POST proves the DB answered, so the note unmounts and the
+  // heading resumes its count claim instead of staying frozen at mount
+  // (the old render read the prop directly: a recovered write left the new
+  // review BELOW the stale "unavailable" note with no count anywhere).
+  const [sectionUnavailable, setSectionUnavailable] = useState(!!unavailable);
   // Task 123 F-10: the heading quotes the TRUE review count (the server-side
   // count(*) query), not the capped rendered list — defaults to the list
   // length when no count is passed, and bumps with each successful POST.
@@ -40,6 +46,7 @@ export function ReviewSection({ productId, initial, total, unavailable }: { prod
       const saved = json.data;
       setList((prev) => [{ ...saved, createdAt: saved.createdAt || new Date().toISOString() }, ...prev]);
       setCount((c) => c + 1);
+      setSectionUnavailable(false);
       setAuthor(""); setTitle(""); setBody(""); setRating(5);
       setMsg("Thanks — your review is live.");
       setMsgIsError(false);
@@ -56,11 +63,11 @@ export function ReviewSection({ productId, initial, total, unavailable }: { prod
       {/* Task 136 F-3: under outage the honest posture is the BuyBox degrade
           sibling — an unavailable note, NO count claim, never the false
           "No reviews yet — be the first" invitation for a reviewed product. */}
-      <h2 className="text-[22px] font-black">{unavailable ? "Reviews" : `Reviews (${count})`}</h2>
+      <h2 className="text-[22px] font-black">{sectionUnavailable ? "Reviews" : `Reviews (${count})`}</h2>
       <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_380px]">
         <ul className="space-y-3">
-          {unavailable && <li className="rounded-xl bg-[#f5f3ee] p-6 text-[#5b5b5b]">Reviews are unavailable right now — please try again in a moment.</li>}
-          {!unavailable && list.length === 0 && <li className="rounded-xl bg-[#f5f3ee] p-6 text-[#5b5b5b]">No reviews yet — be the first to share how it fits your home.</li>}
+          {sectionUnavailable && <li className="rounded-xl bg-[#f5f3ee] p-6 text-[#5b5b5b]">Reviews are unavailable right now — please try again in a moment.</li>}
+          {!sectionUnavailable && list.length === 0 && <li className="rounded-xl bg-[#f5f3ee] p-6 text-[#5b5b5b]">No reviews yet — be the first to share how it fits your home.</li>}
           {list.map((r) => (
             <li key={r.id} className="rounded-xl p-5 ring-1 ring-[#ece8df]">
               <p className="text-[#e5a000]" role="img" aria-label={`${r.rating} out of 5 stars`}><span aria-hidden="true">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span></p>

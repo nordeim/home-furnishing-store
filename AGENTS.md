@@ -23,13 +23,13 @@ ORM + PostgreSQL.
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
 | `npm run typecheck:tests` | `tsc --noEmit -p tsconfig.tests.json` — the **test tree** (`tests/**`; both scopes are live gates) |
-| `npm run test` | Vitest unit suite (186 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, server-data fulfilment-seam fs-pin + the qty-writer clampInt fs-pin + the SORT_KEYS derivation pin + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin, docs-counts pins incl. the PAD + the TZ-pure-tree fs-pin + the numeric-args-ctor widening) |
+| `npm run test` | Vitest unit suite (190 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, server-data fulfilment-seam fs-pin + the qty-writer clampInt fs-pin + the SORT_KEYS derivation pin + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin + the PDP unified-outage-signal + recovery pins + the outage-branch characterization pins, docs-counts pins incl. the PAD + the TZ-pure-tree fs-pin + the numeric-args-ctor widening) |
 | `npm run test:watch` | Vitest in watch mode (the same suite, re-run on change) |
-| `npm run test:e2e` | Playwright e2e (130 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
+| `npm run test:e2e` | Playwright e2e (131 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
 | `npm run test:e2e:install` | One-time: install the pinned Playwright Chromium build (the fresh-clone cache miss) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
-The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–136):
+The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–137):
 `tests/unit` (10 files) + `tests/e2e` (mobile-navigation + storefront specs
 incl. the fetch-failure resilience pair, the API rate-limit pins, PDP badge
 dedupe, cart promo persistence, JSON-LD live-inventory + LOW_STOCK commerce
@@ -128,7 +128,7 @@ ISO slice), and the **derived-copy completion** (GST ×7, the $200 shop pair,
 FLAT20 on /offers, the family voucher rule ×3 — all interpolate their
 constants; the GST + family e2e pins derive). Task 127 converted the storefront
 spec's then-21 interaction-first blocks to `gotoHydrated` (the mobile spec's
-Task-125 G-5 discipline) — 43 storefront call sites now (45 across both
+Task-125 G-5 discipline) — 44 storefront call sites now (46 across both
 files), zero bare interaction-first gotos. One Task-124 finding was DISPROVEN (browser
 evidence) and one Task-126 audit finding was DISPROVEN by insert-order
 analysis (the ensureSeed "partial-seed blind spot" — categories/stores/
@@ -159,9 +159,9 @@ AND copy — the family/business halves of the Task-127 F-4 class), the
 **Footer SGT year** (the last bare server-local calendar read in src/), and
 the **producer-side store-key fs-pin** (every createLocalStore key — literal
 or constant — must be a member of PERSISTED_STORAGE_KEYS). The storefront
-spec's interaction-first coverage is now complete: 43 gotoHydrated call
-sites in the storefront spec (45 across both files; the Task-129 conversions
-took it from 34 and the Task-131..136 probes grew it past the Task-129-era
+spec's interaction-first coverage is now complete: 44 gotoHydrated call
+sites in the storefront spec (46 across both files; the Task-129 conversions
+took it from 34 and the Task-131..137 probes grew it past the Task-129-era
 count), zero interaction-first bare gotos
 (mechanically re-verified — the Task-127 conversion had left 13, including
 a /cart site both sweeps under-counted). One reference-agent claim was DISPROVEN by direct read
@@ -381,6 +381,40 @@ after the locked re-read — the Task-130 F-2 check/act coherence applied to
 the other money-shaping input; a promo deactivated under the order refuses
 with INVALID_PROMO).
 
+And the Task-137 pins: the **PDP unified-outage-signal pair** (the two
+review seams degrade INDEPENDENTLY — but the JSON-LD `aggregateRating` gate
+used to trust `reviewCount` ALONE and the section's `initial` passed the
+live list through, so the partial-outage branches contradicted themselves:
+reviews-ok/count-null rendered the "Reviews are unavailable right now" note
+ABOVE the live list, and reviews-null/count-ok published an aggregateRating
+the visible page disavowed — the Task-121 F-6 rule its own comment quotes;
+the signal is now ONE rule: EITHER null suppresses the list, the count claim
+AND the structured-data rating together, fs-pinned as the
+`!reviewsUnavailable && reviewCount > 0` gate + the
+`reviewsUnavailable ? [] :` initial suppression), the **ReviewSection
+recovery state** (the SSR unavailable prop is frozen at mount — a successful
+POST under it prepended the new review BELOW the stale note with no count
+anywhere; the section now owns recoverable client state —
+`useState(!!unavailable)` flipped `false` on a successful POST — the note
+unmounts and the heading resumes its count claim, fs-pinned), the **cart
+promo-apply envelope-trust completion** (the FOURTH consumer and the only
+POST one left without a data gate — `json.data?.label ?? "discount"` treated
+a well-formed `200 {ok:true}` with NO data as success, persisting the code
+into `nordhem_promo` and rendering the false "X applied — discount"
+message; the Task-135/136 class closed at its last sibling — e2e-pinned
+with the route-fulfilled probe asserting the scoped alert, no applied copy,
+and no Remove button), the **outage-branch characterization pins** (the
+Task-136 outage branches shipped unpinned — a regression swapping
+`getOrderByNumber`'s `"outage"` for `null`, or the order outage copy for the
+not-found copy, or the reviews-GET `DB_DOWN` envelope for a false empty
+list would all pass every existing gate; the seam's URIError-vs-outage
+discrimination + the four rendered surfaces are now fs-pinned,
+mutation-proven), and the **shop-strip honesty** (the strip quoted
+`items.length` unconditionally — during the error state it rendered the
+STALE previous-view count above the error box; the count claim is now
+gated on `!(loading || error)` with the static GST/free-delivery tail
+staying — e2e-pinned by the Task-136 probe extension).
+
 **Test counts are documentation claims, pinned by test** (Task 119):
 `tests/unit/docs-counts.test.ts` fs-computes the real counts and fails the run
 if any live-tense claim in AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT disagrees
@@ -402,6 +436,9 @@ change (count-lockstep, no exceptions).
 | A duplicated persisted CART payload degrades to the honest empty bag (never doubled lines/subtotal); a normalized malformed-percent order URL lands in not-found (never a 5xx, never the outage copy); the cart/BuyBox/business `+` steppers disable at their 99/99/200 ceilings | `tests/e2e/storefront.spec.ts` (Task 134 F-1/F-2/F-3 probes) |
 | `/api/products` refuses an unknown `cat`/`sort` with 422 VALIDATION (never a fake empty catalogue / silent unsorted 200 — the `?max` stance); the wishlist and search pages treat an ok-but-dataless envelope as the ERROR state (never the false all-ghost note / false 0-results verdict) | `tests/e2e/storefront.spec.ts` (Task 135 F-2/F-5 probe quartet) |
 | The shop grid treats an ok-but-dataless envelope as the ERROR state (never the false "0 products"/"Nothing matches those filters" verdict) — the third `/api/products` client consumer, completing the Task-135 class | `tests/e2e/storefront.spec.ts` (Task 136 F-1 probe) |
+| The PDP reviews-outage signal is UNIFIED (the JSON-LD `aggregateRating` gate + the section's initial list + the heading count claim all key on the COMBINED `reviewsUnavailable` signal); ReviewSection's unavailable state is RECOVERABLE (a successful POST flips the note away) | `tests/unit/server-data.test.ts` (Task 137 F-1 pins) |
+| A promo apply on an ok-but-dataless envelope is a FAILURE (scoped alert, no applied copy, no persisted code — the fourth envelope-trust consumer, the only POST one); the shop strip makes no stale count claim under loading/error | `tests/e2e/storefront.spec.ts` (Task 137 F-2 probe + the Task 136 F-1 probe extension) |
+| `getOrderByNumber` discriminates URIError (not-found) from everything-else (outage); the outage surfaces (order-page copy, PDP unavailable note, reviews-GET DB_DOWN, submitReview delegation) are pinned | `tests/unit/server-data.test.ts` (Task 137 F-3 characterization pins, mutation-proven) |
 
 ## Hard-won gotchas (read before changing anything)
 
@@ -512,8 +549,8 @@ rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_
 npm run typecheck          # app scope (src/**, next.config.ts)
 npm run typecheck:tests    # the test tree (tsconfig.tests.json) — both scopes are live gates
 npm run lint               # 0 errors expected
-npm run test               # 186/186 unit
-npm run test:e2e           # 130/130 e2e (needs a live Postgres for the checkout journey)
+npm run test               # 190/190 unit
+npm run test:e2e           # 131/131 e2e (needs a live Postgres for the checkout journey)
 ```
 
 There is no hosted CI; the local gate is the only gate.

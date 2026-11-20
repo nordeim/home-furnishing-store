@@ -164,13 +164,13 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 186 tests at the pure seams
+npm run test             # Vitest unit — 190 tests at the pure seams
 npm run test:watch       # the same suite, re-run on change
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 130 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 131 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
@@ -245,11 +245,40 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 186 unit + 130 e2e, all green | NORDHEM-native harness (Tasks 114/117–136); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131; the unit tree is TZ-pure since Task 132 — verified by the three-TZ run) |
+| Test suite | ✅ 190 unit + 131 e2e, all green | NORDHEM-native harness (Tasks 114/117–137); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131; the unit tree is TZ-pure since Task 132 — verified by the three-TZ run) |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
+
+Current cycle (2026-11-21, Task 137): workspace-refresh re-audit (git pull
+→ Task-136 + the session_38 narrative; the rootless PostgreSQL 17.12 data
+dir SURVIVED the recycle with the postmaster process still alive — clean
+SIGTERM + fresh `pg_ctl start` so pid file and process agree; DDL contract
++ seed quantities verified by direct SQL, inventory 1379; mobile-nav
+taxonomy 8/8 at 390/1440 — no Tailwind v4 bug; sitemap/robots/og/noindex/
+404/security headers re-verified live; baseline gates green at 186/130
+with zero DB residue; the reference repo quiescent — thirteenth cycle of
+"nothing to port") that caught **the PDP reviews-outage signal split**
+(the two review seams degrade independently, but the JSON-LD
+`aggregateRating` gate trusted `reviewCount` alone and the section's
+`initial` passed the live list through — a partial outage rendered the
+unavailable note above live reviews, or published an aggregateRating the
+page disavowed; the signal is now ONE combined rule, fs-pinned), the
+**ReviewSection recovery state** (the SSR unavailable note was frozen at
+mount — a successful POST under it left the new review below the stale
+note with no count anywhere; the state is now recoverable client state),
+**the cart promo-apply envelope-trust laggard** (the FOURTH consumer and
+the only POST one without a data gate — an ok-but-dataless `200` persisted
+the code and rendered the false "applied" message; e2e-pinned), **the
+outage-branch pin blind spots** (the Task-136 outage branches —
+`getOrderByNumber`'s outage-vs-not-found discrimination, the order-page
+outage copy, the PDP unavailable note, the reviews-GET `DB_DOWN` envelope
+— shipped unpinned; all now fs-pinned, mutation-proven), and the **shop-
+strip honesty** (the strip quoted a stale product count above the error
+state — the count claim is now gated on the settled view, e2e-pinned).
+Suite grew to 190 unit + 131 e2e. Details in `worklog.md` and
+`docs/plans/2026-11-21-task137-remediation-plan.md`.
 
 Current cycle (2026-11-21, Task 136): workspace-refresh re-audit (fresh
 clone after a sandbox reset — the rootless PostgreSQL 17.12 data dir

@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-21 (Task 136: shop-grid envelope-trust completion, DB-funnel golden-rule restoration, reviews degrade honesty, promo in-tx coherence, docs truth)
+last_updated: 2026-11-21 (Task 137: PDP unified-outage-signal unification + ReviewSection recovery state, cart-promo envelope-trust completion, outage-branch characterization pins, shop-strip honesty, docs truth)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -130,17 +130,17 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`src/**`, `next.config.ts`) |
 | `npm run typecheck:tests` | Test-tree TypeScript check (`tests/**` via `tsconfig.tests.json` — both scopes are live gates) |
-| `npm run test` | Vitest unit suite (186 tests, pure seams) |
+| `npm run test` | Vitest unit suite (190 tests, pure seams) |
 | `npm run test:watch` | Vitest in watch mode (the same suite, re-run on change) |
-| `npm run test:e2e` | Playwright e2e (130 tests, production build on :3100) |
+| `npm run test:e2e` | Playwright e2e (131 tests, production build on :3100) |
 | `npm run test:e2e:install` | One-time: install the pinned Playwright Chromium build (the fresh-clone cache miss) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
-**Current state (Tasks 114–136, extended this cycle):** a NORDHEM-native suite is wired into the gates.
+**Current state (Tasks 114–137, extended this cycle):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 186 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 190 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
@@ -155,7 +155,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   operator docs (AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT — DEPLOYMENT.md
   joined in Task 131), not remembered). Node environment with a localStorage shim
   (`tests/unit/setup.ts`); no jsdom, no component rendering.
-- **E2E (Playwright, 130 tests)** against the **production build** (the webServer
+- **E2E (Playwright, 131 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
   hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
@@ -352,8 +352,8 @@ fix and passes after.
   that derive from the same constants the pages interpolate (a rate edit
   self-corrects copy and pins together — the Task-127 claim now true).
   The storefront spec's interaction-first coverage is complete: zero bare
-  interaction-first gotos remain (43 gotoHydrated call sites in the storefront
-  spec after the Task-129 conversions and the Task-131..136 probes — 45 across
+  interaction-first gotos remain (44 gotoHydrated call sites in the storefront
+  spec after the Task-129 conversions and the Task-131..137 probes — 46 across
   both files, the mobile spec contributing its two sites), and every
   write-capable refusal spec carries its RED-run `finally` net.
 - **Task-129 seams:** every write-capable refusal spec is netted — including
@@ -508,6 +508,28 @@ fix and passes after.
   Task-130 F-2 check/act coherence applied to the other money-shaping
   input — a promo deactivated under the order refuses with
   INVALID_PROMO and the whole transaction rolls back).
+
+- **Task-137 seams:** the PDP reviews-outage signal is UNIFIED (the two
+  review seams degrade independently, but the JSON-LD `aggregateRating`
+  gate, the section's `initial` list AND the heading count claim all key on
+  the combined `reviewsUnavailable` signal — a partial outage (pool
+  exhaustion, query_timeout on one of the two queries) no longer renders the
+  unavailable note above a live list, and never publishes an aggregateRating
+  the visible page disavows); `ReviewSection`'s unavailable state is
+  RECOVERABLE client state (`useState(!!unavailable)` flipped `false` on a
+  successful POST — the SSR note unmounts and the heading resumes its count
+  when the write provably landed); the cart's promo-apply is the FOURTH
+  envelope-trust consumer to gate on `json.data` presence (an ok-but-dataless
+  `200` is the failure state — scoped alert, no persisted code — the
+  Task-135/136 class closed at its last sibling, the only POST one);
+  `getOrderByNumber`'s outage-vs-not-found discrimination and the four
+  rendered outage surfaces (order-page copy, PDP unavailable note,
+  reviews-GET `DB_DOWN`, `submitReview` delegation) are fs-pinned
+  (mutation-proven — the Task-131 F-2 precedent for DB-touching branches
+  that are not e2e-reachable without killing the live server); and the shop
+  strip suppresses its count claim under `loading || error` (the GST /
+  free-delivery tail is static truth and stays — the wishlist-heading
+  honesty sibling).
 
 - **`main` branch only** — no feature branches (operator contract).
 - Conventional Commits, atomic units (`fix:`, `feat:`, `docs:` — history uses

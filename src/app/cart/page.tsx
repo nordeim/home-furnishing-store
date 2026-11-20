@@ -57,9 +57,15 @@ export default function CartPage() {
         body: JSON.stringify({ code: c, subtotalCents }),
       });
       const json = (await res.json()) as { ok: boolean; data?: { label: string }; error?: { message: string } };
-      if (!json.ok) throw new Error(json.error?.message ?? "Invalid code");
+      // Task 137 F-2: the envelope contract is { ok, data } — an ok:true body
+      // WITHOUT data (a contract-violating but well-formed-status response)
+      // is a FAILURE, never a false "applied" claim: the old gate let the
+      // code persist into nordhem_promo and render "X applied — discount"
+      // (the Task-135/136 class at its fourth consumer, the only POST one —
+      // the checkout/track-order/ReviewSection siblings all gate on data).
+      if (!json.ok || !json.data) throw new Error(json.error?.message ?? "Could not verify code");
       setPromo(c);
-      setApplyMsg({ ok: true, text: `${c} applied — ${json.data?.label ?? "discount"}` });
+      setApplyMsg({ ok: true, text: `${c} applied — ${json.data.label}` });
     } catch (e) {
       // A failed apply must NOT destroy an already-applied code (Task 118
       // F-13): the user's discount vanished silently on a typo. Removal is an

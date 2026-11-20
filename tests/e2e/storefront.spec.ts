@@ -650,6 +650,14 @@ test.describe("client resilience (fetch failure ≠ empty state)", () => {
     // The FALSE empty-filter verdict must not render (the answer was
     // malformed, not "no products match").
     await expect(page.getByText("Nothing matches those filters")).toHaveCount(0);
+    // Task 137 F-5: the strip must not quote a product COUNT above the
+    // error state either — `items` still held the previous view's rows, so
+    // the strip rendered a stale "N products ·" count the error box below
+    // disavowed (the wishlist-heading honesty sibling, Task-130 F-8).
+    await expect(page.getByText(/\d+ products/)).toHaveCount(0);
+    // The static truth (GST / free-delivery copy) survives — it is not a
+    // view-dependent claim.
+    await expect(page.getByText(/prices include 9% GST/)).toBeVisible();
   });
 });
 
@@ -948,6 +956,36 @@ test.describe("cart promo persistence", () => {
     await page.getByRole("button", { name: /Remove code/i }).click();
     await expect(discountRow).toHaveCount(0);
     await expect(page.getByRole("link", { name: /Checkout/i }).first()).toBeVisible();
+  });
+
+  test("a promo apply on an ok-but-dataless envelope is a FAILURE, never a false applied claim (Task 137 F-2)", async ({ page }) => {
+    // The fourth envelope-trust consumer — and the only POST one left without
+    // a data gate: a well-formed 200 {ok:true} with NO data used to persist
+    // the code into nordhem_promo and render "X applied — discount"
+    // (role="status") — the exact Task-135/136 class (wishlist, search, shop
+    // grid) at the one sibling it missed. The siblings all gate on
+    // json.data presence (checkout/page.tsx, track-order/page.tsx,
+    // ReviewSection.tsx — the POST-consumer cross-check).
+    await page.route(
+      "**/api/promotions/validate*",
+      (route) => route.fulfill({ status: 200, body: JSON.stringify({ ok: true }) }),
+    );
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await page.getByRole("link", { name: /Shopping bag, 1 item/ }).click();
+    await expect(page.getByRole("heading", { name: /Your bag \(1\)/ })).toBeVisible();
+
+    await page.getByLabel(/Promo code/i).fill("WELCOME10");
+    await page.getByRole("button", { name: "Apply" }).click();
+
+    // The failure state: an assertive alert (scoped to the promo message —
+    // Next's own route announcer also carries role="alert", the Task-120
+    // spec's NB), no "applied" success copy, and NO persisted code (the
+    // Remove button is the persistence tell).
+    await expect(page.locator("aside p[role=alert]")).toContainText(/could not verify/i);
+    await expect(page.getByText(/applied/i)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Remove code/i })).toHaveCount(0);
+    await page.unroute("**/api/promotions/validate*");
   });
 });
 

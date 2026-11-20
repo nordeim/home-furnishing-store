@@ -81,8 +81,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     // section renders (the seed column claimed "412" beside a visible list of
     // 2); with no live reviews the node is omitted entirely — never publish
     // an aggregateRating the page cannot back. ratingValue keeps the
-    // catalogue average (the documented invented-content stance).
-    ...(reviewCount !== null && reviewCount > 0
+    // catalogue average (the documented invented-content stance). Task 137
+    // F-1: the gate keys on the UNIFIED signal — a count-ok/reviews-null
+    // partial outage must not publish a rating the visible page disavows.
+    ...(!reviewsUnavailable && reviewCount > 0
       ? {
           aggregateRating: {
             "@type": "AggregateRating",
@@ -205,7 +207,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
       <ReviewSection
         productId={p.id}
-        initial={reviewList.map((r) => ({ id: r.id, author: r.author, rating: r.rating, title: r.title ?? "", body: r.body ?? "", verified: r.verified, createdAt: String(r.createdAt) }))}
+        initial={(reviewsUnavailable ? [] : reviewList).map((r) => ({ id: r.id, author: r.author, rating: r.rating, title: r.title ?? "", body: r.body ?? "", verified: r.verified, createdAt: String(r.createdAt) }))}
         total={reviewsUnavailable ? undefined : liveCount}
         unavailable={reviewsUnavailable}
       />

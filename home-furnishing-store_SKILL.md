@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 2.10.0
-last_updated: "2026-11-21 (Task 136: shop-grid envelope-trust completion, DB-funnel golden-rule restoration, reviews degrade honesty, promo in-tx coherence, docs truth)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 186/186 unit (TZ-pure — verified UTC/Singapore/New_York; the fs-pin covers all three quote forms + fractional seconds since Task 134) · 130/130 e2e · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
+version: 2.11.0
+last_updated: "2026-11-21 (Task 137: PDP unified-outage-signal unification + ReviewSection recovery state, cart-promo envelope-trust completion, outage-branch characterization pins, shop-strip honesty, docs truth)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 190/190 unit (TZ-pure — verified UTC/Singapore/New_York; the fs-pin covers all three quote forms + fractional seconds since Task 134) · 131/131 e2e · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -31,9 +31,12 @@ project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 186/186 
 > hardening cycle, the Task 134 cart-duplicate-e2e-parity/order-URL-
 > decode-pin/stepper-ceiling-state/addLine-floor-clamp/TZ-pin-widening/docs-
 > gate-truth cycle, the Task 135 qty-writer-clamp-parity/API-cat-sort-
-> boundary-stance/envelope-trust-gate/docs-truth cycle, and the Task 136
+> boundary-stance/envelope-trust-gate/docs-truth cycle, the Task 136
 > shop-grid-envelope-trust-completion/DB-funnel-golden-rule-restoration/
-> reviews-degrade-honesty/promo-in-tx-coherence/docs-truth cycle. `AGENTS.md` is the
+> reviews-degrade-honesty/promo-in-tx-coherence/docs-truth cycle, and the
+> Task 137 PDP-unified-outage-signal/ReviewSection-recovery-state/cart-
+> promo-envelope-trust-completion/outage-branch-pin-coverage/shop-strip-
+> honesty/docs-truth cycle. `AGENTS.md` is the
 > quick operator reference, the PAD is the full blueprint, and this skill is the
 > pattern/lesson layer an agent needs before touching the code. When code and
 > this document disagree, **the code wins** — then fix this document in the
@@ -106,8 +109,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 186/186
-npm run test:e2e                                               # 130/130 (live Postgres for the journey)
+npm run test                                                   # 190/190
+npm run test:e2e                                               # 131/131 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -980,6 +983,38 @@ Task 131).
     properties belong in the unit suite as fs-pins, with explicit,
     documented exception lists — prose rules rot silently; pinned rules
     fail loudly.
+63. **A combined degrade signal must be derived ONCE and consumed by EVERY
+    downstream claim — OR-ing two independent degrades at the top while
+    downstream consumers trust their own signal recreates the incoherence
+    the OR was supposed to fix (Task 137 F-1).** The two review seams
+    degrade independently (separate try/catch), the page ORs the nulls
+    into `reviewsUnavailable` — but the JSON-LD `aggregateRating` gate
+    trusted `reviewCount` alone and the section's `initial` passed the
+    live list through, so a PARTIAL outage (one query timed out, the other
+    answered) rendered the "unavailable" note above live reviews, or
+    published a rating the page disavowed. The full-outage test hides the
+    split (both null → both consumers agree); only the partial branch
+    exposes it. Rule: when two data sources feed one render, enumerate
+    every consumer of each source and gate them all on the SAME combined
+    signal; and make SSR-derived degrade state RECOVERABLE client state
+    when a successful write can disprove it (the note unmounts, the count
+    resumes) — a mount-frozen note survives the recovery that falsifies
+    it.
+64. **Behavior that cannot be e2e-driven without killing the live server
+    ships unpinned — characterize it with fs-pins and prove each with a
+    mutation demo (Task 137 F-3, the Task 131 F-2 precedent extended).**
+    The Task-136 outage branches (getOrderByNumber's outage-vs-not-found
+    discrimination, the order-page outage copy, the PDP unavailable note,
+    the reviews-GET DB_DOWN envelope) were correct but unpinned: a
+    regression swapping `"outage"` for `null` would render the false
+    "can't find that order" verdict under a dead DB with every gate green.
+    The honest vehicle for branches that need a dead DB to fire: pin the
+    source structure (the discrimination forms, the shipped copy strings)
+    and run a temporary mutation for each pin to prove it fails when the
+    guarded behavior drifts — a characterization pin without its mutation
+    demo is a claim, not a net. Rule: every outage/degrade branch joins
+    the pin set in the same cycle that ships it, or it ships as
+    unregistered debt that the next outage silently regresses.
 
 ## 13. Pitfalls to Avoid
 
@@ -1102,8 +1137,8 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | Commands & gotchas | `AGENTS.md` |
 | Architecture detail | `Project_Architecture_Document.md` |
 | Decision record | `docs/implementation-plan.md` |
-| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-21-task136-remediation-plan.md` (21 plans: Tasks 114, 117–136) |
-| Screenshots | `docs/screenshots/01…99-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 100 PNGs) |
+| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-21-task137-remediation-plan.md` (22 plans: Tasks 114, 117–137) |
+| Screenshots | `docs/screenshots/01…104-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 105 PNGs) |
 | SSH push runbook | `docs/how-to-git-push-using-ssh-wrapper_SKILL.md` |
 | Working history | `worklog.md` (Tasks 113+ NORDHEM; the 1–112 predecessor lineage was operator-trimmed) |
 | Money/validators | `src/lib/utils.ts` |
@@ -1112,5 +1147,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (186) — 10 files |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (130) — 122 storefront + 8 mobile |
+| Unit suite | `tests/unit/*.test.ts` (190) — 10 files |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (131) — 123 storefront + 8 mobile |

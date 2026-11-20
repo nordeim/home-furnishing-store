@@ -99,3 +99,95 @@ it("placeOrder re-reads the promo INSIDE the transaction — FOR UPDATE, the aut
   expect(txBody.includes('.for("update")'), "the in-transaction promotions re-read must lock the row (FOR UPDATE) — a plain read re-opens the window the lock closes").toBe(true);
   expect(txBody.indexOf("from(promotions)") < txBody.indexOf("priceTotals("), "the totals must derive AFTER the in-transaction promo re-read (the committed discount derives from locked state)").toBe(true);
 });
+
+it("the PDP reviews-outage signal is UNIFIED — the JSON-LD gate and the section initial both key on the combined signal (Task 137 F-1)", () => {
+  // Task 136 F-3 gave the two review seams independent null degrades; the
+  // PDP ORs them into `reviewsUnavailable` — but the JSON-LD
+  // aggregateRating gate trusted `reviewCount !== null` ALONE and the
+  // section's `initial` passed the live list through, so the partial-outage
+  // branches contradicted themselves: reviews-ok/count-null rendered the
+  // "Reviews are unavailable right now" note DIRECTLY ABOVE the live list,
+  // and reviews-null/count-ok published an aggregateRating the visible page
+  // disavowed — the exact Task-121 F-6 rule the code's own comment quotes
+  // ("never publish an aggregateRating the page cannot back"). The
+  // unified signal is one rule: EITHER null suppresses the list, the count
+  // claim AND the structured-data rating together.
+  const pdp = readFileSync(resolve(ROOT, "src/app/product/[slug]/page.tsx"), "utf8");
+  expect(
+    pdp.includes("!reviewsUnavailable && reviewCount > 0"),
+    "the JSON-LD aggregateRating must gate on the COMBINED signal (!reviewsUnavailable && reviewCount > 0) — a count-ok/reviews-null outage must not publish a rating the page says it cannot back",
+  ).toBe(true);
+  expect(
+    pdp.includes("reviewsUnavailable ? [] :"),
+    "the section's initial list must be suppressed under the combined signal (reviewsUnavailable ? [] : …) — the unavailable note never renders above a live list",
+  ).toBe(true);
+});
+
+it("ReviewSection's unavailable state is RECOVERABLE — a successful POST flips the note away and the heading resumes its count (Task 137 F-1)", () => {
+  // Under the SSR unavailable state a successful POST (the DB provably
+  // recovered — the write went through) used to prepend the new review
+  // BELOW the stale "unavailable" note while the heading never showed any
+  // count: the note was frozen at mount. The section now owns the state as
+  // client state — it unmounts the note and resumes the count claim the
+  // moment a review provably landed.
+  const rs = readFileSync(resolve(ROOT, "src/components/ReviewSection.tsx"), "utf8");
+  expect(
+    rs.includes("useState(!!unavailable)"),
+    "the unavailable prop must seed RECOVERABLE client state (useState(!!unavailable)) — a mount-frozen note survives the recovery that disproves it",
+  ).toBe(true);
+  expect(
+    rs.includes("setSectionUnavailable(false)"),
+    "a successful POST must flip the section back to available — the write provably landed",
+  ).toBe(true);
+  expect(
+    rs.includes('sectionUnavailable ? "Reviews"'),
+    "the heading count claim must key on the RECOVERABLE state, not the frozen prop",
+  ).toBe(true);
+});
+
+it("getOrderByNumber discriminates outage from not-found — URIError is not-found, everything else is outage (Task 137 F-3)", () => {
+  // The seam owns the Task-122 F-4 authority: ANY query failure is
+  // "outage", never a false "can't be found" (or the half-rendered
+  // confirmed order). A regression that returns null instead of "outage" on
+  // DB failure — or lets a URIError reach "outage" — would render the FALSE
+  // not-found verdict under a dead DB with every gate green (the branch is
+  // not e2e-reachable without killing the live server; this pin holds it —
+  // the Task-131 F-2 fs-pin precedent for DB-touching code).
+  const seam = SOURCE.slice(SOURCE.indexOf("export async function getOrderByNumber"));
+  expect(
+    seam.includes("if (err instanceof URIError) return null"),
+    "a URIError (malformed percent-encoding) must land in not-found — the client-input class, never the DB class",
+  ).toBe(true);
+  expect(
+    seam.includes('return "outage"'),
+    "any OTHER query failure must land in outage — a dead DB must never render the false 'We can't find that order' verdict",
+  ).toBe(true);
+});
+
+it("the outage surfaces the seams own are pinned — order-page copy, PDP note, reviews-GET DB_DOWN, submitReview delegation (Task 137 F-3)", () => {
+  // The Task-136 outage branches shipped unpinned: a regression that
+  // swapped the order outage copy for the not-found copy, dropped the PDP's
+  // honest unavailable note, degraded the reviews GET back to a false
+  // empty list, or re-inlined the reviews POST's DB work would all pass
+  // every existing gate. These surfaces are the DB-down contract the
+  // "Degrade, Never Fail" principle names — hold them in place.
+  const orderPage = readFileSync(resolve(ROOT, "src/app/order/[number]/page.tsx"), "utf8");
+  expect(
+    orderPage.includes("We can&apos;t check orders right now"),
+    "the order page must carry the outage copy — the Task-122 F-4 authority rendered, never a false not-found under a dead DB",
+  ).toBe(true);
+  const rs = readFileSync(resolve(ROOT, "src/components/ReviewSection.tsx"), "utf8");
+  expect(
+    rs.includes("Reviews are unavailable right now"),
+    "ReviewSection must carry the honest unavailable note (the BuyBox degrade sibling, Task 136 F-3)",
+  ).toBe(true);
+  const reviewsRoute = readFileSync(resolve(ROOT, "src/app/api/reviews/route.ts"), "utf8");
+  expect(
+    reviewsRoute.includes('"DB_DOWN"'),
+    "the reviews GET must answer the DB_DOWN envelope under outage — a false ok-with-empty-data answers a boundary that has NO static fallback",
+  ).toBe(true);
+  expect(
+    reviewsRoute.includes("submitReview("),
+    "the reviews POST must delegate its DB work to the submitReview seam (the Task-136 F-2 funnel)",
+  ).toBe(true);
+});
