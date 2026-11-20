@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 2.5.0
-last_updated: "2026-11-20 (Task 131: wishlist count parity, fulfilment-seam structural pin, orderNumber crypto suffix, DEPLOYMENT.md truth)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 176/176 unit · 116/116 e2e · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
+version: 2.6.0
+last_updated: "2026-11-20 (Task 132: TZ-pure test gates, fulfilment-pin structural binding, wishlist all-ghost honesty, probe-email uniqueness)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 177/177 unit (TZ-pure — verified UTC/Singapore/New_York) · 117/117 e2e · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -21,7 +21,10 @@ project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 176/176 
 > cycle, and the Task 127 boundary-type-parity/replay-ownership/derived-copy
 > cycle, and the Task 128 body-shape-guard/recall-parity/derived-pin
 > cycle, and the Task 129 residue-net-completion/enum-boundary-parity/
-> business-derived-pin cycle. `AGENTS.md` is the quick operator
+> business-derived-pin cycle, and the Task 130 store-coherent-fulfilment/
+> unique-violation-discrimination/wishlist-heading-honesty cycle, and the
+> Task 131 wishlist-count-parity/fulfilment-seam-structural-pin/orderNumber-
+> crypto-suffix/DEPLOYMENT-truth cycle. `AGENTS.md` is the quick operator
 > reference, the PAD is the full blueprint, and this skill is the
 > pattern/lesson layer an agent needs before touching the code. When code and
 > this document disagree, **the code wins** — then fix this document in the
@@ -94,8 +97,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 176/176
-npm run test:e2e                                               # 116/116 (live Postgres for the journey)
+npm run test                                                   # 177/177
+npm run test:e2e                                               # 117/117 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -813,6 +816,37 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
     boundary. State quiescence as "no changes after <sha>; the N subsequent
     commits are docs/skills only" — precise, checkable, and immune to the
     inclusive-edge trap.
+53. **A test tree is a program that runs on the OPERATOR's host — its
+    clock is an input, and undesignated date-time literals are
+    host-coupled bugs (Task 132 F-1).** ECMAScript parses a date-TIME
+    literal without a timezone designator (`new Date("2026-12-27T12:00:00")`)
+    as LOCAL time — on UTC−5 hosts that instant is 17:00Z, past the
+    campaign's Dec-27-16:00Z end, so a correct implementation answers 2027
+    while the pin demands 2026: a deterministic false RED (observed live
+    with `TZ=America/New_York`). The now-relative sibling class derives its
+    expectation with LOCAL getters while the impl reads `getUTC*` — a
+    false RED 8h/day on the project's OWN locale. Rule: when a seam goes
+    TZ-pure (impl swaps to `getUTC*`/`Z`-suffixed instants), sweep the TEST
+    TREE for the old idiom in the same commit — the impl fix and the pin
+    fix are one change; hold the class closed with an fs-pin (zero Z-less
+    date-time literals under `tests/unit/`) and verify GREEN under three
+    timezones (UTC / the project locale / a far-western one). Do NOT pin
+    `TZ` in the vitest config to "fix" it — that silently converts the
+    NEXT TZ-coupled test into an always-pass; the honest gate fails loud
+    on the wrong host instead.
+54. **A structural fs-pin must bind the site it claims to protect — a
+    presence-only regex is satisfied by ANY occurrence (Task 132 F-2).**
+    The Task-131 fulfilment-seam pin asserted the file CONTAINED
+    `eq(inventory.storeSlug, fulfilStore)` somewhere; the availability lock
+    satisfied it alone, so a decrement rewritten to any other expression
+    passed both pins while check and decrement drifted apart — the exact
+    phantom-unit class the pin existed to close (demonstrated by temporary
+    mutation: the old pin stayed green on the mutated tree). Rule: an fs-pin
+    that guards a relationship BETWEEN two sites must count or slice the
+    occurrences so each site is bound ("exactly twice — lock AND
+    decrement"), and the pin-strengthening's RED vehicle is the mutation
+    demo: temporarily introduce the drift shape, observe the OLD pin stay
+    green (the blindness proven) and the NEW pin go RED, then revert.
 
 ## 13. Pitfalls to Avoid
 
@@ -945,5 +979,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (176) — 10 files |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (116) — 108 storefront + 8 mobile |
+| Unit suite | `tests/unit/*.test.ts` (177) — 10 files |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (117) — 109 storefront + 8 mobile |

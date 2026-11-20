@@ -62,6 +62,18 @@ export default function WishlistPage() {
           <p className="mt-1 text-[#5b5b5b]">The catalogue service didn’t answer. Your saved items are safe on this device.</p>
           <button onClick={() => window.location.reload()} className="mt-4 rounded-full bg-[#0058a3] px-6 py-3 text-[14px] font-bold text-white hover:bg-[#004382] focus-ring">Try again</button>
         </div>
+      ) : items.length === 0 && wishlist.length > 0 ? (
+        /* Task 132 F-3: the all-ghost state — every persisted slug has left
+           the catalogue. The pre-132 page rendered the true ghost note
+           directly above the FALSE "Nothing saved yet" (the user HAS saved
+           items; they departed) — browser-verified live. This branch explains
+           the state honestly instead; "Nothing saved yet" stays reserved for
+           a truly empty wishlist. */
+        <div className="mt-6 rounded-2xl bg-[#f5f3ee] p-10 text-center">
+          <p className="text-[20px] font-black">Your saved items are no longer available</p>
+          <p className="mt-1 text-[#5b5b5b]">Everything you saved has moved on from the range — browse the shop to save new favourites.</p>
+          <Link href="/shop" className="mt-4 inline-block rounded-full bg-[#0058a3] px-6 py-3 text-[14px] font-bold text-white">Discover favourites</Link>
+        </div>
       ) : items.length === 0 ? (
         <div className="mt-6 rounded-2xl bg-[#f5f3ee] p-10 text-center">
           <p className="text-[20px] font-black">Nothing saved yet</p>

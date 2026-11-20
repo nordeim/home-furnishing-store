@@ -2,7 +2,7 @@
 
 NORDHEM ships as a **single Next.js application over one PostgreSQL
 database**: one Node process plus Postgres, nothing else. This revision
-(2026-11-20, Tasks 115-131; counts re-pinned by the docs-counts test since
+(2026-11-20, Tasks 115-132; counts re-pinned by the docs-counts test since
 Task 131 F-7) replaces the inherited ElyBeauty-era guide wholesale —
 that document described Prisma + SQLite file databases, an
 `output: "standalone"` build with `.env` baking, `AUTH_SECRET` / Stripe /
@@ -28,9 +28,12 @@ static-catalogue fallback.
   selectors, flagged "Demo — no charge"). These are documented deferrals
   (`docs/implementation-plan.md`), not omissions to work around.
 - The build output is the plain `.next/` directory served by `next start`.
-  `next.config.ts` sets a single option — `allowedDevOrigins: ["127.0.0.1"]`,
-  the dev-mode HMR/hydration guard (irrelevant to the production build). There
-  is no standalone bundle assembly and no `.env` copying into the build.
+  `next.config.ts` sets three things: the platform security-header set
+  (X-Content-Type-Options, X-Frame-Options DENY, Referrer-Policy,
+  Permissions-Policy, HSTS) with `poweredByHeader: false` (Task 125 G-1,
+  e2e-pinned), and `allowedDevOrigins: ["127.0.0.1"]`, the dev-mode
+  HMR/hydration guard (irrelevant to the production build). There is no
+  standalone bundle assembly and no `.env` copying into the build.
 
 ## 2. Prerequisites
 
@@ -330,8 +333,8 @@ rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_
 npm run typecheck
 npm run typecheck:tests
 npm run lint                # 0 errors / 0 warnings expected
-npm run test                # 176/176 unit (Vitest, pure seams)
-npm run test:e2e            # 116/116 e2e — needs the live Postgres
+npm run test                # 177/177 unit (Vitest, pure seams; TZ-pure — the three-TZ run: UTC/Singapore/New_York)
+npm run test:e2e            # 117/117 e2e — needs the live Postgres
 ```
 
 One-time before e2e: `npm run test:e2e:install` (installs the pinned

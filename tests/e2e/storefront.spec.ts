@@ -34,6 +34,9 @@ const productJsonLd = async (page: import("@playwright/test").Page) =>
 // be deleted (the payload's lines may have been dropped or normalized by the
 // boundary, the inserted order_items are the only truth). No-op when the
 // probe placed nothing (the GREEN path).
+// Task 132 F-4: every write-capable spec uses its OWN probe email (the three
+// checkout-caps specs shared one pre-132 — two concurrent RED runs could read
+// the same rows before either deletes and double-restore the inventory).
 async function deleteProbeOrders(email: string): Promise<void> {
   const client = new Client({
     connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
@@ -432,6 +435,33 @@ test.describe("client resilience (fetch failure ≠ empty state)", () => {
     // difference instead of silently contradicting the badge.
     await expect(page.getByRole("link", { name: "Wishlist, 2 items" })).toBeVisible();
     await expect(page.getByText("1 saved item is no longer available")).toBeVisible();
+  });
+
+  test("wishlist all-ghost state explains itself — never 'Nothing saved yet' beside the ghost note (Task 132 F-3)", async ({ page }) => {
+    // Every persisted slug a ghost: the pre-132 page rendered the TRUE note
+    // ("2 saved items are no longer available.") directly above the FALSE
+    // empty-state copy ("Nothing saved yet — Tap the heart…") under a "(0)"
+    // heading — the user HAS saved items; they departed (browser-verified
+    // live pre-fix: the exact one-corner miss of the Task-131 F-1 note
+    // rollout, which handled singular/plural/loading/error/partial-ghost
+    // but not all-ghost).
+    await page.addInitScript(() => {
+      localStorage.setItem("nordhem_wish_v1", JSON.stringify(["ghost-product-1", "ghost-product-2"]));
+    });
+    await page.goto("/wishlist");
+    await expect(page.getByRole("heading", { name: "Your wishlist (0)" })).toBeVisible();
+    // The ghost note still explains the badge-vs-heading difference.
+    await expect(page.getByText("2 saved items are no longer available")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Wishlist, 2 items" })).toBeVisible();
+    // The contradictory "Nothing saved yet" must NOT render when saved
+    // (departed) items exist — that copy is only honest for a truly empty
+    // wishlist.
+    await expect(page.getByText("Nothing saved yet")).toHaveCount(0);
+    // The all-ghost branch explains the state honestly instead.
+    await expect(page.getByText("Your saved items are no longer available")).toBeVisible();
+    await expect(page.getByText(/moved on from the range/i)).toBeVisible();
+    // And the browse CTA is still offered.
+    await expect(page.getByRole("link", { name: "Discover favourites" })).toBeVisible();
   });
 
   test("search shows an error state (not 'No products found') when the API fails", async ({ page }) => {
@@ -1090,14 +1120,14 @@ test.describe("checkout API boundary (Task 120)", () => {
     // 300-char address was persisted verbatim by an unauthenticated writer.
     // Task 128 F-7: this was the one write-capable refusal spec without a
     // RED-run net — a regressed cap boundary would place a REAL order
-    // (caps-probe@nordhem.sg + a tampines decrement) and strand it in the
+    // (caps-fields-probe@nordhem.sg + a tampines decrement) and strand it in the
     // pinned DB. The net runs in finally (a net after a failed expect is
     // dead code — the Task-126 F-2 lesson).
     try {
       const res = await request.post("/api/checkout", {
         headers: { "x-forwarded-for": "10.9.121.3" },
         data: {
-          email: "caps-probe@nordhem.sg",
+          email: "caps-fields-probe@nordhem.sg",
           fullName: "Caps Probe",
           phone: "+65 91234567",
           address: `Blk 1 Testing Rd #01-01 ${"A".repeat(300)}`,
@@ -1109,7 +1139,7 @@ test.describe("checkout API boundary (Task 120)", () => {
       expect(res.status()).toBe(422);
       expect(body.error?.code).toBe("VALIDATION");
     } finally {
-      await deleteProbeOrders("caps-probe@nordhem.sg");
+      await deleteProbeOrders("caps-fields-probe@nordhem.sg");
     }
   });
 
@@ -1964,7 +1994,7 @@ test.describe("checkout payload caps (Task 122 F-7)", () => {
     const res = await request.post("/api/checkout", {
       headers: { "x-forwarded-for": "10.9.122.1" },
       data: {
-        email: "caps-probe@nordhem.sg",
+        email: "caps-promo-probe@nordhem.sg",
         fullName: "Caps Probe",
         phone: "+65 91234567",
         address: "Blk 1 Testing Rd #01-01",
@@ -1978,7 +2008,7 @@ test.describe("checkout payload caps (Task 122 F-7)", () => {
     } finally {
       // Task 126 F-2 RED-run safety net (gotcha #13): a 201 needs BOTH the cap
       // and the unknown-promo refusal to break — uniform insurance regardless.
-      await deleteProbeOrders("caps-probe@nordhem.sg");
+      await deleteProbeOrders("caps-promo-probe@nordhem.sg");
     }
   });
 
@@ -1987,7 +2017,7 @@ test.describe("checkout payload caps (Task 122 F-7)", () => {
     const res = await request.post("/api/checkout", {
       headers: { "x-forwarded-for": "10.9.122.2" },
       data: {
-        email: "caps-probe@nordhem.sg",
+        email: "caps-lines-probe@nordhem.sg",
         fullName: "Caps Probe",
         phone: "+65 91234567",
         address: "Blk 1 Testing Rd #01-01",
@@ -2002,7 +2032,7 @@ test.describe("checkout payload caps (Task 122 F-7)", () => {
       // cycle's backfill — with the cap reverted the probe genuinely placed a
       // 101-row order (products 1–20, tampines); the net re-derives the
       // decrement from the inserted rows and restores it.
-      await deleteProbeOrders("caps-probe@nordhem.sg");
+      await deleteProbeOrders("caps-lines-probe@nordhem.sg");
     }
   });
 });

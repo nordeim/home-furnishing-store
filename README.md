@@ -164,12 +164,12 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 176 tests at the pure seams
+npm run test             # Vitest unit — 177 tests at the pure seams
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 116 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 117 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
@@ -244,7 +244,7 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 176 unit + 116 e2e, all green | NORDHEM-native harness (Tasks 114/117–131); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131) |
+| Test suite | ✅ 177 unit + 117 e2e, all green | NORDHEM-native harness (Tasks 114/117–132); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131; the unit tree is TZ-pure since Task 132 — verified by the three-TZ run) |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
@@ -280,6 +280,36 @@ verified TRUE (all ten Task-128 seams held; the reference repo stayed
 quiescent with md5-identical catalogs — nothing to port, fifth cycle).
 Suite grew to 163 unit + 113 e2e. Details in `worklog.md` and
 `docs/plans/2026-11-20-task129-remediation-plan.md`.
+
+Current cycle (2026-11-20, Task 132): fresh-clone workspace re-audit (the
+sandbox had been reset — node_modules/.env rebuilt, the rootless PostgreSQL
+data dir needed its lesson-31 empty-subdirectory restore; mobile-nav taxonomy
+8/8 at 390/1440 — no Tailwind v4 bug; hydration live-verified; sitemap 42
+URLs, robots coherent, og dimensions live-verified on home + PDP +
+inspiration; baseline gates green at 176/116 with zero DB residue; the
+reference repo quiescent — eighth cycle of "nothing to port") that caught
+**the unit gate being timezone-coupled** (two pins had survived the
+Task-127/128 getUTC\* swaps as the old idiom: the orderNumber "today" pin
+derived its expectation with LOCAL getters — a false RED 8h/day on
+Asia/Singapore hosts, the project's own locale — and the campaignEnd pins
+built instants from Z-less date-time literals, a deterministic false RED on
+every host UTC−5 and further west, observed live on `TZ=America/New_York`;
+both TZ-pured, a new fs-pin holds the whole unit tree to Z-suffixed
+literals, and the GREEN discipline is the three-TZ run —
+UTC/Singapore/New_York pass identically), **the fulfilment-seam pin not
+binding the decrement** (the Task-131 presence-only regex was satisfied by
+the availability lock alone — a decrement drift passed both pins;
+demonstrated by temporary mutation, the clause must now occur exactly twice:
+lock AND decrement), **the wishlist all-ghost contradiction** ("2 saved
+items are no longer available." rendered directly above "Nothing saved yet"
+— browser-verified live; the all-ghost branch now explains the state,
+e2e-pinned), **the shared probe email** (the three checkout-caps specs
+shared one — a concurrent-RED double-restore window; each spec now mints
+its own), and a docs-truth pass (DEPLOYMENT.md's "single option"
+next.config claim — false since Task 125's security headers; the PAD's two
+"114–130" era ranges; the SKILL preamble's cycle enumeration stopping at
+129). Suite grew to 177 unit + 117 e2e. Details in `worklog.md` and
+`docs/plans/2026-11-20-task132-remediation-plan.md`.
 
 Current cycle (2026-11-20, Task 131): workspace-refresh re-audit (mobile-nav
 taxonomy re-verified clean at 390/1440 — no Tailwind v4 bug; hydration

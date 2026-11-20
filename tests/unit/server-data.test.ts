@@ -27,8 +27,15 @@ it("the fulfilment-store default is derived EXACTLY ONCE (the fulfilStore seam)"
 });
 
 it("the decrement reads the fulfilStore seam, not its own store derivation", () => {
-  // The decrement's where-clause must bind to `fulfilStore` — the same
-  // identifier the lock/availability query reads (check/decrement coherence
-  // by construction, not by coincidence of identical expressions).
-  expect(SOURCE).toMatch(/eq\(inventory\.storeSlug, fulfilStore\)/);
+  // Task 132 F-2: the pre-132 pin only asserted the file CONTAINED
+  // `eq(inventory.storeSlug, fulfilStore)` somewhere — the lock/availability
+  // query satisfied it alone, so a decrement rewritten to any OTHER
+  // expression (e.g. reading input.storeSlug directly, no default
+  // re-derivation) passed BOTH pins while check and decrement drifted apart
+  // (the Task-130 F-2 phantom-unit class; demonstrated by temporary mutation
+  // — the old pin stayed green on the mutated tree). The strengthened pin
+  // binds BOTH sites: the clause must occur EXACTLY TWICE — once in the
+  // availability lock, once in the decrement.
+  const occurrences = SOURCE.match(/eq\(inventory\.storeSlug, fulfilStore\)/g) ?? [];
+  expect(occurrences.length, "placeOrder must read the fulfilStore seam at BOTH the availability lock and the decrement — exactly two occurrences (check/decrement coherence by structure)").toBe(2);
 });

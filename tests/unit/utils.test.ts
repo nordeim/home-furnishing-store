@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex, campaignEnd, campaignEndLabel, sgTomorrowISO, sortProductList, DELIVERY_SLOTS, isValidDeliverySlot, availableDeliverySlots, jsonLdScript, IDEMPOTENCY_KEY_RE, mintIdempotencyKey, isUniqueViolationOn } from "@/lib/utils";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 describe("formatSGD", () => {
@@ -108,9 +108,15 @@ describe("clampInt", () => {
 
 describe("orderNumber (SGT date segment — Task 123 F-12)", () => {
   it("matches NH-YYYYMMDD-XXXXXX with today's SGT date", () => {
+    // Task 132 F-1: the expectation must read getUTC* on the shifted instant
+    // (mirroring the impl, Task 128 F-4). The pre-132 LOCAL getters made this
+    // pin timezone-coupled: on an Asia/Singapore host the expectation and the
+    // mint diverged 08:00–15:59 UTC every day (the project's own locale), on
+    // America/New_York 16:00–20:59 UTC — a false-RED unit gate on non-UTC
+    // hosts while the impl itself is TZ-pure.
     const n = orderNumber();
     const sgt = new Date(Date.now() + 8 * 3_600_000);
-    const ymd = `${sgt.getFullYear()}${String(sgt.getMonth() + 1).padStart(2, "0")}${String(sgt.getDate()).padStart(2, "0")}`;
+    const ymd = `${sgt.getUTCFullYear()}${String(sgt.getUTCMonth() + 1).padStart(2, "0")}${String(sgt.getUTCDate()).padStart(2, "0")}`;
     expect(n).toMatch(new RegExp(`^NH-${ymd}-[A-Z0-9]{6}$`));
   });
 
@@ -376,21 +382,28 @@ describe("sgTomorrowISO (Task 122 F-1 — the skipped Task-121 F-10)", () => {
 });
 
 describe("campaignEnd / campaignEndLabel (Task 121 F-19)", () => {
+  // Task 132 F-1: every instant below is Z-suffixed. The pre-132 Z-less
+  // forms parsed as LOCAL time — on America/New_York the 2026-12-27T12:00:00
+  // instant was 17:00Z (past the Dec-27-16:00Z campaign end), so campaignEnd
+  // correctly answered 2027 while this pin demanded 2026: a deterministic
+  // false RED on every host UTC−5 and further west (observed live). The
+  // sibling Task-127 pins below already used Z — the pre-127 idiom had
+  // survived in this pre-127 block.
   it("returns 28 Dec of the current year before the campaign ends", () => {
-    expect(campaignEnd(new Date("2026-11-19T12:00:00")).getFullYear()).toBe(2026);
-    expect(campaignEnd(new Date("2026-12-27T12:00:00")).getFullYear()).toBe(2026);
+    expect(campaignEnd(new Date("2026-11-19T12:00:00Z")).getFullYear()).toBe(2026);
+    expect(campaignEnd(new Date("2026-12-27T12:00:00Z")).getFullYear()).toBe(2026);
   });
 
   it("rolls to next year inside the Dec 29–31 stale window", () => {
-    expect(campaignEnd(new Date("2026-12-29T00:00:00")).getFullYear()).toBe(2027);
-    expect(campaignEnd(new Date("2026-12-31T23:00:00")).getFullYear()).toBe(2027);
-    expect(campaignEnd(new Date("2027-01-05T00:00:00")).getFullYear()).toBe(2027);
+    expect(campaignEnd(new Date("2026-12-29T00:00:00Z")).getFullYear()).toBe(2027);
+    expect(campaignEnd(new Date("2026-12-31T23:00:00Z")).getFullYear()).toBe(2027);
+    expect(campaignEnd(new Date("2027-01-05T00:00:00Z")).getFullYear()).toBe(2027);
   });
 
   it("renders the en-SG label for any now (the visible text never goes stale)", () => {
-    expect(campaignEndLabel(new Date("2026-11-19T12:00:00"))).toBe("28 Dec");
-    expect(campaignEndLabel(new Date("2026-12-30T12:00:00"))).toBe("28 Dec");
-    expect(campaignEndLabel(new Date("2027-02-01T12:00:00"))).toBe("28 Dec");
+    expect(campaignEndLabel(new Date("2026-11-19T12:00:00Z"))).toBe("28 Dec");
+    expect(campaignEndLabel(new Date("2026-12-30T12:00:00Z"))).toBe("28 Dec");
+    expect(campaignEndLabel(new Date("2027-02-01T12:00:00Z"))).toBe("28 Dec");
   });
 });
 
@@ -622,5 +635,29 @@ describe("isUniqueViolationOn (Task 130 F-4)", () => {
     expect(isUniqueViolationOn(Object.assign(new Error("x"), { code: "23503", constraint: "orders_order_number_unique" }), "orders_order_number_unique")).toBe(false);
     expect(isUniqueViolationOn(null, "orders_order_number_unique")).toBe(false);
     expect(isUniqueViolationOn("23505", "orders_order_number_unique")).toBe(false);
+  });
+});
+
+describe("TZ-pure test tree (Task 132 F-1)", () => {
+  it("no Z-less date-time literals exist under tests/unit (host-TZ-coupled instants)", () => {
+    // ECMAScript parses a date-TIME literal without a timezone designator as
+    // LOCAL time, so any pin built on one is coupled to the host clock — the
+    // Task-132 F-1 class: the campaignEnd pins were a deterministic false RED
+    // on America/New_York hosts and the orderNumber "today" pin's local-getter
+    // expectation diverged from the TZ-pure impl 8h/day on Asia/Singapore
+    // (the project's own locale; "there is no hosted CI — the local gate is
+    // the only gate"). This fs-pin holds the whole unit tree to the
+    // Z-suffixed discipline the Task-127 SGT pins established. Date-ONLY
+    // literals are UTC by spec and stay legal. The scan includes this file;
+    // the pattern source below cannot match itself (its paren is escaped).
+    const dir = import.meta.dirname;
+    const files = readdirSync(dir).filter((f) => f.endsWith(".test.ts"));
+    const zless: string[] = [];
+    for (const f of files) {
+      const src = readFileSync(resolve(dir, f), "utf8");
+      const hits = src.match(/new Date\("[^"\n]*T\d{2}:\d{2}:\d{2}(?![Zz]|[+-]\d{2}:?\d{2})[^"\n]*"\)/g);
+      if (hits) zless.push(...hits.map((h) => `${f}: ${h}`));
+    }
+    expect(zless, "date-time literals without a timezone designator parse as LOCAL time — suffix them with Z (the sibling SGT pins' discipline)").toEqual([]);
   });
 });

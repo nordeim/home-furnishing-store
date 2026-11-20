@@ -22,11 +22,11 @@ ORM + PostgreSQL.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
-| `npm run test` | Vitest unit suite (176 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
-| `npm run test:e2e` | Playwright e2e (116 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
+| `npm run test` | Vitest unit suite (177 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD + the TZ-pure-tree fs-pin) |
+| `npm run test:e2e` | Playwright e2e (117 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
-The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–131):
+The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–132):
 `tests/unit` (10 files) + `tests/e2e` (mobile-navigation + storefront specs
 incl. the fetch-failure resilience pair, the API rate-limit pins, PDP badge
 dedupe, cart promo persistence, JSON-LD live-inventory + LOW_STOCK commerce
@@ -232,10 +232,38 @@ snapshot/restore pair), and the **DEPLOYMENT.md docs-counts extension**
 (its gate chain had rotted to a five-cycle-old 79/79 + 34/34 outside the
 pin's scope; the sixth-doc scope makes the class unrecurrable).
 
+And the Task-132 pins: the **TZ-pure test tree** (two unit
+pins had survived the Task-127/128 getUTC\* swaps as the OLD idiom — the
+orderNumber "today" pin derived its expectation with LOCAL getters on the
+shifted instant (a false RED 8h/day on Asia/Singapore hosts — the project's
+own locale — and 16:00–20:59 UTC on America/New_York) and the campaignEnd
+pins built instants from Z-less date-time literals (parsed as LOCAL time; a
+deterministic false RED on every host UTC−5 and further west, observed live
+on `TZ=America/New_York`); both fixed to the impl's discipline + a NEW
+fs-pin holds the whole unit tree to Z-suffixed date-time literals — and the
+GREEN verification is the three-TZ run: `TZ=UTC`, `TZ=Asia/Singapore` and
+`TZ=America/New_York` must all pass identically; NO `TZ` pin in
+`vitest.config.ts` — a pinned TZ would convert any future TZ-coupled test
+into a silent always-pass), the **fulfilment-seam pin strengthening** (the
+Task-131 pin only asserted the file contained `eq(inventory.storeSlug,
+fulfilStore)` SOMEWHERE — the availability lock satisfied it alone; a
+decrement rewritten to any other expression passed both pins while check and
+decrement drifted apart — demonstrated by temporary mutation; the clause
+must now occur EXACTLY TWICE: lock AND decrement), the **wishlist all-ghost
+honesty** (the Task-131 note rollout handled singular/plural/loading/error/
+partial-ghost but not the all-ghost corner: "2 saved items are no longer
+available." rendered directly above "Nothing saved yet" — browser-verified
+live; the all-ghost branch now explains the state and "Nothing saved yet" is
+reserved for a truly empty wishlist, e2e-pinned), and the **probe-email
+uniqueness** (the three checkout-caps specs shared one probe email — two
+concurrent RED runs could double-restore inventory through the shared
+deleteProbeOrders nets; each spec now mints its own).
+
 **Test counts are documentation claims, pinned by test** (Task 119):
 `tests/unit/docs-counts.test.ts` fs-computes the real counts and fails the run
-if any live-tense claim in AGENTS/README/CLAUDE/SKILL disagrees — change the
-docs in the same commit as any test change (count-lockstep, no exceptions).
+if any live-tense claim in AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT disagrees
+(six docs since Task 131) — change the docs in the same commit as any test
+change (count-lockstep, no exceptions).
 
 ## Pin map (the claims tests enforce — the Task-130 adopted candidate)
 
@@ -246,8 +274,8 @@ docs in the same commit as any test change (count-lockstep, no exceptions).
 | The Tailwind candidate-scan guard present in `globals.css` | `tests/unit/tailwind-scan-guard.test.ts` |
 | SEO policy coherence (robots vs sitemap, `SITE_ORIGIN`, no raw origin literal in `src/app`) | `tests/unit/robots-sitemap.test.ts` |
 | `PERSISTED_STORAGE_KEYS` covers every `createLocalStore` producer under `src/` | `tests/unit/local-store.test.ts` (producer-side fs-scan) |
-| placeOrder fulfilment seam (one store-default derivation; decrement reads `fulfilStore`) | `tests/unit/server-data.test.ts` |
-| The checkout route consumes the exported `IDEMPOTENCY_KEY_RE` shape | `tests/unit/utils.test.ts` (fs-pin) |
+| placeOrder fulfilment seam (one store-default derivation; `fulfilStore` read at BOTH the availability lock and the decrement — exactly two occurrences) | `tests/unit/server-data.test.ts` |
+| The checkout route consumes the exported `IDEMPOTENCY_KEY_RE` shape; the unit tree stays TZ-pure (no Z-less date-time literals) | `tests/unit/utils.test.ts` (fs-pins) |
 
 ## Hard-won gotchas (read before changing anything)
 
@@ -357,8 +385,8 @@ When adding tests, pin them to this `src/` — never resurrect ely-beauty specs.
 rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db" npm run build
 npm run typecheck
 npm run lint          # 0 errors expected (the 7-error lint debt was fixed in Task 114)
-npm run test          # 176/176 unit
-npm run test:e2e      # 116/116 e2e (needs a live Postgres for the checkout journey)
+npm run test          # 177/177 unit
+npm run test:e2e      # 117/117 e2e (needs a live Postgres for the checkout journey)
 ```
 
 There is no hosted CI; the local gate is the only gate.
