@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 2.8.0
-last_updated: "2026-11-20 (Task 134: cart-duplicate e2e parity, order-URL decode pin, stepper ceiling state, addLine floor clamp, TZ-pin widening, docs gate truth)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 180/180 unit (TZ-pure — verified UTC/Singapore/New_York; the fs-pin covers all three quote forms + fractional seconds since Task 134) · 125/125 e2e · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
+version: 2.9.0
+last_updated: "2026-11-20 (Task 135: qty-writer clamp parity, API cat/sort boundary stance, envelope-trust gate, docs truth)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 183/183 unit (TZ-pure — verified UTC/Singapore/New_York; the fs-pin covers all three quote forms + fractional seconds since Task 134) · 129/129 e2e · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -28,10 +28,11 @@ project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 180/180 
 > fulfilment-pin-binding/wishlist-all-ghost/probe-email-uniqueness cycle, the
 > Task 133 reviews-int4-overflow-bound/typeqty-residue-net-completion/
 > persisted-payload-uniqueness/order-lookup-normalization-parity/pin-
-> hardening cycle, and the Task 134 cart-duplicate-e2e-parity/order-URL-
+> hardening cycle, the Task 134 cart-duplicate-e2e-parity/order-URL-
 > decode-pin/stepper-ceiling-state/addLine-floor-clamp/TZ-pin-widening/docs-
-> gate-truth cycle. `AGENTS.md` is the quick operator
-> reference, the PAD is the full blueprint, and this skill is the
+> gate-truth cycle, and the Task 135 qty-writer-clamp-parity/API-cat-sort-
+> boundary-stance/envelope-trust-gate/docs-truth cycle. `AGENTS.md` is the
+> quick operator reference, the PAD is the full blueprint, and this skill is the
 > pattern/lesson layer an agent needs before touching the code. When code and
 > this document disagree, **the code wins** — then fix this document in the
 > same commit.
@@ -103,8 +104,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 180/180
-npm run test:e2e                                               # 125/125 (live Postgres for the journey)
+npm run test                                                   # 183/183
+npm run test:e2e                                               # 129/129 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -924,6 +925,33 @@ Task 131).
     the guard — the observable (which layer answers, with what status) is
     the pin; the unreachable guard stays as depth with an honest comment,
     and the platform-owned class becomes a register row, not a code fix.
+59. **A clamp shipped as literal Math.min/Math.max forms is one edge short
+    of NaN — route every qty writer through the shared isFinite clamp seam
+    (Task 135 F-1).** The Task-134 floor fix (`Math.min(99, Math.max(1, …))`)
+    looked complete — but `Math.max(1, NaN)` is NaN (stores NaN) and
+    `Math.max(1, 3.7)` is 3.7 (stores a fractional qty), and the sibling
+    writer `setLineQty` (`Math.min(99, Math.floor(qty))`) floored 0.5 to a
+    qty-0 line that violated the store's own load predicate. The project
+    already had the answer: `clampInt` (floor + isFinite guard + min/max)
+    at the server's qty seams. Rule: when the same domain value is
+    written at N seams and one seam has the stronger guard, don't
+    replicate the weaker literal at the others — route all N through the
+    one seam and fs-pin the routing so a future writer cannot silently
+    regress to the literal form.
+60. **An envelope's `ok` is not a resolution — the consumer must verify the
+    `data` shape before treating absence as empty (Task 135 F-5).** Both
+    client pages read `json.data ?? []`: a well-formed 200 `{ok:true}`
+    with NO `data` (contract violation, not network failure) rendered
+    the wishlist's FALSE all-ghost note and search's false "0 results"
+    verdict — customer-facing claims derived from a resolution that never
+    happened. The fetch-failure pair pinned the network-error class but
+    left the body-shape class open; the Task-128 boundary discipline
+    (guard the body's SHAPE, not just its parseability) applies client-side
+    too. Rule: `ok !== resolved` — gate every consumer on
+    `Array.isArray(json.data)` (or the shape the contract promises) and
+    let the malformed envelope take the error path; pin it with
+    route-fulfilled contract-violating bodies beside the abort-based
+    siblings.
 
 ## 13. Pitfalls to Avoid
 
@@ -1046,8 +1074,8 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | Commands & gotchas | `AGENTS.md` |
 | Architecture detail | `Project_Architecture_Document.md` |
 | Decision record | `docs/implementation-plan.md` |
-| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-20-task134-remediation-plan.md` (19 plans: Tasks 114, 117–134) |
-| Screenshots | `docs/screenshots/01…89-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 90 PNGs) |
+| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-20-task135-remediation-plan.md` (20 plans: Tasks 114, 117–135) |
+| Screenshots | `docs/screenshots/01…94-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 95 PNGs) |
 | SSH push runbook | `docs/how-to-git-push-using-ssh-wrapper_SKILL.md` |
 | Working history | `worklog.md` (Tasks 113+ NORDHEM; the 1–112 predecessor lineage was operator-trimmed) |
 | Money/validators | `src/lib/utils.ts` |
@@ -1056,5 +1084,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (180) — 10 files |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (125) — 117 storefront + 8 mobile |
+| Unit suite | `tests/unit/*.test.ts` (183) — 10 files |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (129) — 121 storefront + 8 mobile |

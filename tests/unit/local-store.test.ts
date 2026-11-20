@@ -209,23 +209,41 @@ describe("createLocalStore (localStorage-backed external store)", () => {
     });
   });
 
-  // Task 134 F-4: addLine's found-branch clamped only its ceiling — a
-  // programmatic add(line, -5) on an existing line stored a negative qty
-  // (in-memory negative badge/subtotal until reload, where the load-time
-  // predicate degrades the payload). No UI path passes a negative qty
-  // (BuyBox/ProductCard pass >= 1), so this is hardening — but the found
-  // branch must carry the same Math.max(1, ...) floor its new-line sibling
-  // has had since the store shipped. addLine is module-internal (not an
-  // exportable pure seam), so the pin is the fs-scan — the
-  // server-data.test.ts fulfilment-seam precedent.
-  describe("addLine qty clamping (Task 134 F-4)", () => {
-    it("BOTH addLine branches clamp at the floor and the ceiling (fs-pin)", () => {
+  // Task 134 F-4 → Task 135 F-1: the qty-writer clamps. Task 134 fixed
+  // addLine's found-branch floor (a programmatic add(line, -5) stored a
+  // negative qty); Task 135 completed the writer set — setLineQty still read
+  // Math.min(99, Math.floor(qty)) (a setQty(id, 0.5) stored a qty-0 line;
+  // setQty(id, NaN) stored NaN) and the Task-134 literal forms themselves
+  // never covered the non-finite/fractional class (Math.max(1, NaN) is NaN,
+  // Math.max(1, 3.7) is 3.7). placeOrder and the checkout route already
+  // route every qty through the shared NaN-safe clampInt seam (utils.ts —
+  // floor + isFinite guard + min/max); the cart-store writers were the last
+  // qty seams outside it. All three writers now carry the same seam, the
+  // pre-135 literal forms are retired (so the class cannot silently regress
+  // one writer again), and the pin stays the fs-scan — the writers are
+  // module-internal (not exportable pure seams), the server-data.test.ts
+  // fulfilment-seam precedent.
+  describe("qty-writer clamp parity (Task 134 F-4 + Task 135 F-1)", () => {
+    it("EVERY cart-store qty writer goes through the clampInt seam (fs-pin)", () => {
       const src = fs.readFileSync(path.resolve(import.meta.dirname, "../../src/lib/cart-store.tsx"), "utf8");
-      // The new-line branch (the original form):
-      expect(src, "the new-line branch keeps its floor+ceiling clamp").toContain("qty: Math.min(99, Math.max(1, qty))");
-      // The found-branch (Task 134 F-4 — pre-fix it read Math.min(99, l.qty + qty)):
-      expect(src, "the found-branch clamps at the floor too").toContain("qty: Math.min(99, Math.max(1, l.qty + qty))");
-      // The unclamped found-branch form must be gone entirely.
+      // The seam must be imported from utils (not re-implemented inline).
+      expect(src, "clampInt is imported from the utils seam").toContain('clampInt } from "@/lib/utils"');
+      // addLine's found-branch (Task 134 F-4's writer, re-routed through the seam):
+      expect(src, "the found-branch clamps through clampInt").toContain("qty: clampInt(l.qty + qty, 1, 99, 1)");
+      // addLine's new-line branch:
+      expect(src, "the new-line branch clamps through clampInt").toContain("{ ...line, qty: clampInt(qty, 1, 99, 1) }");
+      // setLineQty's map branch (Task 135 F-1 — pre-fix it read Math.min(99, Math.floor(qty))):
+      expect(src, "setLineQty clamps through clampInt").toContain("{ ...l, qty: clampInt(qty, 1, 99, 1) }");
+    });
+
+    it("the pre-135 clamp forms are retired from every writer (fs-pin)", () => {
+      const src = fs.readFileSync(path.resolve(import.meta.dirname, "../../src/lib/cart-store.tsx"), "utf8");
+      // setLineQty's unguarded floor form (qty 0.5 floored to 0; NaN passed through):
+      expect(src, "the bare Math.min(99, Math.floor(qty)) form is retired").not.toContain("Math.min(99, Math.floor(qty))");
+      // The Task-134 literal forms (no isFinite guard — NaN passed Math.max(1, NaN)):
+      expect(src, "the literal new-line clamp form is retired").not.toContain("Math.min(99, Math.max(1, qty))");
+      expect(src, "the literal found-branch clamp form is retired").not.toContain("Math.min(99, Math.max(1, l.qty + qty))");
+      // The pre-Task-134 unclamped found-branch form stays retired too.
       expect(src, "the unclamped found-branch form is retired").not.toContain("Math.min(99, l.qty + qty)");
     });
   });

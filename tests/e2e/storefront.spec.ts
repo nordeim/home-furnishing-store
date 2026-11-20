@@ -213,6 +213,46 @@ test.describe("API envelope", () => {
     expect(json.data.every((p) => p.priceCents <= 25000)).toBe(true);
   });
 
+  test("products API refuses an unknown cat with 422, never a fake empty catalogue (Task 135 F-2)", async ({ request }) => {
+    // The ?max stance applied to its sibling params: ?cat=zzz used to answer
+    // 200 {ok:true, data:[]} — a typo'd category masquerading as a legitimately
+    // empty catalogue. The shop PAGE keeps its graceful URL-driven posture
+    // (degrade, never fail); only the API boundary hardens.
+    const res = await request.get("/api/products?cat=zzz");
+    expect(res.status()).toBe(422);
+    const json = (await res.json()) as { ok: boolean; error: { code: string; message: string } };
+    expect(json.ok).toBe(false);
+    expect(json.error.code).toBe("VALIDATION");
+    // A KNOWN category still answers 200 with the filtered set (the positive
+    // control — the existing filters-and-sorts spec covers cat=dining, this
+    // pins the boundary against the whitelist overreach).
+    const ok = await request.get("/api/products?cat=dining");
+    expect(ok.status()).toBe(200);
+    const okJson = (await ok.json()) as { ok: boolean; data: unknown[] };
+    expect(okJson.ok).toBe(true);
+    expect(okJson.data.length).toBeGreaterThan(0);
+  });
+
+  test("products API refuses an unknown sort with 422, never a silent unsorted 200 (Task 135 F-2)", async ({ request }) => {
+    // ?sort=zzz fell through sortProductList as an unsorted 200 (the seam's
+    // documented pass-through) — the BOUNDARY must refuse what the seam merely
+    // tolerates, the ?max discipline. The sort whitelist is the shared
+    // SORT_KEYS seam (utils.ts), pinned against the shop display list by a
+    // unit fs-pin.
+    const res = await request.get("/api/products?sort=zzz");
+    expect(res.status()).toBe(422);
+    const json = (await res.json()) as { ok: boolean; error: { code: string; message: string } };
+    expect(json.ok).toBe(false);
+    expect(json.error.code).toBe("VALIDATION");
+    // Every LEGITIMATE sort key stays 200 (the full whitelist sweep — a
+    // future key added to the shop display list without the seam update
+    // would 422 a legitimately offered option, the drift class).
+    for (const good of ["featured", "popular", "price-asc", "price-desc", "rating", "new"]) {
+      const ok = await request.get(`/api/products?sort=${good}`);
+      expect(ok.status(), `sort=${good}`).toBe(200);
+    }
+  });
+
   test("products API keyword recall matches the shop-SSR seam (Task 123 F-5)", async ({ request }) => {
     // The API filter matched name/tagline/description/sku only, while the
     // shop SSR seam (searchProducts) also matches categorySlug — verified
@@ -555,6 +595,42 @@ test.describe("client resilience (fetch failure ≠ empty state)", () => {
     await expect(page.locator("main").getByRole("alert")).toBeVisible();
     await expect(page.getByText(/couldn.?t load results/i)).toBeVisible();
     await expect(page.getByText(/No products found/)).toHaveCount(0);
+  });
+
+  test("wishlist treats an ok-but-dataless envelope as an error, never the false all-ghost note (Task 135 F-5)", async ({ page }) => {
+    // The Task-119 fetch-failure pair intercepts network ERRORS; this probe
+    // intercepts a WELL-FORMED-STATUS but envelope-contract-violating body —
+    // a 200 {ok:true} with NO data. The page used to read json.data ?? []
+    // and treat the body-less envelope as a RESOLVED-empty catalogue,
+    // rendering the FALSE "Your saved items are no longer available" ghost
+    // note (the exact false claim the Task-132 F-3 branch was built to
+    // prevent). A saved-item state + a data-less ok is an error, never a
+    // resolution.
+    await page.addInitScript(() => {
+      localStorage.setItem("nordhem_wish_v1", JSON.stringify(["solbakken-3-seat-sofa"]));
+    });
+    await page.route("**/api/products", (route) => route.fulfill({ status: 200, body: JSON.stringify({ ok: true }) }));
+    await page.goto("/wishlist");
+    await expect(page.locator("main").getByRole("alert")).toBeVisible();
+    await expect(page.getByText(/couldn.?t load your wishlist/i)).toBeVisible();
+    // The FALSE all-ghost claim must not render (items were saved; the
+    // catalogue answer was malformed, not "every product departed").
+    await expect(page.getByText("Your saved items are no longer available")).toHaveCount(0);
+    await expect(page.getByText("Nothing saved yet")).toHaveCount(0);
+    // The heading keeps the persisted count (resolution unknowable).
+    await expect(page.getByRole("heading", { name: /Your wishlist \(1\)/ })).toBeVisible();
+  });
+
+  test("search treats an ok-but-dataless envelope as an error, never a false 0-results verdict (Task 135 F-5)", async ({ page }) => {
+    // The search sibling of the probe above: json.data ?? [] turned a
+    // body-less ok into a false "0 results for X" + "No products found"
+    // verdict. The verdict belongs to a RESOLVED catalogue answer only.
+    await page.route("**/api/products*", (route) => route.fulfill({ status: 200, body: JSON.stringify({ ok: true }) }));
+    await page.goto("/search?q=sofa");
+    await expect(page.locator("main").getByRole("alert")).toBeVisible();
+    await expect(page.getByText(/couldn.?t load results/i)).toBeVisible();
+    await expect(page.getByText(/No products found/)).toHaveCount(0);
+    await expect(page.getByText(/results? for/)).toHaveCount(0);
   });
 });
 

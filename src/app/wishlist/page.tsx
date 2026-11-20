@@ -20,8 +20,16 @@ export default function WishlistPage() {
         setError(false);
         const res = await fetch("/api/products");
         const json = (await res.json()) as { ok: boolean; data?: CardProduct[] };
-        if (!cancelled && json.ok) {
-          setItems((json.data ?? []).filter((p) => wishlist.includes(p.slug)).map((p) => ({ ...p, ratingAvg: String(p.ratingAvg) })));
+        // Task 135 F-5: the envelope contract is { ok, data } — an ok:true
+        // body WITHOUT an array data (a contract-violating but well-formed
+        // response) must be an ERROR, never a "resolved empty catalogue":
+        // json.data ?? [] used to render the FALSE all-ghost note ("Your
+        // saved items are no longer available") for a saved-item state whose
+        // resolution never happened. The fetch-failure posture (Task 119)
+        // applied to the body-shape class (the Task-128 boundary discipline,
+        // mirrored client-side).
+        if (!cancelled && json.ok && Array.isArray(json.data)) {
+          setItems(json.data.filter((p) => wishlist.includes(p.slug)).map((p) => ({ ...p, ratingAvg: String(p.ratingAvg) })));
         } else if (!cancelled) {
           setError(true);
         }

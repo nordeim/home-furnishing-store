@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex, campaignEnd, campaignEndLabel, sgTomorrowISO, sortProductList, DELIVERY_SLOTS, isValidDeliverySlot, availableDeliverySlots, jsonLdScript, IDEMPOTENCY_KEY_RE, mintIdempotencyKey, isUniqueViolationOn } from "@/lib/utils";
+import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex, campaignEnd, campaignEndLabel, sgTomorrowISO, sortProductList, SORT_KEYS, DELIVERY_SLOTS, isValidDeliverySlot, availableDeliverySlots, jsonLdScript, IDEMPOTENCY_KEY_RE, mintIdempotencyKey, isUniqueViolationOn } from "@/lib/utils";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -486,6 +486,34 @@ describe("sortProductList (the shared display-sort seam — Task 122 F-6)", () =
     const before = JSON.stringify(rows);
     sortProductList(rows, "price-asc");
     expect(JSON.stringify(rows)).toBe(before);
+  });
+});
+
+describe("SORT_KEYS (the display-sort whitelist seam — Task 135 F-2)", () => {
+  it("covers every branch sortProductList implements (no dead whitelist entries)", () => {
+    // The whitelist backs the /api/products ?sort= boundary; a key listed
+    // but unimplemented would 422 nothing and mean nothing (the reverse
+    // drift is covered by the shop-inner pin below).
+    expect(SORT_KEYS).toContain("featured");
+    expect(SORT_KEYS).toContain("popular");
+    expect(SORT_KEYS).toContain("price-asc");
+    expect(SORT_KEYS).toContain("price-desc");
+    expect(SORT_KEYS).toContain("rating");
+    expect(SORT_KEYS).toContain("new");
+  });
+
+  it("every shop display sort is a member — the UI cannot offer what the boundary refuses (fs-pin)", () => {
+    // The storeName/store-list derivation discipline: the route's whitelist
+    // and the shop picker's display list must not drift — a future sort key
+    // added to shop-inner.tsx without the SORT_KEYS seam update would 422 a
+    // legitimately offered option the moment a shopper picks it. Resolve
+    // from this file's location, not cwd (the Task-129 fs-pin precedent).
+    const src = readFileSync(resolve(import.meta.dirname, "../../src/app/shop/shop-inner.tsx"), "utf8");
+    const offered = [...src.matchAll(/v: "([a-z-]+)"/g)].map((m) => m[1]);
+    expect(offered.length, "the shop display list is the six-sort const").toBeGreaterThanOrEqual(6);
+    for (const v of offered) {
+      expect(SORT_KEYS, `the shop offers ${v} — the seam must admit it`).toContain(v);
+    }
   });
 });
 

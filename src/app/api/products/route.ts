@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAllProducts } from "@/lib/server-data";
-import { matchesProductQuery } from "@/lib/catalog";
-import { sortProductList } from "@/lib/utils";
+import { CATEGORIES, matchesProductQuery } from "@/lib/catalog";
+import { sortProductList, SORT_KEYS } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +23,18 @@ export async function GET(req: Request) {
     if (rawMax !== null && !/^\d+$/.test(rawMax))
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "max must be a whole dollar amount." } }, { status: 422 });
     const max = Number(rawMax ?? "0");
+    // Task 135 F-2: the ?max stance applied to its sibling params — an
+    // unknown cat used to answer 200 {ok:true, data:[]} (a typo'd category
+    // masquerading as a legitimately empty catalogue) and an unknown sort
+    // fell through the seam as an unsorted 200. Present-but-unknown is a
+    // 422, never a silent fallback. The shop PAGE keeps its graceful
+    // URL-driven posture (degrade, never fail) — only the API boundary
+    // hardens; the cat whitelist is the CATEGORIES seed, the sort whitelist
+    // the shared SORT_KEYS seam (fs-pinned against the shop display list).
+    if (cat !== "all" && !CATEGORIES.some((c) => c.slug === cat))
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "cat must be a known category." } }, { status: 422 });
+    if (!SORT_KEYS.includes(sort))
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "sort must be a known sort key." } }, { status: 422 });
 
     let list = await getAllProducts();
     if (cat !== "all") list = list.filter((p) => p.categorySlug === cat);

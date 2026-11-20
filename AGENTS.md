@@ -22,11 +22,13 @@ ORM + PostgreSQL.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
-| `npm run test` | Vitest unit suite (180 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, server-data fulfilment-seam fs-pin + the addLine-clamp fs-pin, docs-counts pins incl. the PAD + the TZ-pure-tree fs-pin + the numeric-args-ctor widening) |
-| `npm run test:e2e` | Playwright e2e (125 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
+| `npm run test` | Vitest unit suite (183 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, server-data fulfilment-seam fs-pin + the qty-writer clampInt fs-pin + the SORT_KEYS derivation pin, docs-counts pins incl. the PAD + the TZ-pure-tree fs-pin + the numeric-args-ctor widening) |
+| `npm run test:watch` | Vitest in watch mode (the same suite, re-run on change) |
+| `npm run test:e2e` | Playwright e2e (129 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
+| `npm run test:e2e:install` | One-time: install the pinned Playwright Chromium build (the fresh-clone cache miss) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
-The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–134):
+The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–135):
 `tests/unit` (10 files) + `tests/e2e` (mobile-navigation + storefront specs
 incl. the fetch-failure resilience pair, the API rate-limit pins, PDP badge
 dedupe, cart promo persistence, JSON-LD live-inventory + LOW_STOCK commerce
@@ -125,7 +127,7 @@ ISO slice), and the **derived-copy completion** (GST ×7, the $200 shop pair,
 FLAT20 on /offers, the family voucher rule ×3 — all interpolate their
 constants; the GST + family e2e pins derive). Task 127 converted the storefront
 spec's then-21 interaction-first blocks to `gotoHydrated` (the mobile spec's
-Task-125 G-5 discipline) — 38 storefront call sites now (40 across both
+Task-125 G-5 discipline) — 42 storefront call sites now (44 across both
 files), zero bare interaction-first gotos. One Task-124 finding was DISPROVEN (browser
 evidence) and one Task-126 audit finding was DISPROVEN by insert-order
 analysis (the ensureSeed "partial-seed blind spot" — categories/stores/
@@ -156,9 +158,10 @@ AND copy — the family/business halves of the Task-127 F-4 class), the
 **Footer SGT year** (the last bare server-local calendar read in src/), and
 the **producer-side store-key fs-pin** (every createLocalStore key — literal
 or constant — must be a member of PERSISTED_STORAGE_KEYS). The storefront
-spec's interaction-first coverage is now complete: 38 gotoHydrated call
-sites in the storefront spec (40 across both files; Task 129's three
-conversions took it from 34), zero interaction-first bare gotos
+spec's interaction-first coverage is now complete: 42 gotoHydrated call
+sites in the storefront spec (44 across both files; the Task-129 conversions
+took it from 34 and the Task-131..134 probes grew it past the Task-129-era
+count), zero interaction-first bare gotos
 (mechanically re-verified — the Task-127 conversion had left 13, including
 a /cart site both sweeps under-counted). One reference-agent claim was DISPROVEN by direct read
 (rate-limit.ts "corruption" — the line is clean) — and the Task-129 pins:
@@ -328,6 +331,31 @@ the optional fraction group can match empty and test the lookahead on
 proven by mutation, the second one caught only because the mutation demo
 was run).
 
+And the Task-135 pins: the **qty-writer clamp parity** (setLineQty
+still read `Math.min(99, Math.floor(qty))` — a programmatic
+`setQty(id, 0.5)` stored a qty-0 line and `setQty(id, NaN)` stored NaN,
+while the Task-134 literal forms themselves never covered the
+non-finite/fractional class (`Math.max(1, NaN)` is NaN); ALL THREE
+cart-store qty writers now route through the shared NaN-safe `clampInt`
+seam — the placeOrder/checkout-route posture — fs-pinned as the
+three-writer form with the pre-135 literal forms retired), the **API
+cat/sort boundary stance** (`?cat=zzz` answered `200 {ok:true, data:[]}`
+— a typo'd category masquerading as a legitimately empty catalogue —
+and `?sort=zzz` fell through the seam as an unsorted 200 while `?max`
+was 422-strict; both params now validate against the `CATEGORIES` seed
+and the shared `SORT_KEYS` seam (utils.ts, `satisfies ProductSortKey[]`)
+→ 422 VALIDATION, e2e-pinned with the full legitimate-key sweep, and the
+shop display list is fs-pinned as a subset of the seam — the
+storeName-derivation discipline, so the UI can never offer what the
+boundary refuses), and the **envelope-trust gate** (the wishlist and
+search pages read `json.data ?? []` — a well-formed 200 `{ok:true}` with
+NO `data` rendered the FALSE all-ghost note / the false "0 results"
+verdict for a resolution that never happened; both pages now require
+`Array.isArray(json.data)` before treating the answer as resolved, else
+the error state — the Task-128 body-shape discipline mirrored
+client-side, e2e-pinned by route-fulfilled body-less envelopes beside
+the Task-119 fetch-failure pair).
+
 **Test counts are documentation claims, pinned by test** (Task 119):
 `tests/unit/docs-counts.test.ts` fs-computes the real counts and fails the run
 if any live-tense claim in AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT disagrees
@@ -342,11 +370,12 @@ change (count-lockstep, no exceptions).
 | `.env.example` single-variable contract, postgres-only compose, `allowedDevOrigins` | `tests/unit/env-example.test.ts` |
 | The Tailwind candidate-scan guard present in `globals.css` | `tests/unit/tailwind-scan-guard.test.ts` |
 | SEO policy coherence (robots vs sitemap, `SITE_ORIGIN`, no raw origin literal in `src/app`) | `tests/unit/robots-sitemap.test.ts` |
-| `PERSISTED_STORAGE_KEYS` covers every `createLocalStore` producer under `src/`; persisted payloads are shape-, element- AND uniqueness-valid (duplicates degrade to the fallback); addLine's BOTH branches clamp qty 1–99 (Task 134 F-4) | `tests/unit/local-store.test.ts` (producer-side fs-scan, fail-closed since Task 133; predicate pins; the clamp fs-pin) |
+| `PERSISTED_STORAGE_KEYS` covers every `createLocalStore` producer under `src/`; persisted payloads are shape-, element- AND uniqueness-valid (duplicates degrade to the fallback); EVERY cart-store qty writer (addLine both branches + setLineQty) routes through the NaN-safe `clampInt` seam (Task 134 F-4 + Task 135 F-1) | `tests/unit/local-store.test.ts` (producer-side fs-scan, fail-closed since Task 133; predicate pins; the three-writer clamp fs-pin) |
 | placeOrder fulfilment seam (one store-default derivation; `fulfilStore` read at BOTH the availability lock and the decrement — exactly two occurrences) | `tests/unit/server-data.test.ts` |
-| The checkout route consumes the exported `IDEMPOTENCY_KEY_RE` shape; the unit tree stays TZ-pure (no Z-less date-time literals in ANY quote form, no fractional-seconds false-positives, no numeric-args Date constructors); `priceTotals`' net===0 delivery corner (Task 133 F-4) | `tests/unit/utils.test.ts` (fs-pins + the corner pin; quote-class + backtrack-closed lookahead since Task 134) |
+| The checkout route consumes the exported `IDEMPOTENCY_KEY_RE` shape; the unit tree stays TZ-pure (no Z-less date-time literals in ANY quote form, no fractional-seconds false-positives, no numeric-args Date constructors); `priceTotals`' net===0 delivery corner (Task 133 F-4); `SORT_KEYS` covers the ProductSortKey union and the shop display list is a subset — the UI cannot offer what the boundary refuses (Task 135 F-2) | `tests/unit/utils.test.ts` (fs-pins + the corner pin + the SORT_KEYS derivation pin; quote-class + backtrack-closed lookahead since Task 134) |
 | The reviews boundary bounds `productId` above by `MAX_INT4` (both verbs 422, never a 22003 → 500/degrade) | `tests/e2e/storefront.spec.ts` (Task 133 F-1 probe pair) |
 | A duplicated persisted CART payload degrades to the honest empty bag (never doubled lines/subtotal); a normalized malformed-percent order URL lands in not-found (never a 5xx, never the outage copy); the cart/BuyBox/business `+` steppers disable at their 99/99/200 ceilings | `tests/e2e/storefront.spec.ts` (Task 134 F-1/F-2/F-3 probes) |
+| `/api/products` refuses an unknown `cat`/`sort` with 422 VALIDATION (never a fake empty catalogue / silent unsorted 200 — the `?max` stance); the wishlist and search pages treat an ok-but-dataless envelope as the ERROR state (never the false all-ghost note / false 0-results verdict) | `tests/e2e/storefront.spec.ts` (Task 135 F-2/F-5 probe quartet) |
 
 ## Hard-won gotchas (read before changing anything)
 
@@ -457,8 +486,8 @@ rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_
 npm run typecheck          # app scope (src/**, next.config.ts)
 npm run typecheck:tests    # the test tree (tsconfig.tests.json) — both scopes are live gates
 npm run lint               # 0 errors expected
-npm run test               # 180/180 unit
-npm run test:e2e           # 125/125 e2e (needs a live Postgres for the checkout journey)
+npm run test               # 183/183 unit
+npm run test:e2e           # 129/129 e2e (needs a live Postgres for the checkout journey)
 ```
 
 There is no hosted CI; the local gate is the only gate.

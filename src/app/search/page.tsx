@@ -66,7 +66,13 @@ function SearchInner() {
       try {
         const res = await fetch(`/api/products?q=${encodeURIComponent(needle)}`);
         const json = (await res.json()) as { ok: boolean; data?: CardProduct[] };
-        if (!cancelled && json.ok) setItems(json.data ?? []);
+        // Task 135 F-5: the envelope contract is { ok, data } — an ok:true
+        // body WITHOUT an array data must be an ERROR, never a "resolved
+        // empty catalogue": json.data ?? [] used to render the FALSE "0
+        // results for X" + "No products found" verdict for a search whose
+        // answer never arrived. The wishlist sibling gate (the Task-128
+        // body-shape class mirrored client-side).
+        if (!cancelled && json.ok && Array.isArray(json.data)) setItems(json.data);
         else if (!cancelled) setError(true);
       } catch {
         if (!cancelled) setError(true);

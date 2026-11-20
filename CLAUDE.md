@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-20 (Task 134: cart-duplicate e2e parity, order-URL decode pin, stepper ceiling state, addLine floor clamp, TZ-pin widening, docs gate truth)
+last_updated: 2026-11-20 (Task 135: qty-writer clamp parity, API cat/sort boundary stance, envelope-trust gate, docs truth)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -129,15 +129,17 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`typecheck:tests` covers the test tree) |
-| `npm run test` | Vitest unit suite (180 tests, pure seams) |
-| `npm run test:e2e` | Playwright e2e (125 tests, production build on :3100) |
+| `npm run test` | Vitest unit suite (183 tests, pure seams) |
+| `npm run test:watch` | Vitest in watch mode (the same suite, re-run on change) |
+| `npm run test:e2e` | Playwright e2e (129 tests, production build on :3100) |
+| `npm run test:e2e:install` | One-time: install the pinned Playwright Chromium build (the fresh-clone cache miss) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
-**Current state (Tasks 114–134, extended this cycle):** a NORDHEM-native suite is wired into the gates.
+**Current state (Tasks 114–135, extended this cycle):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 180 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 183 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
@@ -148,10 +150,11 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   `storeName` label seam, the `orderStepIndex` ladder seam (Task 120), and the
   docs-counts pin (`tests/unit/docs-counts.test.ts` fails the run when any
   live-tense test-count claim in AGENTS/README/CLAUDE/SKILL/**PAD** disagrees
-  with the fs-computed reality — count-lockstep is enforced across all five
-  operator docs, not remembered). Node environment with a localStorage shim
+  with the fs-computed reality — count-lockstep is enforced across all six
+  operator docs (AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT — DEPLOYMENT.md
+  joined in Task 131), not remembered). Node environment with a localStorage shim
   (`tests/unit/setup.ts`); no jsdom, no component rendering.
-- **E2E (Playwright, 125 tests)** against the **production build** (the webServer
+- **E2E (Playwright, 129 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
   hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
@@ -348,7 +351,9 @@ fix and passes after.
   that derive from the same constants the pages interpolate (a rate edit
   self-corrects copy and pins together — the Task-127 claim now true).
   The storefront spec's interaction-first coverage is complete: zero bare
-  interaction-first gotos remain (38 gotoHydrated call sites after Task 129's
+  interaction-first gotos remain (42 gotoHydrated call sites across the two
+  files after the Task-129 conversions and the Task-131..134 probes — 44
+  including the mobile spec's
   three conversions + the business pin), and every
   write-capable refusal spec carries its RED-run `finally` net.
 - **Task-129 seams:** every write-capable refusal spec is netted — including
@@ -463,6 +468,23 @@ fix and passes after.
   zless fs-pin covers all three quote forms + fractional seconds (the
   lookahead rejects `.` and digits — closing TWO backtracking splits that
   let a legitimate `.500Z` false-positive, both mutation-proven).
+- **Task-135 seams:** every cart-store qty writer (addLine's both branches
+  AND `setLineQty`) routes through the shared NaN-safe `clampInt` seam
+  (`Math.max(1, NaN)` is NaN and `Math.max(1, 3.7)` is 3.7 — the Task-134
+  literal forms never covered the non-finite/fractional class;
+  `setLineQty` read `Math.min(99, Math.floor(qty))` — a fractional add
+  stored a qty-0 line; fs-pinned as the three-writer form with the literal
+  forms retired); `/api/products` validates `?cat=` against the
+  `CATEGORIES` seed and `?sort=` against the exported `SORT_KEYS` seam
+  (utils.ts, `satisfies ProductSortKey[]` — `?cat=zzz` used to answer a
+  fake empty catalogue and `?sort=zzz` an unsorted 200 while `?max` was
+  422-strict; both are 422 VALIDATION now, and the shop display list is
+  fs-pinned as a subset of the seam so the UI can never offer what the
+  boundary refuses); and the wishlist + search pages gate resolution on
+  `Array.isArray(json.data)` (a 200 `{ok:true}` with no `data` used to
+  render the FALSE all-ghost note / false "0 results" verdict — the
+  Task-128 body-shape discipline mirrored client-side, e2e-pinned by
+  route-fulfilled body-less envelopes).
 
 - **`main` branch only** — no feature branches (operator contract).
 - Conventional Commits, atomic units (`fix:`, `feat:`, `docs:` — history uses

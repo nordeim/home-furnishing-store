@@ -346,6 +346,22 @@ export type ProductSortKey =
   | "rating"
   | "new";
 
+// Task 135 F-2: the runtime whitelist backing the ProductSortKey union —
+// the /api/products boundary validates ?sort= against it (the ?max stance:
+// present-but-unknown is a 422, never a silent unsorted 200), and the shop
+// display list is fs-pinned as a subset (the storeName derivation
+// discipline — a future key offered in the UI without this seam update
+// would 422 at the boundary, the drift class). satisfies keeps every
+// member a valid ProductSortKey while the array stays string-consumable.
+export const SORT_KEYS: readonly string[] = [
+  "featured",
+  "popular",
+  "price-asc",
+  "price-desc",
+  "rating",
+  "new",
+] satisfies readonly ProductSortKey[];
+
 export function sortProductList<
   T extends { priceCents: number; ratingAvg: string | number; ratingCount: number; isNew: boolean },
 >(list: T[], sort: string): T[] {

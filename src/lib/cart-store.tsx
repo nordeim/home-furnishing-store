@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import { createLocalStore } from "@/lib/local-store";
+import { clampInt } from "@/lib/utils";
 
 export interface CartLine {
   productId: number;
@@ -99,11 +100,16 @@ function addLine(line: Omit<CartLine, "qty">, qty = 1) {
   linesStore.set((prev) => {
     const found = prev.find((l) => l.productId === line.productId);
     if (found) {
+      // Task 134 F-4 clamped the found-branch floor; Task 135 F-1 routed the
+      // clamp through the shared NaN-safe clampInt seam (the placeOrder/
+      // checkout-route posture) — Math.max(1, NaN) is NaN and Math.max(1, 3.7)
+      // is 3.7, so the literal forms never covered the non-finite/fractional
+      // class.
       return prev.map((l) =>
-        l.productId === line.productId ? { ...l, qty: Math.min(99, Math.max(1, l.qty + qty)) } : l,
+        l.productId === line.productId ? { ...l, qty: clampInt(l.qty + qty, 1, 99, 1) } : l,
       );
     }
-    return [...prev, { ...line, qty: Math.min(99, Math.max(1, qty)) }];
+    return [...prev, { ...line, qty: clampInt(qty, 1, 99, 1) }];
   });
 }
 
@@ -111,7 +117,7 @@ function setLineQty(productId: number, qty: number) {
   linesStore.set((prev) =>
     qty <= 0
       ? prev.filter((l) => l.productId !== productId)
-      : prev.map((l) => (l.productId === productId ? { ...l, qty: Math.min(99, Math.floor(qty)) } : l)),
+      : prev.map((l) => (l.productId === productId ? { ...l, qty: clampInt(qty, 1, 99, 1) } : l)),
   );
 }
 

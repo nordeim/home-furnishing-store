@@ -164,12 +164,13 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 180 tests at the pure seams
+npm run test             # Vitest unit — 183 tests at the pure seams
+npm run test:watch       # the same suite, re-run on change
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 125 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 129 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
@@ -244,11 +245,47 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 180 unit + 125 e2e, all green | NORDHEM-native harness (Tasks 114/117–134); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131; the unit tree is TZ-pure since Task 132 — verified by the three-TZ run) |
+| Test suite | ✅ 183 unit + 129 e2e, all green | NORDHEM-native harness (Tasks 114/117–135); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131; the unit tree is TZ-pure since Task 132 — verified by the three-TZ run) |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
+
+Current cycle (2026-11-20, Task 135): fresh-clone workspace re-audit (the
+rootless PostgreSQL 17.12 installed fresh via `docs/setup_pg_z.sh` — 9-table
+DDL contract + seed quantities verified by direct SQL, inventory 1379; the
+pinned Playwright Chromium re-installed after the fresh-clone cache miss;
+mobile-nav taxonomy 8/8 at 390/1440 — no Tailwind v4 bug; hydration
+live-verified; sitemap 42 URLs, robots coherent, og dimensions live-verified
+on home + PDP + inspiration; baseline gates green at 180/125 with zero DB
+residue; the reference repo quiescent — eleventh cycle of "nothing to port")
+that caught **the qty-writer clamp asymmetry** (Task 134's F-4 floor fix
+pinned `addLine` while `setLineQty` still read `Math.min(99, Math.floor(qty))`
+— a programmatic fractional/NaN set stored a qty-0/NaN line — and the shipped
+literal forms themselves never covered the non-finite class (`Math.max(1, NaN)`
+is NaN); all three cart-store qty writers now route through the shared
+NaN-safe `clampInt` seam, fs-pinned as the three-writer form with the
+literal forms retired), **the API cat/sort boundary-stance asymmetry**
+(`?cat=zzz` answered `200 {ok:true, data:[]}` — a typo'd category
+masquerading as a legitimately empty catalogue — and `?sort=zzz` fell
+through unsorted while `?max=abc` was 422-strict on the same route; both
+params now validate against the `CATEGORIES` seed and the exported
+`SORT_KEYS` seam → 422 VALIDATION, e2e-pinned with the full legitimate-key
+sweep, and the shop display list is fs-pinned as a subset of the seam so
+the UI can never offer what the boundary refuses), **the envelope-trust
+gap** (the wishlist and search pages read `json.data ?? []` — a
+well-formed 200 `{ok:true}` with NO `data` rendered the FALSE all-ghost
+note / the false "0 results" verdict for a resolution that never happened;
+both pages now gate resolution on `Array.isArray(json.data)`, else the
+error state — e2e-pinned by route-fulfilled body-less envelopes beside the
+Task-119 fetch-failure pair), and a docs-truth pass (CLAUDE's live
+docs-lockstep claim still said "five operator docs" — the D-3 class fixed
+in SKILL §11 last cycle surviving in CLAUDE's Testing Strategy; PAD §3.2's
+era range one cycle trailing; the AGENTS/CLAUDE gotoHydrated call-site
+counts at the Task-129-era 38/40 vs the fs-computed 42/44; worklog's Task-134
+entry missing its `Task ID:` header; `npm run test:watch` documented in none
+of the six docs' command tables). Suite grew to 183 unit + 129 e2e. Details
+in `worklog.md` and `docs/plans/2026-11-20-task135-remediation-plan.md`.
 
 Current cycle (2026-11-20, Task 134): workspace-refresh re-audit (git pull →
 246bf8c; the rootless PostgreSQL 17.12 data dir survived the recycle RUNNING —
