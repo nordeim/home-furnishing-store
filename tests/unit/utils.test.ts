@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { formatSGD, priceTotals, clampInt, isValidEmail, isValidPhone, isValidPostal, orderNumber, stars, GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, familyVoucherCents, visibleBadges, ORDER_STEPS, orderStepIndex, campaignEnd, campaignEndLabel, sgTomorrowISO, sortProductList, DELIVERY_SLOTS, isValidDeliverySlot, availableDeliverySlots, jsonLdScript, IDEMPOTENCY_KEY_RE, mintIdempotencyKey, isUniqueViolationOn } from "@/lib/utils";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -126,6 +126,88 @@ describe("orderNumber (SGT date segment — Task 123 F-12)", () => {
   it("a UTC-morning instant stays on the same SGT day", () => {
     const n = orderNumber(new Date("2026-11-19T02:30:00Z"));
     expect(n).toMatch(/^NH-20261119-[A-Z0-9]{6}$/);
+  });
+});
+
+/**
+ * Task 131 F-4: the suffix mint. The order number is half of the PII lookup
+ * pair on /track-order, and the suffix carried ~2^31 entropy via V8's
+ * state-recoverable Math.random (the idempotency-key seam already consumes
+ * crypto bytes — Task 127 F-6). A mantissa with trailing zero bits also
+ * minted FEWER than 6 chars ((0.5).toString(36) = "0.i" → slice = "I" — a
+ * 1-char suffix, ~2⁻²⁶ of mints). The mint now reads 4 getRandomValues
+ * bytes → uint32 → base36 (32 bits ≈ the 31-bit 6-char space, 36^6 ≈ 2.18e9)
+ * with Math.random only as the both-primitives-absent last resort (both
+ * paths padStart to exactly 6 chars).
+ */
+describe("orderNumber suffix mint (Task 131 F-4)", () => {
+  it("derives the suffix from crypto bytes — hand-worked expectations, exactly 6 chars", () => {
+    const original = globalThis.crypto;
+    // Deterministic fills with hand-worked base36 expectations:
+    //   bytes [1,0,0,0] → uint32 1 → "1".padStart(6,"0") → "000001"
+    //   bytes [0,1,0,0] → uint32 256 → 7*36+4 → "74" → "000074"
+    Object.defineProperty(globalThis, "crypto", {
+      value: {
+        getRandomValues: (arr: Uint8Array) => {
+          arr[0] = fill[0];
+          arr[1] = fill[1];
+          arr[2] = fill[2];
+          arr[3] = fill[3];
+          return arr;
+        },
+      },
+      configurable: true,
+    });
+    let fill = [1, 0, 0, 0];
+    try {
+      expect(orderNumber(new Date("2026-11-19T02:30:00Z"))).toBe("NH-20261119-000001");
+      fill = [0, 1, 0, 0];
+      expect(orderNumber(new Date("2026-11-19T02:30:00Z"))).toBe("NH-20261119-000074");
+      // Both mints keep the boundary format the route and pages regex-pin.
+      fill = [255, 255, 255, 255];
+      expect(orderNumber(new Date("2026-11-19T02:30:00Z"))).toMatch(/^NH-20261119-[0-9A-Z]{6}$/);
+    } finally {
+      Object.defineProperty(globalThis, "crypto", { value: original, configurable: true });
+    }
+  });
+
+  it("the both-absent fallback still mints EXACTLY 6 chars — a 0.5-valued Math.random used to mint 1", () => {
+    const originalCrypto = globalThis.crypto;
+    const random = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    Object.defineProperty(globalThis, "crypto", { value: {}, configurable: true });
+    try {
+      // (0.5).toString(36) = "0.i" → slice(2,8) = "i" — the pre-131 code
+      // minted the 1-char suffix "I" here; the fallback must pad to 6.
+      expect(orderNumber(new Date("2026-11-19T02:30:00Z"))).toBe("NH-20261119-00000I");
+    } finally {
+      random.mockRestore();
+      Object.defineProperty(globalThis, "crypto", { value: originalCrypto, configurable: true });
+    }
+  });
+
+  it("the crypto path never reads Math.random (the priority order — Task 127 F-6 discipline)", () => {
+    const original = globalThis.crypto;
+    const random = vi.spyOn(Math, "random").mockImplementation(() => {
+      throw new Error("must not be read when getRandomValues is available");
+    });
+    Object.defineProperty(globalThis, "crypto", {
+      value: {
+        getRandomValues: (arr: Uint8Array) => {
+          arr[0] = 1;
+          arr[1] = 0;
+          arr[2] = 0;
+          arr[3] = 0;
+          return arr;
+        },
+      },
+      configurable: true,
+    });
+    try {
+      expect(orderNumber(new Date("2026-11-19T02:30:00Z"))).toBe("NH-20261119-000001");
+    } finally {
+      random.mockRestore();
+      Object.defineProperty(globalThis, "crypto", { value: original, configurable: true });
+    }
   });
 });
 

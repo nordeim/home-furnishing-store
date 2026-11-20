@@ -22,12 +22,12 @@ ORM + PostgreSQL.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
-| `npm run test` | Vitest unit suite (169 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
+| `npm run test` | Vitest unit suite (176 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD) |
 | `npm run test:e2e` | Playwright e2e (116 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
-The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–129):
-`tests/unit` (9 files) + `tests/e2e` (mobile-navigation + storefront specs
+The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–131):
+`tests/unit` (10 files) + `tests/e2e` (mobile-navigation + storefront specs
 incl. the fetch-failure resilience pair, the API rate-limit pins, PDP badge
 dedupe, cart promo persistence, JSON-LD live-inventory + LOW_STOCK commerce
 honesty, the SEO metadata blanket, the Task-121 pins: local-store shape
@@ -123,10 +123,10 @@ Dec-28-00:00-SGT instant on the UTC+8 clock; the label formats with
 timeZone Asia/Singapore; priceValidUntil renders the SGT date, not the UTC
 ISO slice), and the **derived-copy completion** (GST ×7, the $200 shop pair,
 FLAT20 on /offers, the family voucher rule ×3 — all interpolate their
-constants; the GST + family e2e pins derive). The storefront spec's 21
-interaction-first blocks now navigate through `gotoHydrated` (the mobile
-spec's Task-125 G-5 discipline — the docs' "interaction-first specs" claim
-is true for both files). One Task-124 finding was DISPROVEN (browser
+constants; the GST + family e2e pins derive). Task 127 converted the storefront
+spec's then-21 interaction-first blocks to `gotoHydrated` (the mobile spec's
+Task-125 G-5 discipline) — 38 storefront call sites now (40 across both
+files), zero bare interaction-first gotos. One Task-124 finding was DISPROVEN (browser
 evidence) and one Task-126 audit finding was DISPROVEN by insert-order
 analysis (the ensureSeed "partial-seed blind spot" — categories/stores/
 products/promotions/inspirations all insert BEFORE inventory, so the
@@ -208,12 +208,46 @@ against the STORES seed), the **wishlist heading honesty** (the resolved
 count once loaded — a departed product's slug no longer renders "(2)"
 above one card; the error state keeps the persisted count), and the
 **priceTotals percent cap** (both promo branches now cap at the subtotal —
-a >100% promo can no longer mint negative cents at the money seam).
+a >100% promo can no longer mint negative cents at the money seam). And the Task-131 pins:
+the **orderNumber crypto suffix** (the 6-char mint reads getRandomValues
+bytes — uint32 → base36, exactly 6 chars on every path, the ~2^31 entropy
+claim now true against state recovery; Math.random survives only as the
+both-primitives-absent last resort, padStarted to 6 — the rare 1-char
+mantissa mints are gone; deterministic-stub trio: hand-worked byte
+expectations, the 0.5-stub exactly-6 fallback, the spy-throw priority),
+the **fulfilment-seam structural pin** (the tenth unit file,
+`tests/unit/server-data.test.ts`: the store default derives EXACTLY ONCE
+and the decrement reads `fulfilStore` — the Task-130 F-2 check/decrement
+coherence is pinned by structure, no longer by textual coincidence), the
+**wishlist badge-vs-heading parity pin** (the badge is the persisted
+SAVED-entry count BY DESIGN — the Header cannot resolve without a catalogue
+fetch on every route; the page EXPLAINS the difference with a "N saved
+items are no longer available" note once resolved, and the F-8 pin's
+ghost-slug assertions now cover both surfaces — plus its broken ghost-card
+locator was repaired: the old `main aref=…]` text matched nothing, a
+permanent no-op), the **oversell-spec de-flake** (the Task-119 probe moved
+katong → wokhey-cookware-5pc — katong was NEVER quiet; the 500-class spec
+zeroes its rows in a fullyParallel window that could pollute the probe's
+snapshot/restore pair), and the **DEPLOYMENT.md docs-counts extension**
+(its gate chain had rotted to a five-cycle-old 79/79 + 34/34 outside the
+pin's scope; the sixth-doc scope makes the class unrecurrable).
 
 **Test counts are documentation claims, pinned by test** (Task 119):
 `tests/unit/docs-counts.test.ts` fs-computes the real counts and fails the run
 if any live-tense claim in AGENTS/README/CLAUDE/SKILL disagrees — change the
 docs in the same commit as any test change (count-lockstep, no exceptions).
+
+## Pin map (the claims tests enforce — the Task-130 adopted candidate)
+
+| Claim | Enforcing pin |
+|---|---|
+| Test counts + the `/api/health` body (AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT — six docs since Task 131 F-7) | `tests/unit/docs-counts.test.ts` |
+| `.env.example` single-variable contract, postgres-only compose, `allowedDevOrigins` | `tests/unit/env-example.test.ts` |
+| The Tailwind candidate-scan guard present in `globals.css` | `tests/unit/tailwind-scan-guard.test.ts` |
+| SEO policy coherence (robots vs sitemap, `SITE_ORIGIN`, no raw origin literal in `src/app`) | `tests/unit/robots-sitemap.test.ts` |
+| `PERSISTED_STORAGE_KEYS` covers every `createLocalStore` producer under `src/` | `tests/unit/local-store.test.ts` (producer-side fs-scan) |
+| placeOrder fulfilment seam (one store-default derivation; decrement reads `fulfilStore`) | `tests/unit/server-data.test.ts` |
+| The checkout route consumes the exported `IDEMPOTENCY_KEY_RE` shape | `tests/unit/utils.test.ts` (fs-pin) |
 
 ## Hard-won gotchas (read before changing anything)
 
@@ -323,7 +357,7 @@ When adding tests, pin them to this `src/` — never resurrect ely-beauty specs.
 rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db" npm run build
 npm run typecheck
 npm run lint          # 0 errors expected (the 7-error lint debt was fixed in Task 114)
-npm run test          # 169/169 unit
+npm run test          # 176/176 unit
 npm run test:e2e      # 116/116 e2e (needs a live Postgres for the checkout journey)
 ```
 

@@ -1,4 +1,4 @@
-# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.15.0
+# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.16.0
 
 **Classification:** Internal Engineering Reference
 **Status:** DEFINITIVE, PRODUCTION-LOCKED BLUEPRINT
@@ -7,6 +7,84 @@
 **Audience:** Senior Engineers, Tech Leads, DevOps, and Onboarding Engineers (human and AI)
 **Rule:** Every architectural decision in this document traces to a specific rationale.
 Nothing is here "because it's popular."
+
+#### Revision Block — v1.16.0 (Task 131 — wishlist count parity, fulfilment-seam structural pin, orderNumber crypto suffix, DEPLOYMENT.md truth)
+
+- `[COR]` **The Task-130 F-8 heading fix landed one count site of two
+  (F-1, MEDIUM — the cycle's headline)**: the wishlist page honestly
+  showed "Your wishlist (1)" over one card while the SAME viewport's header
+  badge said "Wishlist, 2 items" (browser-verified live at audit with one
+  real + one ghost slug persisted) — the exact "(2) above one card"
+  contradiction class F-8 called dishonest, one component over (the
+  Task-129 Footer-chips incomplete-rollout shape). Design decision: the
+  badge stays the persisted SAVED-entry count BY DESIGN — the Header cannot
+  resolve slugs without a catalogue fetch on every route (resolution is
+  unknowable there, the same degrade posture as the error state), and a
+  cross-page resolved-count store would flip the badge 2→1→2 across
+  navigation. The page instead EXPLAINS the difference once resolution has
+  settled ("N saved item(s) no longer available") — e2e-pinned together
+  with the badge label; the F-8 pin's broken ghost-card locator (a `main
+  aref=…]` text that matched nothing — a permanent no-op) was repaired in
+  the same pass.
+- `[COR]` **The placeOrder decrement re-derived the store default instead
+  of reading the `fulfilStore` seam (F-2, LOW)**: the Task-130 F-2
+  check/decrement coherence (the phantom-unit fix's whole point) held only
+  because two expressions were textually identical — a one-site edit to
+  either silently reintroduced the bug. One-token fix (`eq(inventory.
+  storeSlug, fulfilStore)`), structurally fs-pinned by a NEW tenth unit
+  file (`tests/unit/server-data.test.ts` — the default derives exactly
+  once; the decrement reads the seam).
+- `[SEC]` **orderNumber's suffix minted from Math.random (F-4, LOW)**: the
+  order number is half of the /track-order PII lookup pair, and V8's
+  xorshift128+ state is recoverable from observed outputs — the "~2^31
+  entropy" comments held only against a naive adversary; a trailing-zero
+  mantissa also minted FEWER than 6 chars ((0.5).toString(36) → "0.i" → a
+  1-char suffix). The mint now reads 4 getRandomValues bytes → uint32 →
+  base36 (32 bits ≈ the 31-bit 6-char space; exactly 6 chars every path),
+  with Math.random only as the both-primitives-absent last resort — the
+  mintIdempotencyKey posture (Task 127 F-6) applied to its sibling seam.
+  Deterministic-stub trio unit-pinned (hand-worked byte expectations, the
+  0.5-stub exactly-6 fallback, the spy-throw priority).
+- `[TST]` **A latent fullyParallel residue window closed (F-3, LOW)**: the
+  Task-119 oversell spec and the 500-class fixed-copy spec both touched
+  katong-bedside-table (10 references across the two files) while the
+  oversell spec's comment claimed it was "quiet, no other spec touches it"
+  — a snapshot landing in the sibling's zero window could re-write zeroed
+  rows as the "original" state. The oversell probe moved to
+  wokhey-cookware-5pc (zero references; the Task-130 F-3 relocation
+  pattern, GREEN-on-arrival).
+- `[MNT]` **Defensive-parity + comment-truth completions (F-5/F-6,
+  INFO→fixed)**: placeOrder's inline qty clamp swapped for the NaN-safe
+  `clampInt` seam its own comment cited (identical on every reachable
+  input); ensureSeed's "safe for concurrent first requests" qualified to
+  within-the-process (the single-flight promise is module-level).
+- `[DOC]` **DEPLOYMENT.md truth pass (F-7..F-10, 2 MEDIUM + 2 LOW)**: the
+  §10 gate chain had rotted to a five-count-bumps-old 79/79 + 34/34
+  outside the docs-counts pin's five-doc scope — the pin now covers
+  DEPLOYMENT.md (six live operator docs, the class unrecurrable); §8 +
+  §11's 429 row taught the "first X-Forwarded-For hop" posture — the exact
+  client-forgeable configuration Task 125 G-2 removed (rightmost hop +
+  "direct" fallback now); the dotenv attribution (package removed Task 126)
+  and the hardcoded-origin claim (the SITE_ORIGIN seam since Task 125 G-4)
+  swept; the revision stamp refreshed.
+- `[REG]` **Register additions**: the orderNumber-collision retry wiring
+  carries no automated coverage through the public interface (the mint is
+  random; a real collision cannot be forced — the pure discriminator is
+  unit-pinned; a swap of the two constraint checks' order would pass every
+  test) recorded as a documented seam choice; the checkout route's
+  EMPTY_BAG early-exit preceding the enum guards (both 4xx; the e2e probes
+  all carry lines) noted for future boundary audits; AGENTS.md gained the
+  Pin map section (the Task-130 recorded adoption candidate). Reference
+  repo: quiescent after the boundary-day commit ff65bd2 (2026-10-23 03:39
+  UTC — the prior cycles' "since 2026-10-23" wording was
+  boundary-imprecise; its not-found CSP-nonce fix evaluated and NOT
+  applicable: no CSP, the 404 surface live-verified branded + working).
+- `[SAN]` **Environment**: the rootless PostgreSQL 17.12 data dir survived
+  the sandbox recycle RUNNING (no lesson-31 restore for the first time
+  since the class appeared); 9 tables + DDL contract verified by direct
+  SQL before any gate; baseline green at 169/116 with zero residue.
+  Gates after remediation: lint 0/0 · typechecks clean · **176/176 unit** ·
+  **116/116 e2e (cold)** · zero DB residue (inventory 1379 = seed).
 
 #### Revision Block — v1.15.0 (Task 130 — fulfilment-store coherence, boundary parity completion, suite de-flake)
 
@@ -987,7 +1065,7 @@ non-app artifacts remain in the tree (§10).
 | DB driver | `pg` (node-postgres) | 8.20.0 | Pooled connections, `drizzle-orm/node-postgres` adapter |
 | Database | PostgreSQL | 15+ recommended | Relational catalogue/orders; `drizzle-kit push` for schema |
 | Lint | ESLint flat config + `eslint-config-next/core-web-vitals` | 9.39.4 | One linter, Next-aware rules |
-| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–130) — 169 unit + 116 e2e, all green (§7) |
+| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–131) — 176 unit + 116 e2e, all green (§7) |
 | Imagery | Pexels CDN | — | Licensed stock, zero local pipeline (ADR-007) |
 
 ### 1.3 Architecture Decision Records (ADRs)
@@ -1493,7 +1571,7 @@ auth is a design event, not a patch.
 
 | Category | Files | Status | Location |
 |----------|-------|--------|----------|
-| Unit (Vitest) | 9 files, 169 tests | ✅ Green — pure seams: `utils` money/validators + `familyVoucherCents` + `visibleBadges`, `catalog` invariants + `findPromo` + `storeName`, `local-store` external-store contract, `mask`, robots/sitemap SEO policy, env/compose/config + scan-guard lineage pins, `rate-limit` factory (Task 119), the `orderStepIndex` ladder seam (Task 120), **docs-counts pin** (Task 119; Task 120 extended it to the PAD — fails the run on any stale live-tense count claim in AGENTS/README/CLAUDE/SKILL/PAD) | `tests/unit/` |
+| Unit (Vitest) | 10 files, 176 tests | ✅ Green — pure seams: `utils` money/validators + `familyVoucherCents` + `visibleBadges`, `catalog` invariants + `findPromo` + `storeName`, `local-store` external-store contract, `mask`, robots/sitemap SEO policy, env/compose/config + scan-guard lineage pins, `rate-limit` factory (Task 119), the `orderStepIndex` ladder seam (Task 120), **docs-counts pin** (Task 119; Task 120 extended it to the PAD; Task 131 F-7 added DEPLOYMENT.md — fails the run on any stale live-tense count claim in AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT) | `tests/unit/` |
 | E2E (Playwright) | 2 specs, 116 tests | ✅ Green — production build on `:3100`, pinned `DATABASE_URL`: mobile-navigation project (390×844), desktop storefront/commerce journeys (incl. the live-DB checkout round-trip), API boundary validation (422/400), wishlist/search fetch-failure resilience, JSON-LD live-inventory + LOW_STOCK 422 (Task 119, via direct pinned-DB manipulation with restore), the SEO metadata blanket (Task 119; Task 120 completed it for the six title-only routes and pinned the /family earn-rate), the checkout boundary set (Task 120: malformed-JSON 400, field-cap 422, concurrent last-unit oversell → exactly one 201/one 422 LOW_STOCK), and the a11y pins (focus indication, stepper floor, alert role) | `tests/e2e/` |
 | Type coverage | `tsconfig.tests.json` | ✅ `npm run typecheck:tests` (node + vitest/globals types) | repo root |
 
@@ -1526,7 +1604,7 @@ the code, never to hit a number.
 rm -rf .next && DATABASE_URL=… npm run build   # cold build (cache can mask the scan-guard failure)
 npm run typecheck && npm run typecheck:tests  # app scope + test tree
 npm run lint                                   # 0 errors / 0 warnings
-npm run test                                   # 169/169 unit
+npm run test                                   # 176/176 unit
 npm run test:e2e                               # 116/116 e2e (live Postgres for the journey)
 # runtime smoke of touched routes against `npm run start`
 ```
@@ -1591,7 +1669,7 @@ npm run dev                       # http://localhost:3000
 | `npm run dev` / `build` / `start` | root | Dev / cold production build / serve |
 | `npm run lint` | root | ESLint (flat; `skills/` ignored) |
 | `npm run typecheck` / `typecheck:tests` | root | App-scope / test-tree `tsc --noEmit` |
-| `npm run test` / `test:e2e` | root | Vitest unit (169) / Playwright e2e (116, production build on :3100) |
+| `npm run test` / `test:e2e` | root | Vitest unit (176) / Playwright e2e (116, production build on :3100) |
 | `npx drizzle-kit push` | root | Apply `src/db/schema.ts` |
 | `python3 docs/ssh_git_wrapper_v3.py --key-file K --remote git@github.com:nordeim/home-furnishing-store.git` | repo | Verified SSH push to main (see the runbook) |
 
@@ -1782,7 +1860,7 @@ directions across remediation cycles. The file inventory is the reference;
 | `src/app/product/[slug]/page.tsx` | — | PDP: metadata, gallery, stock/aisle, reviews, related |
 | `src/app/api/checkout/route.ts` | — | Validation (TYPE-strict incl. the storeSlug guard — Task 130 F-1), rate limit, `placeOrder` delegation, envelope |
 | `src/components/Header.tsx` | — | Utility strip, search, store picker (external store), category nav, mobile drawer (Escape-close) |
-| `tests/unit/` | 9 files | 169 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges/DELIVERY_SLOTS/orderNumber-SGT/isUniqueViolationOn, catalog incl. findPromoMinimumCents, local-store incl. the promo predicate, mask, robots/sitemap, env/compose/config + scan-guard pins) |
+| `tests/unit/` | 10 files | 176 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges/DELIVERY_SLOTS/orderNumber-SGT/isUniqueViolationOn, catalog incl. findPromoMinimumCents, local-store incl. the promo predicate, mask, robots/sitemap, env/compose/config + scan-guard pins, server-data fulfilment-seam fs-pin (Task 131 F-2)) |
 | `tests/e2e/` | 2 specs | 116 Playwright tests: mobile-navigation (iPhone-13 emulation, 390×844), storefront/commerce journeys, API boundary validation, fetch-failure resilience, slot coherence, review-count truth, fulfilment-store coherence (Task 130 F-2) |
 | `src/components/ProductCard.tsx` | — | Card + `Rating`; wishlist/add-to-bag affordances |
 | `docs/implementation-plan.md` | — | Stack decision record, deviations ledger, acceptance criteria |

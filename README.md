@@ -164,7 +164,7 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 169 tests at the pure seams
+npm run test             # Vitest unit — 176 tests at the pure seams
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
@@ -244,7 +244,7 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 169 unit + 116 e2e, all green | NORDHEM-native harness (Tasks 114/117/118/119/120/121/122/123/124/125/126/127/128/129/130); counts pinned by tests/unit/docs-counts.test.ts |
+| Test suite | ✅ 176 unit + 116 e2e, all green | NORDHEM-native harness (Tasks 114/117–131); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131) |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
@@ -280,6 +280,35 @@ verified TRUE (all ten Task-128 seams held; the reference repo stayed
 quiescent with md5-identical catalogs — nothing to port, fifth cycle).
 Suite grew to 163 unit + 113 e2e. Details in `worklog.md` and
 `docs/plans/2026-11-20-task129-remediation-plan.md`.
+
+Current cycle (2026-11-20, Task 131): workspace-refresh re-audit (mobile-nav
+taxonomy re-verified clean at 390/1440 — no Tailwind v4 bug; hydration
+live-verified; baseline gates green at 169/116 with zero DB residue — the
+rootless PostgreSQL 17.12 data dir survived the sandbox recycle RUNNING, no
+lesson-31 restore needed for the first time since the class appeared; the
+reference repo quiescent — no src/tests changes after the boundary-day
+commit ff65bd2, its not-found CSP-nonce fix evaluated and NOT applicable:
+NORDHEM ships no CSP and the 404 surface is live-verified branded + working)
+that caught **the wishlist count split-brain** (the Task-130 F-8 heading fix
+landed one count site of two — the header badge still said "Wishlist, 2
+items" above a page honestly showing "(1)"; the badge stays the persisted
+SAVED-entry count by design and the page now EXPLAINS the difference with a
+"N saved items are no longer available" note — e2e-pinned together, and the
+F-8 pin's broken ghost-card locator repaired), **the fulfilment-seam
+re-derivation** (the decrement re-derived the store default instead of
+reading `fulfilStore` — the Task-130 F-2 coherence rested on textual
+coincidence; one-token fix, structurally fs-pinned by a tenth unit file),
+**the orderNumber Math.random suffix** (state-recoverable and occasionally
+1-char on trailing-zero mantissas — now getRandomValues bytes → uint32 →
+base36, exactly 6 chars every path), **a latent fullyParallel residue
+window** (the Task-119 oversell probe moved katong → wokhey-cookware-5pc —
+katong was never quiet), the NaN-safe `clampInt` swap at placeOrder's qty
+seam, and **the DEPLOYMENT.md truth pass** (gate chain rotted to 79/79 +
+34/34 five count-bumps deep, XFF "first hop" guidance teaching the exact
+misconfiguration Task 125 removed, dotenv + hardcoded-origin claims — the
+docs-counts pin now covers all six live operator docs). Suite grew to
+176 unit + 116 e2e. Details in `worklog.md` and
+`docs/plans/2026-11-20-task131-remediation-plan.md`.
 
 Current cycle (2026-11-20, Task 130): workspace-refresh re-audit (mobile-nav
 taxonomy re-verified clean at 390/1440 — no Tailwind v4 bug; hydration

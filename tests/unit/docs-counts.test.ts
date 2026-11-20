@@ -13,7 +13,8 @@ import { expect, test } from "vitest";
  * - Every test here is a LITERAL `test(...)` declaration — no loops generating
  *   tests, because this file's own fs-countable surface is part of the truth
  *   it pins (a loop would undercount itself).
- * - Scope: AGENTS/README/CLAUDE/SKILL/PAD (the five live operator docs).
+ * - Scope: AGENTS/README/CLAUDE/SKILL/PAD + DEPLOYMENT.md (the six live
+  operator docs — DEPLOYMENT.md joined in Task 131 F-7).
  *   The PAD's historical verification ledgers intentionally keep their
  *   era's counts (history rule); its LIVE-TENSE sites are pinned below —
  *   Task 120 closed the blind spot that let the PAD rot while the other
@@ -129,6 +130,24 @@ test("PAD §9.2 command-table counts === fs reality", () => {
   const m = readFileSync(join(ROOT, "Project_Architecture_Document.md"), "utf8").match(/Vitest unit \((\d+)\) \/ Playwright e2e \((\d+)/);
   expect(m, "PAD §9.2 command-table claim not found").not.toBeNull();
   expect(Number(m?.[1])).toBe(unitCount);
+  expect(Number(m?.[2])).toBe(e2eCount);
+});
+
+// Task 131 F-7: DEPLOYMENT.md joins the pinned scope — its §10 gate chain
+// had rotted to a five-cycle-old 79/79 + 34/34 while every pinned doc held
+// the truth (the pin's scope comment said "the five live operator docs";
+// DEPLOYMENT.md is the sixth).
+test("DEPLOYMENT.md gate-chain unit fraction === fs reality", () => {
+  const m = readFileSync(join(ROOT, "docs/DEPLOYMENT.md"), "utf8").match(/npm run test\s+# (\d+)\/(\d+) unit/);
+  expect(m, "DEPLOYMENT gate-chain unit claim not found").not.toBeNull();
+  expect(Number(m?.[1])).toBe(unitCount);
+  expect(Number(m?.[2])).toBe(unitCount);
+});
+
+test("DEPLOYMENT.md gate-chain e2e fraction === fs reality", () => {
+  const m = readFileSync(join(ROOT, "docs/DEPLOYMENT.md"), "utf8").match(/npm run test:e2e\s+# (\d+)\/(\d+) e2e/);
+  expect(m, "DEPLOYMENT gate-chain e2e claim not found").not.toBeNull();
+  expect(Number(m?.[1])).toBe(e2eCount);
   expect(Number(m?.[2])).toBe(e2eCount);
 });
 

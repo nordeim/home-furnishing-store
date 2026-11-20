@@ -43,6 +43,19 @@ export default function WishlistPage() {
           not render "(2)" above one card — the honesty class the project
           polices everywhere). */}
       <h1 className="text-[clamp(1.8rem,4vw,2.6rem)] font-black tracking-tight">Your wishlist ({loading || error ? wishlist.length : items.length})</h1>
+      {/* Task 131 F-1: the header badge counts SAVED entries by design (the
+          Header cannot resolve slugs without a catalogue fetch on every
+          route — resolution is unknowable there). Once this page HAS
+          resolved, a departed slug makes the heading's (resolved) count
+          differ from the badge's (saved) count — the page explains the
+          difference instead of silently contradicting the badge. */}
+      {!loading && !error && items.length < wishlist.length && (
+        <p className="mt-2 text-[14px] text-[#5b5b5b]">
+          {wishlist.length - items.length === 1
+            ? "1 saved item is no longer available."
+            : `${wishlist.length - items.length} saved items are no longer available.`}
+        </p>
+      )}
       {loading ? <p className="mt-4 text-[#5b5b5b]" role="status">Loading…</p> : error ? (
         <div className="mt-6 rounded-2xl bg-[#fff4f4] p-10 text-center" role="alert">
           <p className="text-[18px] font-black text-[#a00008]">We couldn’t load your wishlist</p>

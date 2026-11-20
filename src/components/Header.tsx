@@ -135,6 +135,12 @@ export function Header() {
               ))}
             </select>
           </div>
+          {/* Task 131 F-1: the badge counts SAVED entries (the persisted
+              store) BY DESIGN — the Header cannot resolve slugs without a
+              catalogue fetch on every route, so resolution is unknowable
+              here (the same degrade posture as the wishlist page's error
+              state). The wishlist page explains the saved-vs-resolved
+              difference when they diverge; e2e-pinned together. */}
           <Link href="/wishlist" className="relative rounded-full p-2.5 hover:bg-[#f5f3ee] focus-ring" aria-label={`Wishlist, ${wishlist.length} item${wishlist.length === 1 ? "" : "s"}`}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 20.5C7 16.5 3.5 13.3 3.5 9.6 3.5 7 5.5 5 8 5c1.6 0 3.1.8 4 2.1C12.9 5.8 14.4 5 16 5c2.5 0 4.5 2 4.5 4.6 0 3.7-3.5 6.9-8.5 10.9Z" strokeLinejoin="round" /></svg>
             {wishlist.length > 0 && (

@@ -420,8 +420,18 @@ test.describe("client resilience (fetch failure ≠ empty state)", () => {
     // One card (an <article> per ProductCard — each card carries two anchors:
     // the image link and the name link, so counting anchors would double).
     await expect(page.locator("main article")).toHaveCount(1);
-    // The ghost slug never renders a card.
+    // The ghost slug never renders a card (locator repaired in Task 131 F-1:
+    // the old locator text was broken CSS that matched nothing, making
+    // this assertion a permanent no-op).
     await expect(page.locator("main a[href='/product/ghost-product-xyz']")).toHaveCount(0);
+    // Task 131 F-1: the header badge is the persisted SAVED-entry count BY
+    // DESIGN (the Header cannot resolve slugs without a catalogue fetch on
+    // every route - resolution is unknowable there, the same degrade posture
+    // as the error state) - so with one real + one ghost slug it shows 2
+    // while the heading honestly shows (1). The page must EXPLAIN the
+    // difference instead of silently contradicting the badge.
+    await expect(page.getByRole("link", { name: "Wishlist, 2 items" })).toBeVisible();
+    await expect(page.getByText("1 saved item is no longer available")).toBeVisible();
   });
 
   test("search shows an error state (not 'No products found') when the API fails", async ({ page }) => {
@@ -755,8 +765,11 @@ test.describe("PDP JSON-LD availability source (Task 119)", () => {
 test.describe("checkout stock honesty (Task 119)", () => {
   test("overselling beyond live inventory is a 422 LOW_STOCK, not a silent floor", async ({ request }) => {
     // Task 119 F-25: placeOrder clamps qty 1–99 but never checks availability —
-    // a 99-qty line for a 51-stock product (katong-bedside-table: quiet, no
-    // other spec touches it) succeeded and floored the store row with
+    // a 99-qty line for a stock-bounded product (wokhey-cookware-5pc since
+    // Task 131 F-3: zero references in either spec file — katong-bedside-table
+    // was NEVER quiet, the 500-class spec at the "fixed copy" probe zeroes
+    // its rows in a fullyParallel window that could pollute this spec's
+    // snapshot/restore pair) succeeded and floored the store row with
     // greatest(0,…) while the PDP prints "Only N left". The write boundary
     // must refuse what it cannot fulfil. The pre-fix behaviour (order placed)
     // is cleaned up in the finally block so the RED run leaves no residue.
@@ -764,7 +777,7 @@ test.describe("checkout stock honesty (Task 119)", () => {
       connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
     });
     await client.connect();
-    const pidRow = await client.query("select id from products where slug = 'katong-bedside-table'");
+    const pidRow = await client.query("select id from products where slug = 'wokhey-cookware-5pc'");
     const pid = pidRow.rows[0].id as number;
     const orig = await client.query("select store_slug, quantity from inventory where product_id = $1", [pid]);
     let orderNumber: string | null = null;

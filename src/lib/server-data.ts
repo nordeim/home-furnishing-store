@@ -3,6 +3,7 @@ import { categories, inspirations, inventory, orderItems, orders, products, prom
 import type { Order } from "@/db/schema";
 import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, matchesProductQuery } from "@/lib/catalog";
 import {
+  clampInt,
   isUniqueViolationOn,
   orderNumber,
   priceTotals,
@@ -11,7 +12,10 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 let seedPromise: Promise<void> | null = null;
 
-/** Idempotent seed: fills empty tables from the static catalogue. Safe for concurrent first requests. */
+/** Idempotent seed: fills empty tables from the static catalogue. Safe for
+ * concurrent first requests WITHIN the process (the single-flight promise);
+ * a multi-process cold start is the documented single-node posture — Task 131
+ * F-6 qualified the earlier blanket claim. */
 export function ensureSeed(): Promise<void> {
   if (!seedPromise) {
     seedPromise = (async () => {
@@ -236,9 +240,13 @@ export async function placeOrder(input: CheckoutInput): Promise<PlaceOrderResult
   }
   const all = await getAllProducts();
   const byId = new Map(all.map((p) => [p.id, p]));
-  // Re-derive money server-side; never trust client totals.
+  // Re-derive money server-side; never trust client totals. Task 131 F-5:
+  // the qty clamp goes through the shared clampInt seam (the NaN-safe
+  // helper this comment always cited) instead of an inline floor+clamp —
+  // identical for every finite input (the route guarantees finite),
+  // defensive parity for anything else.
   const lines = input.lines
-    .map((l) => ({ product: byId.get(l.productId), qty: Math.min(99, Math.max(1, Math.floor(l.qty))) }))
+    .map((l) => ({ product: byId.get(l.productId), qty: clampInt(l.qty, 1, 99, 1) }))
     .filter((l): l is { product: ProductRow; qty: number } => !!l.product);
   if (lines.length === 0) throw new OrderRefusalError("EMPTY_BAG", "Your bag is empty.");
   const subtotalCents = lines.reduce((a, l) => a + l.product.priceCents * l.qty, 0);
@@ -356,10 +364,15 @@ export async function placeOrder(input: CheckoutInput): Promise<PlaceOrderResult
       // catch here would only mask the failure until the COMMIT blows up.
       // Fail-closed is the honest semantics for a locked-row arithmetic miss.
       for (const l of lines) {
+        // Task 131 F-2: the decrement reads the SAME `fulfilStore` seam as
+        // the lock/availability query above — the pre-131 inline
+        // re-derivation of the store default kept the Task-130 F-2 coherence
+        // guarantee alive only by textual coincidence; structurally pinned
+        // by tests/unit/server-data.test.ts.
         await tx
           .update(inventory)
           .set({ quantity: sql`greatest(0, ${inventory.quantity} - ${l.qty})` })
-          .where(and(eq(inventory.productId, l.product.id), eq(inventory.storeSlug, input.storeSlug || "tampines")));
+          .where(and(eq(inventory.productId, l.product.id), eq(inventory.storeSlug, fulfilStore)));
       }
       return { order, replayed: false };
     });

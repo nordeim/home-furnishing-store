@@ -163,8 +163,28 @@ export function orderNumber(now: Date = new Date()): string {
   const SGT_OFFSET_MS = 8 * 60 * 60 * 1000;
   const sgt = new Date(now.getTime() + SGT_OFFSET_MS);
   const ymd = `${sgt.getUTCFullYear()}${String(sgt.getUTCMonth() + 1).padStart(2, "0")}${String(sgt.getUTCDate()).padStart(2, "0")}`;
-  const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
-  return `NH-${ymd}-${rand}`;
+  return `NH-${ymd}-${orderSuffix()}`;
+}
+
+/**
+ * Task 131 F-4: mint the 6-char suffix from real crypto bytes. The order
+ * number is half of the PII lookup pair on /track-order, so the previous
+ * Math.random mint had two defects: V8's xorshift128+ state is recoverable
+ * from observed outputs, and a mantissa with trailing zero bits minted
+ * FEWER than 6 chars ((0.5).toString(36) = "0.i" → slice = "I"). 4 bytes →
+ * uint32 → base36 keeps ~2^31 entropy (36^6 ≈ 2.18e9) with exactly 6 chars
+ * on every path. Mirrors mintIdempotencyKey (Task 127 F-6): getRandomValues
+ * first; Math.random only as the both-primitives-absent last resort.
+ */
+function orderSuffix(): string {
+  try {
+    const bytes = new Uint8Array(4);
+    crypto.getRandomValues(bytes);
+    const v = ((bytes[0] ?? 0) | ((bytes[1] ?? 0) << 8) | ((bytes[2] ?? 0) << 16) | (bytes[3] ?? 0) * 0x1000000) >>> 0;
+    return v.toString(36).padStart(6, "0").slice(0, 6).toUpperCase();
+  } catch {
+    return Math.random().toString(36).slice(2, 8).padStart(6, "0").toUpperCase();
+  }
 }
 
 // Task 123 F-3: the checkout slot contract, shared by the page (the <select>

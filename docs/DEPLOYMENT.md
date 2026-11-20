@@ -2,7 +2,8 @@
 
 NORDHEM ships as a **single Next.js application over one PostgreSQL
 database**: one Node process plus Postgres, nothing else. This revision
-(2026-11-18, Task 115) replaces the inherited ElyBeauty-era guide wholesale —
+(2026-11-20, Tasks 115-131; counts re-pinned by the docs-counts test since
+Task 131 F-7) replaces the inherited ElyBeauty-era guide wholesale —
 that document described Prisma + SQLite file databases, an
 `output: "standalone"` build with `.env` baking, `AUTH_SECRET` / Stripe /
 `NEXT_PUBLIC_SITE_URL` environment variables, and a Cloudflare-aware rate
@@ -60,14 +61,15 @@ DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db"
 
 - There is no `AUTH_SECRET` (auth is deferred), no payment keys (mock
   methods only), and no `NEXT_PUBLIC_SITE_URL` — the canonical origin
-  `https://nordhem.sg` is hardcoded in `src/app/layout.tsx`, `robots.ts` and
-  `sitemap.ts`.
+  `https://nordhem.sg` is single-sourced as the `SITE_ORIGIN` constant in
+  `src/lib/utils.ts` and composed by `src/app/layout.tsx`, `robots.ts` and
+  `sitemap.ts` (fs-pinned: no raw origin literal in `src/app`).
 - `src/db/index.ts` throws `DATABASE_URL is required` at module load when
   the variable is missing — including during `next build`. It must always
   be present; it may point at an unreachable server while developing on the
   static fallback (§8).
 - **Precedence trap:** an exported shell `DATABASE_URL` silently overrides
-  `.env` (dotenv never overrides existing environment variables). If the
+  `.env` (Next's own env loader never overrides an existing env). If the
   app connects to the wrong database, check `env | grep DATABASE` and pin
   the value per command:
   `DATABASE_URL="postgresql://…" npm run dev`.
@@ -287,10 +289,13 @@ receipt line); delivery is $12 standard / free at ≥ $200 net / $29 express
 base-36 suffix.
 
 **Reverse proxy.** Terminate TLS in front (Caddy/Nginx) and forward to the
-Node port. The checkout limiter keys on the **first entry** of
-`X-Forwarded-For` (`src/app/api/checkout/route.ts`) — run exactly one
-trusted proxy hop that appends the client address, otherwise a client can
-forge its own bucket key.
+Node port. The checkout limiter keys on the **rightmost entry** of
+`X-Forwarded-For` (the shared `clientIp()` seam in `src/lib/rate-limit.ts`,
+Task 125 G-2 — the leftmost hop is the client-forgeable form), falling back
+to `"direct"` when the header is absent. When deploying behind a proxy,
+strip or override `X-Forwarded-For` at the edge so the rightmost hop is the
+proxy-appended client address, otherwise a client can forge its own bucket
+key (the documented TRUST_PROXY caveat).
 
 **Single-process state.** The checkout rate limiter is an in-process fixed
 window (20 attempts/min/IP, a module-scope Map) and the seed is a
@@ -325,8 +330,8 @@ rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_
 npm run typecheck
 npm run typecheck:tests
 npm run lint                # 0 errors / 0 warnings expected
-npm run test                # 79/79 unit (Vitest, pure seams)
-npm run test:e2e            # 34/34 e2e — needs the live Postgres
+npm run test                # 176/176 unit (Vitest, pure seams)
+npm run test:e2e            # 116/116 e2e — needs the live Postgres
 ```
 
 One-time before e2e: `npm run test:e2e:install` (installs the pinned
@@ -359,10 +364,10 @@ curl -s -X POST localhost:3000/api/orders/track \
 | `Error: DATABASE_URL is required` at boot or build | `src/db/index.ts` throws at module load — the variable is absent | Set it in `.env` (§3); while developing on the fallback it may point anywhere |
 | `/api/health` returns 500 | Database unreachable — expected on the static fallback | Start the cluster (§4) and re-check; browsing still works (§8) |
 | `POST /api/checkout` → 500 `CHECKOUT_FAILED` | Write path has no fallback: DB down, schema not pushed, or seed not run | Verify §4 → §5 → §6 in order, then retry |
-| App connects to the wrong DB / seed logs SASL password errors | An exported shell `DATABASE_URL` beats `.env` (dotenv never overrides) | `env \| grep DATABASE`, pin the value per command (§3) |
+| App connects to the wrong DB / seed logs SASL password errors | An exported shell `DATABASE_URL` beats `.env` (Next's own env loader never overrides an existing env) | `env \| grep DATABASE`, pin the value per command (§3) |
 | `drizzle-kit push` touches the wrong database | `drizzle.config.json` pins its own URL, independent of `.env` | Update both when the database moves (§5) |
 | Build fails: `Missed semicolon` in `globals.css` | Tailwind v4's candidate scan read a class-like string from a prose file — the `@source not` guard was removed, or a colon-form arbitrary value was added somewhere | Keep the guard; write slash-form `aspect-[16/9]`, never colon-form; verify with a COLD build (§9) |
-| 429 `RATE_LIMIT` on checkout | In-process fixed window: 20 attempts/min/IP (first `X-Forwarded-For` hop) | Wait a minute; ensure exactly one trusted proxy hop appends the header (§8) |
+| 429 `RATE_LIMIT` on checkout | In-process fixed window: 20 attempts/min/IP (rightmost `X-Forwarded-For` hop, "direct" without the header) | Wait a minute; strip/override `X-Forwarded-For` at the edge so the rightmost hop is proxy-appended (§8) |
 | `pg_ctl: another server might be running` / rootless start fails | Stale `postmaster.pid` after a hard kill, or the log directory is missing | `pg_ctl status`; remove `$PG_DATA/postmaster.pid` only when no postgres process owns it; `mkdir -p` the log dir; retry (§4) |
 | e2e: browser not found | Playwright Chromium not installed | `npm run test:e2e:install` once |
 | e2e: port 3100 in use / suite hangs at webServer | A previous e2e webServer is still alive | Kill the leftover `next start` process on :3100, re-run |

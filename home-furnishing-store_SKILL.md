@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 2.4.0
-last_updated: "2026-11-20 (Task 130: fulfilment-store coherence, boundary parity completion, suite de-flake)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 169/169 unit · 116/116 e2e · cold build green · PostgreSQL 17 live-verified (fresh install via docs/setup_pg_z.sh) · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD)"
+version: 2.5.0
+last_updated: "2026-11-20 (Task 131: wishlist count parity, fulfilment-seam structural pin, orderNumber crypto suffix, DEPLOYMENT.md truth)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 176/176 unit · 116/116 e2e · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -94,7 +94,7 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 169/169
+npm run test                                                   # 176/176
 npm run test:e2e                                               # 116/116 (live Postgres for the journey)
 ```
 
@@ -795,6 +795,24 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
     of product choice, not a necessity, and quiet entities are plentiful.
     The same rule applies to inventory: the LOW_STOCK/JSON-LD specs each
     own a distinct product for a reason.
+51. **A count-honesty fix that lands one surface short CREATES a visible
+    contradiction where none existed.** Task 130's F-8 made the wishlist
+    heading count resolved items while the header badge still counted
+    persisted slugs — before the fix both surfaces lied consistently
+    (invisible); after the half-fix they disagreed side by side ("Wishlist,
+    2 items" above "Your wishlist (1)"). When fixing a rendered count, sweep
+    EVERY surface that renders it; where a surface genuinely cannot resolve
+    (the Header would need a catalogue fetch on every route), make the
+    honest page EXPLAIN the difference instead of leaving two truths
+    unqualified.
+52. **A `git log --since DATE` filter includes DATE itself — boundary-day
+    commits hide in the inclusive edge.** Six cycles of "zero src/tests
+    changes since 2026-10-23" missed that the boundary day itself carried
+    ff65bd2 (a src/tests commit); the audits were true in substance but
+    imprecise in claim. Date filters narrow a search; a SHA names a
+    boundary. State quiescence as "no changes after <sha>; the N subsequent
+    commits are docs/skills only" — precise, checkable, and immune to the
+    inclusive-edge trap.
 
 ## 13. Pitfalls to Avoid
 
@@ -917,8 +935,8 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | Commands & gotchas | `AGENTS.md` |
 | Architecture detail | `Project_Architecture_Document.md` |
 | Decision record | `docs/implementation-plan.md` |
-| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-20-task130-remediation-plan.md` (15 plans: Tasks 114, 117–130) |
-| Screenshots | `docs/screenshots/01…69-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants) |
+| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-20-task131-remediation-plan.md` (16 plans: Tasks 114, 117–131) |
+| Screenshots | `docs/screenshots/01…74-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 75 PNGs) |
 | SSH push runbook | `docs/how-to-git-push-using-ssh-wrapper_SKILL.md` |
 | Working history | `worklog.md` (Tasks 113+ NORDHEM; the 1–112 predecessor lineage was operator-trimmed) |
 | Money/validators | `src/lib/utils.ts` |
@@ -927,5 +945,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (169) |
+| Unit suite | `tests/unit/*.test.ts` (176) — 10 files |
 | E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (116) — 108 storefront + 8 mobile |
