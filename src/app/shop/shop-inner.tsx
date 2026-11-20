@@ -80,8 +80,15 @@ export function ShopInner({ initial }: { initial: ShopInitial }) {
         const res = await fetch(url.toString());
         const json = (await res.json()) as { ok: boolean; data?: CardProduct[]; error?: { message: string } };
         if (cancelled) return;
-        if (!json.ok) throw new Error(json.error?.message ?? "Failed to load");
-        setItems((json.data ?? []).map((p) => ({ ...p, ratingAvg: String(p.ratingAvg) })));
+        // Task 136 F-1: the envelope contract is { ok, data } — an ok:true
+        // body WITHOUT an array data (a contract-violating but
+        // well-formed-status response) must be an ERROR, never a "resolved
+        // empty catalogue": json.data ?? [] used to render the FALSE "0
+        // products" + "Nothing matches those filters" verdict on the primary
+        // catalogue funnel. The Task-135 F-5 gates (wishlist + search)
+        // completed — this is their third sibling, the primary one.
+        if (!json.ok || !Array.isArray(json.data)) throw new Error(json.error?.message ?? "Failed to load");
+        setItems(json.data.map((p) => ({ ...p, ratingAvg: String(p.ratingAvg) })));
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load products.");
       } finally {

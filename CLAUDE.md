@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-20 (Task 135: qty-writer clamp parity, API cat/sort boundary stance, envelope-trust gate, docs truth)
+last_updated: 2026-11-21 (Task 136: shop-grid envelope-trust completion, DB-funnel golden-rule restoration, reviews degrade honesty, promo in-tx coherence, docs truth)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -128,18 +128,19 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run build` | Production build (needs `DATABASE_URL` in env; test cold with `rm -rf .next`) |
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
-| `npm run typecheck` | App-scope TypeScript check (`typecheck:tests` covers the test tree) |
-| `npm run test` | Vitest unit suite (183 tests, pure seams) |
+| `npm run typecheck` | App-scope TypeScript check (`src/**`, `next.config.ts`) |
+| `npm run typecheck:tests` | Test-tree TypeScript check (`tests/**` via `tsconfig.tests.json` — both scopes are live gates) |
+| `npm run test` | Vitest unit suite (186 tests, pure seams) |
 | `npm run test:watch` | Vitest in watch mode (the same suite, re-run on change) |
-| `npm run test:e2e` | Playwright e2e (129 tests, production build on :3100) |
+| `npm run test:e2e` | Playwright e2e (130 tests, production build on :3100) |
 | `npm run test:e2e:install` | One-time: install the pinned Playwright Chromium build (the fresh-clone cache miss) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
-**Current state (Tasks 114–135, extended this cycle):** a NORDHEM-native suite is wired into the gates.
+**Current state (Tasks 114–136, extended this cycle):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 183 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 186 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
@@ -154,7 +155,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   operator docs (AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT — DEPLOYMENT.md
   joined in Task 131), not remembered). Node environment with a localStorage shim
   (`tests/unit/setup.ts`); no jsdom, no component rendering.
-- **E2E (Playwright, 129 tests)** against the **production build** (the webServer
+- **E2E (Playwright, 130 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
   hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
@@ -351,10 +352,9 @@ fix and passes after.
   that derive from the same constants the pages interpolate (a rate edit
   self-corrects copy and pins together — the Task-127 claim now true).
   The storefront spec's interaction-first coverage is complete: zero bare
-  interaction-first gotos remain (42 gotoHydrated call sites across the two
-  files after the Task-129 conversions and the Task-131..134 probes — 44
-  including the mobile spec's
-  three conversions + the business pin), and every
+  interaction-first gotos remain (43 gotoHydrated call sites in the storefront
+  spec after the Task-129 conversions and the Task-131..136 probes — 45 across
+  both files, the mobile spec contributing its two sites), and every
   write-capable refusal spec carries its RED-run `finally` net.
 - **Task-129 seams:** every write-capable refusal spec is netted — including
   the REVIEW probes (the overlong-body and bad-rating specs insert rows on
@@ -485,6 +485,29 @@ fix and passes after.
   render the FALSE all-ghost note / false "0 results" verdict — the
   Task-128 body-shape discipline mirrored client-side, e2e-pinned by
   route-fulfilled body-less envelopes).
+
+- **Task-136 seams:** the shop grid — the THIRD client consumer of
+  `/api/products` and the primary catalogue funnel — gates on
+  `Array.isArray(json.data)` too (it read `json.data ?? []` and rendered
+  the false "0 products" + "Nothing matches those filters" verdict; the
+  client-resilience class is now closed across all three consumers,
+  e2e-pinned via the LOCAL keyword filter — the one path that fires the
+  client-side refetch, cat/sort landing in the atServerView skip); the
+  DB-funnel golden rule is RESTORED and fs-pinned (the order page
+  funnels through the new `getOrderByNumber` seam — decode guard,
+  trackOrder-normalization parity, outage authority all moved in; the
+  reviews POST delegates to the new `submitReview` seam; only
+  `src/db/**`, `server-data.ts`, and the `api/health` infra-probe
+  exception may import `@/db`); `getReviews`/`getReviewCount` degrade to
+  `null` (the outage signal — the PDP renders the honest "Reviews are
+  unavailable right now" note with no count claim, the JSON-LD omits
+  `aggregateRating`, and the API GET answers the `DB_DOWN` envelope
+  instead of the false "no reviews" empty list); and `placeOrder`
+  re-reads the promotions row `FOR UPDATE` INSIDE the createOrder
+  transaction, deriving the totals after the locked re-read (the
+  Task-130 F-2 check/act coherence applied to the other money-shaping
+  input — a promo deactivated under the order refuses with
+  INVALID_PROMO and the whole transaction rolls back).
 
 - **`main` branch only** — no feature branches (operator contract).
 - Conventional Commits, atomic units (`fix:`, `feat:`, `docs:` — history uses

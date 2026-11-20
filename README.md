@@ -164,13 +164,13 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 183 tests at the pure seams
+npm run test             # Vitest unit — 186 tests at the pure seams
 npm run test:watch       # the same suite, re-run on change
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 129 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 130 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
@@ -245,11 +245,49 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 183 unit + 129 e2e, all green | NORDHEM-native harness (Tasks 114/117–135); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131; the unit tree is TZ-pure since Task 132 — verified by the three-TZ run) |
+| Test suite | ✅ 186 unit + 130 e2e, all green | NORDHEM-native harness (Tasks 114/117–136); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131; the unit tree is TZ-pure since Task 132 — verified by the three-TZ run) |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
+
+Current cycle (2026-11-21, Task 136): workspace-refresh re-audit (fresh
+clone after a sandbox reset — the rootless PostgreSQL 17.12 data dir
+restored via the lesson-31 discipline: stale postmaster.pid + the missing
+empty initdb subdirs + the nested pg_logical pair; DDL contract + seed
+quantities verified by direct SQL, inventory 1379; the pinned Playwright
+Chromium 1255 re-installed after the cache miss; mobile-nav taxonomy 8/8 at
+390/1440 — no Tailwind v4 bug; sitemap/robots/og/noindex/404/security
+headers re-verified live; baseline gates green at 183/129 with zero DB
+residue; the reference repo quiescent — twelfth cycle of "nothing to
+port") that caught **the shop-grid envelope-trust completion** (the THIRD
+client consumer of `/api/products` — the primary catalogue funnel — still
+read `json.data ?? []` after Task 135 gated the wishlist + search siblings;
+a well-formed `200 {ok:true}` with NO data rendered the false "0 products"
++ "Nothing matches those filters" verdict; the grid now gates on
+`Array.isArray(json.data)` — the class closed across all three consumers,
+e2e-pinned via the LOCAL keyword filter), **the DB-funnel golden-rule
+violation** (the order page imported `@/db` directly — the literal case
+PAD §3.1's golden rule names — hand-rolling its decode/outage semantics,
+and the reviews POST was the only write path outside `server-data.ts`;
+both now funnel through the new `getOrderByNumber` + `submitReview`
+seams, fs-pinned so only `src/db/**`, `server-data.ts`, and the
+`api/health` infra probe can import `@/db`), **the reviews degrade
+dishonesty** (`getReviews`/`getReviewCount` degraded to `[]`/`0` under
+outage — a reviewed product rendered the false "Reviews (0)" + "No
+reviews yet — be the first" invitation, and the seam's own comment
+claimed the section hid; both now degrade to `null` — the PDP renders the
+honest unavailable note, the JSON-LD omits `aggregateRating`, and the API
+GET answers the `DB_DOWN` envelope), **the promo out-of-transaction
+read** (placeOrder validated the promo BEFORE `createOrder`'s transaction
+— the committed discount derived from state that could change under the
+order; the re-read is now `FOR UPDATE` INSIDE the transaction with the
+totals derived after it, the Task-130 F-2 coherence applied to the sibling
+money input), and a docs-truth pass (CLAUDE's gotoHydrated claim mis-
+scoped 42 as "across the two files" and mis-attributed "three conversions"
+to the mobile spec's 2 sites; the typecheck:tests row was a parenthetical
+not a table row in AGENTS/CLAUDE). Suite grew to 186 unit + 130 e2e.
+Details in `worklog.md` and `docs/plans/2026-11-21-task136-remediation-plan.md`.
 
 Current cycle (2026-11-20, Task 135): fresh-clone workspace re-audit (the
 rootless PostgreSQL 17.12 installed fresh via `docs/setup_pg_z.sh` — 9-table

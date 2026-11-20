@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { categories, inspirations, inventory, orderItems, orders, products, promotions, reviews, stores } from "@/db/schema";
-import type { Order } from "@/db/schema";
+import type { Order, OrderItem, Review } from "@/db/schema";
 import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, matchesProductQuery } from "@/lib/catalog";
 import {
   clampInt,
@@ -109,7 +109,7 @@ export async function getInventory(productId: number) {
   }
 }
 
-export async function getReviews(productId: number) {
+export async function getReviews(productId: number): Promise<Review[] | null> {
   await ensureSeed();
   try {
     // Task 126 F-7 (the homenest S51-1 trap): createdAt alone is not a total
@@ -119,22 +119,27 @@ export async function getReviews(productId: number) {
     // tie-break: newest insert first, stable across runs and plans.
     return await db.select().from(reviews).where(eq(reviews.productId, productId)).orderBy(desc(reviews.createdAt), desc(reviews.id)).limit(20);
   } catch {
-    return [];
+    // Task 136 F-3: null is the OUTAGE signal — a resolved [] under outage
+    // rendered the false "Reviews (0)" + "No reviews yet — be the first"
+    // verdict for a product with live reviews. The PDP turns null into the
+    // honest unavailable note; [] is reserved for a genuinely empty list.
+    return null;
   }
 }
 
 // Task 123 F-10: the rendered list is capped at 20 rows (a display cap), but
 // the JSON-LD reviewCount and the "Reviews (N)" heading must quote the TRUE
 // count — deriving them from the capped list silently understated every
-// product with more than 20 live reviews. Degrades to 0 like its sibling
-// read (the reviews section hides on outage either way).
-export async function getReviewCount(productId: number): Promise<number> {
+// product with more than 20 live reviews. Task 136 F-3: like its sibling
+// read, the degrade is null (the outage signal the PDP renders as the honest
+// unavailable note) — null is never a count claim.
+export async function getReviewCount(productId: number): Promise<number | null> {
   await ensureSeed();
   try {
     const rows = await db.select({ n: sql<number>`count(*)::int` }).from(reviews).where(eq(reviews.productId, productId));
     return rows[0]?.n ?? 0;
   } catch {
-    return 0;
+    return null;
   }
 }
 
@@ -145,6 +150,24 @@ export async function getInspirations() {
   } catch {
     return INSPIRATIONS.map((i, idx) => ({ ...i, id: idx + 1, createdAt: new Date() }));
   }
+}
+
+// Task 136 F-2: the reviews POST was the only write path outside the funnel —
+// the product-existence read and the insert lived in the route handler with
+// its own @/db import (PAD §3.1: "Route handlers validate input, delegate to
+// Layer 1"). The seam owns the DB work; the route keeps its boundary
+// validation (parse/shape/type/length stay AT the boundary). An unknown
+// product answers the 422 envelope; DB faults propagate as exceptions (the
+// route's fixed-copy 500 REVIEW_FAILED posture is unchanged).
+export async function submitReview(input: { productId: number; author: string; rating: number; title: string; body: string }): Promise<{ ok: true; data: Review } | { ok: false; error: { code: "VALIDATION"; message: string } }> {
+  await ensureSeed();
+  const known = await db.select({ id: products.id }).from(products).where(eq(products.id, input.productId)).limit(1);
+  if (known.length === 0)
+    return { ok: false, error: { code: "VALIDATION", message: "That product does not exist." } };
+  const ins = await db.insert(reviews).values({ productId: input.productId, author: input.author, rating: input.rating, title: input.title, body: input.body, verified: false }).returning();
+  const row = ins[0];
+  if (!row) throw new Error("Could not save your review.");
+  return { ok: true, data: row };
 }
 
 export async function validatePromo(code: string, subtotalCents: number) {
@@ -267,17 +290,6 @@ export async function placeOrder(input: CheckoutInput): Promise<PlaceOrderResult
   // under the winner's committed decrement and refuses with LOW_STOCK).
   const qtyByProduct = new Map<number, number>();
   for (const l of lines) qtyByProduct.set(l.product.id, (qtyByProduct.get(l.product.id) ?? 0) + l.qty);
-  // Money truth is the priceTotals() seam — the same function the cart and
-  // checkout displays use (Task 119: the previous hand-rolled copy had
-  // already drifted from it on the net===0 delivery edge; display and server
-  // can no longer diverge).
-  const totals = priceTotals({
-    subtotalCents,
-    promo,
-    deliveryMethod:
-      input.deliveryMethod === "express" ? "express" : input.deliveryMethod === "click-collect" ? "click-collect" : "delivery",
-  });
-  const { discountCents, deliveryFeeCents, gstCents, totalCents } = totals;
   const num = orderNumber();
 
   // Task 121 F-2: click-&-collect fulfils from ONE store, so its availability
@@ -322,6 +334,35 @@ export async function placeOrder(input: CheckoutInput): Promise<PlaceOrderResult
           throw new OrderRefusalError("LOW_STOCK", `Only ${have} left of ${l.product.name} right now — adjust the quantity and try again.`);
         }
       }
+      // Task 136 F-4: the promo is the OTHER money-shaping input — re-read it
+      // INSIDE the transaction under a FOR UPDATE row lock so the committed
+      // order's discount derives from promo state that cannot change under
+      // the order (the Task-130 F-2 check/act coherence, applied to the
+      // sibling input; the early validatePromo above stays as the fail-fast
+      // UX + outage static fallback). A row deactivated or re-min'd between
+      // validation and commit refuses with INVALID_PROMO and the whole
+      // transaction rolls back.
+      let txPromo: { kind: string; value: number } | null = promo;
+      if (code) {
+        const rows = await tx.select().from(promotions).where(eq(promotions.code, code)).limit(1).for("update");
+        const fresh = rows[0];
+        if (!fresh || !fresh.active || subtotalCents < fresh.minSubtotalCents)
+          throw new OrderRefusalError("INVALID_PROMO", "This code is no longer valid — remove it and try again.");
+        txPromo = fresh;
+      }
+      // Money truth is the priceTotals() seam — the same function the cart and
+      // checkout displays use (Task 119: the previous hand-rolled copy had
+      // already drifted from it on the net===0 delivery edge; display and server
+      // can no longer diverge). Task 136 F-4: derived INSIDE the transaction,
+      // AFTER the locked promo re-read — the committed totals derive from
+      // locked state, never the pre-transaction snapshot.
+      const totals = priceTotals({
+        subtotalCents,
+        promo: txPromo,
+        deliveryMethod:
+          input.deliveryMethod === "express" ? "express" : input.deliveryMethod === "click-collect" ? "click-collect" : "delivery",
+      });
+      const { discountCents, deliveryFeeCents, gstCents, totalCents } = totals;
       const inserted = await tx
         .insert(orders)
         .values({
@@ -414,4 +455,33 @@ export async function trackOrder(orderNumberInput: string, email: string) {
   if (!order || order.email.toLowerCase() !== email.trim().toLowerCase()) return null;
   const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id));
   return { order, items };
+}
+
+// Task 136 F-2: the public order page read orders/orderItems through its own
+// @/db import — the literal case PAD §3.1's golden rule names ("a page
+// importing @/db directly is an architecture violation"). The funnel seam now
+// carries the semantics the page hand-rolled: the decode guard (Task 118
+// F-15's URIError → not-found), the trackOrder-normalization parity (Task 133
+// F-5 — trim + uppercase, two surfaces one identifier), and the outage
+// authority (Task 122 F-4 — ANY query failure is "outage", never a false
+// not-found or a half-rendered confirmed order).
+export async function getOrderByNumber(rawNumber: string): Promise<{ order: Order; items: OrderItem[] } | null | "outage"> {
+  await ensureSeed();
+  try {
+    // Malformed percent-encoding (e.g. /order/%ZZ) throws URIError — decode
+    // inside the guard so it lands in the friendly not-found state, not the
+    // error boundary (Task 118 F-15, moved into the seam).
+    const decoded = decodeURIComponent(rawNumber).trim().toUpperCase();
+    const rows = await db.select().from(orders).where(eq(orders.orderNumber, decoded)).limit(1);
+    const order = rows[0];
+    if (!order) return null;
+    const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id));
+    return { order, items };
+  } catch (err) {
+    // A URIError is a malformed number (not-found); anything else means the
+    // DB itself could not answer — outage, never a false "can't be found"
+    // (Task 120 F-14 + Task 122 F-4, moved into the seam).
+    if (err instanceof URIError) return null;
+    return "outage";
+  }
 }

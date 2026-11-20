@@ -632,6 +632,25 @@ test.describe("client resilience (fetch failure ≠ empty state)", () => {
     await expect(page.getByText(/No products found/)).toHaveCount(0);
     await expect(page.getByText(/results? for/)).toHaveCount(0);
   });
+
+  test("shop grid treats an ok-but-dataless envelope as an error, never a false 0-products verdict (Task 136 F-1)", async ({ page }) => {
+    // The third client consumer of /api/products — the shop grid, the
+    // primary catalogue funnel — still read json.data ?? [] after Task 135
+    // F-5 gated the wishlist + search siblings: a well-formed 200 {ok:true}
+    // with NO data resolved to [] and rendered the FALSE "0 products" +
+    // "Nothing matches those filters" verdict (with a Clear-filters CTA) —
+    // indistinguishable from a legitimately empty filter result. The LOCAL
+    // keyword filter drives the client-side refetch (cat/sort arrive via RSC
+    // navigation and land in the atServerView skip); the verdict belongs to
+    // a RESOLVED catalogue answer only.
+    await page.route("**/api/products*", (route) => route.fulfill({ status: 200, body: JSON.stringify({ ok: true }) }));
+    await gotoHydrated(page, "/shop");
+    await page.getByRole("textbox", { name: "Filter products by keyword" }).fill("oak");
+    await expect(page.locator("main").getByRole("alert")).toBeVisible();
+    // The FALSE empty-filter verdict must not render (the answer was
+    // malformed, not "no products match").
+    await expect(page.getByText("Nothing matches those filters")).toHaveCount(0);
+  });
 });
 
 test.describe("bag → checkout → order journey (live DB)", () => {

@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
-import { getReviews } from "@/lib/server-data";
-import { products, reviews } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { getReviews, submitReview } from "@/lib/server-data";
 import { clientIp, createRateLimiter } from "@/lib/rate-limit";
 import { MAX_INT4 } from "@/lib/utils";
 
@@ -30,6 +27,12 @@ export async function GET(req: Request) {
   }
   const productId = Number(raw);
   const data = await getReviews(productId);
+  // Task 136 F-3: the outage signal is null — an honest failure envelope
+  // beats the old degrade-to-[] (a false "no reviews" answer for a product
+  // with live reviews — the ok-with-data discipline at a boundary that has
+  // NO static fallback). The health route's DB_DOWN posture.
+  if (data === null)
+    return NextResponse.json({ ok: false, error: { code: "DB_DOWN", message: "Reviews are unavailable right now — please try again in a moment." } }, { status: 500 });
   return NextResponse.json({ ok: true, data });
 }
 
@@ -85,17 +88,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Please add your name and a 1–5 star rating." } }, { status: 422 });
     }
     const author = body.author.trim();
-    const known = await db.select({ id: products.id }).from(products).where(eq(products.id, productId)).limit(1);
-    if (known.length === 0) {
-      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "That product does not exist." } }, { status: 422 });
-    }
     const title = (typeof body.title === "string" ? body.title : "").trim();
     const text = (typeof body.body === "string" ? body.body : "").trim();
     if (author.length > 60 || title.length > 120 || text.length > 2000) {
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "One or more fields are too long — keep the name under 60, the headline under 120 and the review under 2000 characters." } }, { status: 422 });
     }
-    const ins = await db.insert(reviews).values({ productId, author, rating, title, body: text, verified: false }).returning();
-    return NextResponse.json({ ok: true, data: ins[0] }, { status: 201 });
+    // Task 136 F-2: the product-existence read and the insert delegate to the
+    // server-data funnel seam (the golden rule — this was the only write path
+    // outside it). Unknown product → the 422 envelope; DB faults propagate as
+    // exceptions to the fixed-copy 500 below (unchanged posture).
+    const saved = await submitReview({ productId, author, rating, title, body: text });
+    if (!saved.ok) return NextResponse.json(saved, { status: 422 });
+    return NextResponse.json(saved, { status: 201 });
   } catch (err) {
     console.error("[api/reviews]", err);
     return NextResponse.json({ ok: false, error: { code: "REVIEW_FAILED", message: "Could not save your review." } }, { status: 500 });

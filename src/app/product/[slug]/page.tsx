@@ -41,6 +41,14 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   // capped at 20 rows (a display cap), but the heading and the JSON-LD
   // reviewCount must never saturate with it.
   const [stock, reviews, all, reviewCount] = await Promise.all([getInventory(p.id), getReviews(p.id), getAllProducts(), getReviewCount(p.id)]);
+  // Task 136 F-3: null is the OUTAGE signal from the reviews seams — under
+  // outage the old degrade ([] / 0) rendered the FALSE "Reviews (0)" +
+  // "No reviews yet — be the first" verdict for a product with live reviews.
+  // The honest posture mirrors the BuyBox degrade sibling: an unavailable
+  // note, no count claim, no structured-data rating the page cannot back.
+  const reviewsUnavailable = reviews === null || reviewCount === null;
+  const reviewList = reviews ?? [];
+  const liveCount = reviewCount ?? 0;
   const related = all.filter((x) => x.categorySlug === p.categorySlug && x.id !== p.id).slice(0, 4);
   // Breadcrumb label uses the category's display name, not the raw slug
   // (Task 119 F-16: "living" → "Living room"; CATEGORIES is the single map).
@@ -74,7 +82,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     // 2); with no live reviews the node is omitted entirely — never publish
     // an aggregateRating the page cannot back. ratingValue keeps the
     // catalogue average (the documented invented-content stance).
-    ...(reviewCount > 0
+    ...(reviewCount !== null && reviewCount > 0
       ? {
           aggregateRating: {
             "@type": "AggregateRating",
@@ -197,8 +205,9 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
       <ReviewSection
         productId={p.id}
-        initial={reviews.map((r) => ({ id: r.id, author: r.author, rating: r.rating, title: r.title ?? "", body: r.body ?? "", verified: r.verified, createdAt: String(r.createdAt) }))}
-            total={reviewCount}
+        initial={reviewList.map((r) => ({ id: r.id, author: r.author, rating: r.rating, title: r.title ?? "", body: r.body ?? "", verified: r.verified, createdAt: String(r.createdAt) }))}
+        total={reviewsUnavailable ? undefined : liveCount}
+        unavailable={reviewsUnavailable}
       />
 
       {related.length > 0 && (

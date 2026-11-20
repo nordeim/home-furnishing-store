@@ -4,11 +4,14 @@ import { useState } from "react";
 
 export interface ReviewVM { id: number; author: string; rating: number; title: string; body: string; verified: boolean; createdAt: string; }
 
-export function ReviewSection({ productId, initial, total }: { productId: number; initial: ReviewVM[]; total?: number }) {
+export function ReviewSection({ productId, initial, total, unavailable }: { productId: number; initial: ReviewVM[]; total?: number; unavailable?: boolean }) {
   const [list, setList] = useState<ReviewVM[]>(initial);
   // Task 123 F-10: the heading quotes the TRUE review count (the server-side
   // count(*) query), not the capped rendered list — defaults to the list
   // length when no count is passed, and bumps with each successful POST.
+  // Task 136 F-3: under outage (unavailable) the heading makes NO count
+  // claim — the old degrade answered "Reviews (0)" for a product with live
+  // reviews.
   const [count, setCount] = useState(total ?? initial.length);
   const [author, setAuthor] = useState("");
   const [rating, setRating] = useState(5);
@@ -50,10 +53,14 @@ export function ReviewSection({ productId, initial, total }: { productId: number
 
   return (
     <section id="reviews" className="mt-12 scroll-mt-24">
-      <h2 className="text-[22px] font-black">Reviews ({count})</h2>
+      {/* Task 136 F-3: under outage the honest posture is the BuyBox degrade
+          sibling — an unavailable note, NO count claim, never the false
+          "No reviews yet — be the first" invitation for a reviewed product. */}
+      <h2 className="text-[22px] font-black">{unavailable ? "Reviews" : `Reviews (${count})`}</h2>
       <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_380px]">
         <ul className="space-y-3">
-          {list.length === 0 && <li className="rounded-xl bg-[#f5f3ee] p-6 text-[#5b5b5b]">No reviews yet — be the first to share how it fits your home.</li>}
+          {unavailable && <li className="rounded-xl bg-[#f5f3ee] p-6 text-[#5b5b5b]">Reviews are unavailable right now — please try again in a moment.</li>}
+          {!unavailable && list.length === 0 && <li className="rounded-xl bg-[#f5f3ee] p-6 text-[#5b5b5b]">No reviews yet — be the first to share how it fits your home.</li>}
           {list.map((r) => (
             <li key={r.id} className="rounded-xl p-5 ring-1 ring-[#ece8df]">
               <p className="text-[#e5a000]" role="img" aria-label={`${r.rating} out of 5 stars`}><span aria-hidden="true">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span></p>

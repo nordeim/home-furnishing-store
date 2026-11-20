@@ -1,8 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { db } from "@/db";
-import { orderItems, orders } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { getOrderByNumber } from "@/lib/server-data";
 import { ORDER_STEPS, formatSGD, orderStepIndex } from "@/lib/utils";
 import { maskEmail } from "@/lib/mask";
 import { storeName } from "@/lib/catalog";
@@ -19,35 +17,20 @@ export const metadata: Metadata = {
 
 export default async function OrderPage({ params }: { params: Promise<{ number: string }> }) {
   const { number } = await params;
-  let order = null;
-  let items: typeof orderItems.$inferSelect[] = [];
-  let outage = false;
-  try {
-    // Malformed percent-encoding (e.g. /order/%ZZ) throws URIError — decode
-    // inside the guard so it lands in the friendly not-found state, not the
-    // error boundary (Task 118 F-15).
-    // Task 133 F-5: normalize like trackOrder() does (trim + uppercase) —
-    // the order number is minted uppercase (NH-YYYYMMDD-XXXXXX), and a
-    // hand-typed lowercase URL used to answer "We can't find that order"
-    // for an order the tracking page found with the SAME input. Two
-    // surfaces, one identifier, one discipline.
-    const decoded = decodeURIComponent(number).trim().toUpperCase();
-    const rows = await db.select().from(orders).where(eq(orders.orderNumber, decoded)).limit(1);
-    order = rows[0] ?? null;
-    if (order) items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id));
-  } catch (err) {
-    // Task 120 F-14: a URIError is a malformed number (not-found below);
-    // anything else means the DB itself could not answer — telling the
-    // shopper their just-placed order "can't be found" would be a lie.
-    if (!(err instanceof URIError)) outage = true;
-  }
+  // Task 136 F-2: the lookup now funnels through server-data's
+  // getOrderByNumber seam (the golden rule — a page importing @/db directly
+  // is an architecture violation). The seam carries the decode guard, the
+  // trackOrder-normalization parity and the outage authority this page
+  // hand-rolled since Task 118.
+  const found = await getOrderByNumber(number);
+  const outage = found === "outage";
 
   // Task 122 F-4: the outage state is authoritative regardless of whether the
   // order row arrived — if the ITEMS query failed (pool exhaustion, connection
   // flake), rendering "Tak! Your order is confirmed" above an empty "Items (0)"
   // list is the most alarming possible read of a just-placed order. The
   // order-is-safe copy below is the honest answer for both query failures.
-  if (!order || outage) {
+  if (outage || !found) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
         {outage ? (
@@ -66,6 +49,7 @@ export default async function OrderPage({ params }: { params: Promise<{ number: 
     );
   }
 
+  const { order, items } = found;
   const stepIdx = orderStepIndex(order.status);
 
   return (
