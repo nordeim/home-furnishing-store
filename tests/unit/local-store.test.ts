@@ -162,6 +162,24 @@ describe("createLocalStore (localStorage-backed external store)", () => {
       expect(isValidCartPayload([{ ...validLine, name: 5 }])).toBe(false);
     });
 
+    it("rejects DUPLICATE entries (Task 133 F-3 — the shape→element→uniqueness chain's third layer)", () => {
+      // A crafted nordhem_wish_v1 of ["slug","slug"] passed the element
+      // predicate (every element a string) while /api/products returns
+      // unique slugs — items.length 1 < wishlist.length 2 made the page
+      // render the FALSE "1 saved item is no longer available." above the
+      // available product's card. The cart sibling: a duplicated valid line
+      // produced duplicate React keys and a doubled subtotal display. A
+      // duplicate payload degrades to the fallback (the [null] precedent —
+      // the honest empty state, never a false note).
+      expect(isValidWishPayload(["a", "a"])).toBe(false);
+      expect(isValidWishPayload(["a", "b", "a"])).toBe(false);
+      expect(isValidWishPayload(["a", "b"])).toBe(true);
+      expect(isValidCartPayload([validLine, validLine])).toBe(false);
+      expect(isValidCartPayload([validLine, { ...validLine, qty: 1 }])).toBe(false);
+      // Distinct productIds stay valid (the existing :168 pair's contract).
+      expect(isValidCartPayload([validLine, { ...validLine, productId: 2, qty: 1 }])).toBe(true);
+    });
+
     it("accepts empty and well-formed payloads (validation is not rejection)", () => {
       expect(isValidCartPayload([])).toBe(true);
       expect(isValidCartPayload([validLine])).toBe(true);
@@ -267,12 +285,32 @@ describe("PERSISTED_STORAGE_KEYS seam (Task 126 F-6)", () => {
     walk(srcDir);
     // First arg is either a literal or a module const defined in the same file
     // (cart-store: const CART_KEY = "nordhem_cart_v1").
+    // Task 133 F-6c: the scan is FAIL-CLOSED. The pre-133 pattern silently
+    // SKIPPED a call whose first argument was anything else (template
+    // literal, lowercase const, expression) — the call didn't match, minted
+    // didn't increment, and a store minted that way escaped
+    // PERSISTED_STORAGE_KEYS with the pin green (the Task-132 F-2
+    // presence-only class one layer up). Now EVERY call site must match the
+    // conforming pattern; a non-conforming first arg fails by name.
     const callRe = /createLocalStore(?:<[^>]*>)?\(\s*("[^"]+"|[A-Z][A-Z0-9_]*)/g;
+    // Calls only — the DEFINITION in local-store.ts ("function createLocalStore(")
+    // is not a mint and must not count toward callCount (negative lookbehind).
+    const anyCallRe = /(?<!function )createLocalStore(?:<[^>]*>)?\(/g;
     let minted = 0;
+    const nonconforming: string[] = [];
     for (const producer of producers) {
       const src = read(producer);
       const args = [...src.matchAll(callRe)].map((m) => m[1]);
       minted += args.length;
+      const callCount = [...src.matchAll(anyCallRe)].length;
+      if (args.length !== callCount) {
+        // Some call's first argument is not a literal or UPPER_CASE const —
+        // pin it by locating each non-matching call's argument text.
+        const allArgs = [...src.matchAll(/(?<!function )createLocalStore(?:<[^>]*>)?\(\s*([^,)\n]+)/g)].map((m) => m[1].trim());
+        for (const a of allArgs) {
+          if (!/^("[^"]+"|[A-Z][A-Z0-9_]*)$/.test(a)) nonconforming.push(`${producer}: ${a}`);
+        }
+      }
       for (const arg of args) {
         const key = arg.startsWith('"')
           ? arg.slice(1, -1)
@@ -281,6 +319,7 @@ describe("PERSISTED_STORAGE_KEYS seam (Task 126 F-6)", () => {
         expect(PERSISTED_STORAGE_KEYS, `${producer} key "${key}"`).toContain(key);
       }
     }
+    expect(nonconforming, "every createLocalStore call must name its key as a literal or UPPER_CASE const (fail-closed scan — a computed key escapes PERSISTED_STORAGE_KEYS)").toEqual([]);
     // The known producers today: cart-store.tsx (3 constant-keyed stores) +
     // Header.tsx (1 literal-keyed store). The floor catches a scan that
     // silently matches nothing (a regex regression would zero it).

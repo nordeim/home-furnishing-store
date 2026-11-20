@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-20 (Task 132: TZ-pure test gates, fulfilment-pin structural binding, wishlist all-ghost honesty, probe-email uniqueness)
+last_updated: 2026-11-20 (Task 133: reviews int4-overflow bound, typeqty residue-net completion, persisted-payload uniqueness, order-lookup normalization parity, pin-hardening batch)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -129,15 +129,15 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`typecheck:tests` covers the test tree) |
-| `npm run test` | Vitest unit suite (177 tests, pure seams) |
-| `npm run test:e2e` | Playwright e2e (117 tests, production build on :3100) |
+| `npm run test` | Vitest unit suite (179 tests, pure seams) |
+| `npm run test:e2e` | Playwright e2e (120 tests, production build on :3100) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
-**Current state (Tasks 114–132, extended this cycle):** a NORDHEM-native suite is wired into the gates.
+**Current state (Tasks 114–133, extended this cycle):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 177 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 179 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
@@ -151,7 +151,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   with the fs-computed reality — count-lockstep is enforced across all five
   operator docs, not remembered). Node environment with a localStorage shim
   (`tests/unit/setup.ts`); no jsdom, no component rendering.
-- **E2E (Playwright, 117 tests)** against the **production build** (the webServer
+- **E2E (Playwright, 120 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
   hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
@@ -426,6 +426,26 @@ fix and passes after.
   departed — e2e-pinned); and every write-capable e2e spec mints its OWN
   probe email (the three checkout-caps specs shared one — a concurrent-RED
   double-restore window through the shared deleteProbeOrders nets).
+- **Task-133 seams:** the reviews boundary bounds `productId` above by the
+  shared `MAX_INT4` in `utils.ts` (2^31 passed every JS gate but the driver
+  rejects the int4 parameter with 22003 — the POST 500'd for a client fault
+  and the GET silently degraded to `[]`; both verbs 422 now, e2e-pinned);
+  the typeqty e2e spec's RED-run net is the full `deleteProbeOrders`
+  restore (the pre-133 finally deleted rows but stranded the inventory
+  decrement — the uniform-net claim is now true for every write-capable
+  spec); `isValidCartPayload`/`isValidWishPayload` reject DUPLICATE entries
+  (the shape→element→uniqueness chain's third layer — `["slug","slug"]`
+  used to render the FALSE "1 saved item is no longer available." note; a
+  duplicate payload degrades to the fallback, unit-pinned + e2e-probed);
+  `priceTotals`' `net === 0` delivery corner is pinned (the historically
+  load-bearing free-delivery edge — sibling cap pins used click-collect
+  where the fee is 0 regardless); the `/order/[number]` lookup normalizes
+  like `trackOrder` (`.trim().toUpperCase()` — a hand-typed lowercase number
+  used to not-found while the tracking page found it with the same input);
+  and the pin-hardening batch (the inspiration pieces-total derives from
+  the catalogue; the TZ fs-pin fails on numeric-args Date constructors; the
+  PERSISTED_STORAGE_KEYS producer scan is fail-closed against computed
+  keys — the last two proven by mutation).
 
 - **`main` branch only** — no feature branches (operator contract).
 - Conventional Commits, atomic units (`fix:`, `feat:`, `docs:` — history uses

@@ -22,11 +22,11 @@ ORM + PostgreSQL.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
-| `npm run test` | Vitest unit suite (177 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD + the TZ-pure-tree fs-pin) |
-| `npm run test:e2e` | Playwright e2e (117 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
+| `npm run test` | Vitest unit suite (179 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD + the TZ-pure-tree fs-pin + the numeric-args-ctor widening) |
+| `npm run test:e2e` | Playwright e2e (120 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
-The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–132):
+The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–133):
 `tests/unit` (10 files) + `tests/e2e` (mobile-navigation + storefront specs
 incl. the fetch-failure resilience pair, the API rate-limit pins, PDP badge
 dedupe, cart promo persistence, JSON-LD live-inventory + LOW_STOCK commerce
@@ -259,6 +259,42 @@ uniqueness** (the three checkout-caps specs shared one probe email — two
 concurrent RED runs could double-restore inventory through the shared
 deleteProbeOrders nets; each spec now mints its own).
 
+And the Task-133 pins: the **reviews int4-overflow bound** (a crafted
+`productId: 2147483648` passed every JS gate — number, integer, > 0 — but the
+driver rejects the parameter for the int4 products.id column with 22003, and
+the POST answered **500 REVIEW_FAILED for a pure client fault** (proven live
+on the dev server) while the GET silently degraded to `{ok:true,data:[]}`,
+inconsistent with its own `?productId=1.5` → 422 stance; the shared `MAX_INT4`
+constant in utils.ts now bounds BOTH verbs → 422, e2e-pinned on the pair),
+the **typeqty residue-net completion** (the Task-124-era spec's finally
+deleted order rows with two manual queries but never restored the INVENTORY
+placeOrder decremented — the uniform-net claim was not true for this one
+relic; honest-RED by temporary route mutation demonstrated the stranded
+decrement live (product-1 tampines 45→44 with the rows deleted), the
+`deleteProbeOrders` swap restores it on the same mutation run), the
+**persisted-payload uniqueness layer** (the shape → element → uniqueness
+chain's third layer: `["slug","slug"]` passed the Task-122 element predicate
+while the catalogue returns unique slugs, so the wishlist page rendered the
+FALSE "1 saved item is no longer available." above the available product's
+card; both predicates now reject duplicates → the payload degrades to the
+fallback like every other wrong shape, unit-pinned + an e2e probe of the
+degraded honest state), the **priceTotals net===0 delivery pin** (the
+historically load-bearing corner — placeOrder's own comment records the
+pre-Task-119 copy "had already drifted on the net===0 delivery edge" — was
+pinned by nothing; the sibling cap pins all used click-collect where the fee
+is 0 regardless), the **/order/ lookup normalization parity** (the order
+page compared the raw URL segment while trackOrder ran `.trim().toUpperCase()`
+— a hand-typed lowercase number got "We can't find that order" for an order
+the tracking page found with the SAME input; the page now mirrors the track
+discipline, e2e-pinned with a probe order + lowercase URL), and the **pin-
+hardening batch** (the inspiration-index pieces-total pin derives from
+INSPIRATIONS+PRODUCTS like the page instead of the hardcoded "667.00"; the
+TZ-pure fs-pin also fails on numeric-args Date constructors — the string-
+literal-only scan was blind to `new Date(<year>, …)`, proven by mutation; the
+PERSISTED_STORAGE_KEYS producer scan is fail-closed — a computed-key
+`createLocalStore` call (template literal/lowercase const) previously escaped
+the scan silently, now fails by name, proven by mutation).
+
 **Test counts are documentation claims, pinned by test** (Task 119):
 `tests/unit/docs-counts.test.ts` fs-computes the real counts and fails the run
 if any live-tense claim in AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT disagrees
@@ -273,9 +309,10 @@ change (count-lockstep, no exceptions).
 | `.env.example` single-variable contract, postgres-only compose, `allowedDevOrigins` | `tests/unit/env-example.test.ts` |
 | The Tailwind candidate-scan guard present in `globals.css` | `tests/unit/tailwind-scan-guard.test.ts` |
 | SEO policy coherence (robots vs sitemap, `SITE_ORIGIN`, no raw origin literal in `src/app`) | `tests/unit/robots-sitemap.test.ts` |
-| `PERSISTED_STORAGE_KEYS` covers every `createLocalStore` producer under `src/` | `tests/unit/local-store.test.ts` (producer-side fs-scan) |
+| `PERSISTED_STORAGE_KEYS` covers every `createLocalStore` producer under `src/`; persisted payloads are shape-, element- AND uniqueness-valid (duplicates degrade to the fallback) | `tests/unit/local-store.test.ts` (producer-side fs-scan, fail-closed since Task 133; predicate pins) |
 | placeOrder fulfilment seam (one store-default derivation; `fulfilStore` read at BOTH the availability lock and the decrement — exactly two occurrences) | `tests/unit/server-data.test.ts` |
-| The checkout route consumes the exported `IDEMPOTENCY_KEY_RE` shape; the unit tree stays TZ-pure (no Z-less date-time literals) | `tests/unit/utils.test.ts` (fs-pins) |
+| The checkout route consumes the exported `IDEMPOTENCY_KEY_RE` shape; the unit tree stays TZ-pure (no Z-less date-time literals, no numeric-args Date constructors); `priceTotals`' net===0 delivery corner (Task 133 F-4) | `tests/unit/utils.test.ts` (fs-pins + the corner pin) |
+| The reviews boundary bounds `productId` above by `MAX_INT4` (both verbs 422, never a 22003 → 500/degrade) | `tests/e2e/storefront.spec.ts` (Task 133 F-1 probe pair) |
 
 ## Hard-won gotchas (read before changing anything)
 
@@ -383,10 +420,11 @@ When adding tests, pin them to this `src/` — never resurrect ely-beauty specs.
 
 ```bash
 rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_db" npm run build
-npm run typecheck
-npm run lint          # 0 errors expected (the 7-error lint debt was fixed in Task 114)
-npm run test          # 177/177 unit
-npm run test:e2e      # 117/117 e2e (needs a live Postgres for the checkout journey)
+npm run typecheck          # app scope (src/**, next.config.ts)
+npm run typecheck:tests    # the test tree (tsconfig.tests.json) — both scopes are live gates
+npm run lint               # 0 errors expected
+npm run test               # 179/179 unit
+npm run test:e2e           # 120/120 e2e (needs a live Postgres for the checkout journey)
 ```
 
 There is no hosted CI; the local gate is the only gate.

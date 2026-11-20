@@ -293,6 +293,45 @@ test.describe("API envelope", () => {
     expect(code).toBe("VALIDATION");
   });
 
+  test("reviews int4-overflow productId is a 422 on both verbs (Task 133 F-1)", async ({ page }) => {
+    // Task 133 F-1: 2^31 passes every JS gate (number, integer, > 0) but
+    // Postgres rejects the parameter for the int4 products.id column with
+    // 22003 — the POST used to answer 500 REVIEW_FAILED for a pure client
+    // fault (the exact misclassification the route's own Task-118 F-6
+    // comment claims closed; only the UPPER bound was never probed), and
+    // the GET silently degraded to {ok:true,data:[]} — inconsistent with
+    // the same route's ?productId=1.5 → 422 stance. The shared MAX_INT4
+    // seam (src/lib/utils.ts) bounds both verbs. The insert can never
+    // succeed with an overflowing id (the DB rejects it), so this spec is
+    // not write-capable — the finally net is belt-and-suspenders.
+    const client = new Client({ connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db" });
+    await client.connect();
+    try {
+      await page.goto("/");
+      const post = await page.evaluate(async () => {
+        const res = await fetch("/api/reviews", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ productId: 2147483648, author: "Int4 Probe", rating: 5, body: "int4 overflow probe" }),
+        });
+        const json = (await res.json()) as { ok: boolean; error: { code: string } };
+        return { status: res.status, code: json.error?.code };
+      });
+      expect(post.status).toBe(422);
+      expect(post.code).toBe("VALIDATION");
+      const get = await page.evaluate(async () => {
+        const res = await fetch("/api/reviews?productId=2147483648");
+        const json = (await res.json()) as { ok: boolean; error: { code: string } };
+        return { status: res.status, code: json.error?.code };
+      });
+      expect(get.status).toBe(422);
+      expect(get.code).toBe("VALIDATION");
+    } finally {
+      await client.query("delete from reviews where author = 'Int4 Probe' and body = 'int4 overflow probe'");
+      await client.end();
+    }
+  });
+
   test("reviews POST rejects a bad rating / short name with 422", async ({ request }) => {
     // Task 129 F-1c: this refusal spec is write-capable — a compound-validation
     // regression (rating bound AND author-min both reverted) inserts the junk
@@ -462,6 +501,26 @@ test.describe("client resilience (fetch failure ≠ empty state)", () => {
     await expect(page.getByText(/moved on from the range/i)).toBeVisible();
     // And the browse CTA is still offered.
     await expect(page.getByRole("link", { name: "Discover favourites" })).toBeVisible();
+  });
+
+  test("a DUPLICATE persisted slug degrades to the honest empty state — never a false ghost note (Task 133 F-3)", async ({ page }) => {
+    // The element validator (Task 122 F-3) admitted ["slug","slug"] — the
+    // catalogue resolves it to ONE card while wishlist.length counts TWO,
+    // so the page rendered the FALSE "1 saved item is no longer available."
+    // directly above the available product's card (the exact honesty surface
+    // Tasks 130–132 polished, defeated by a crafted payload). The uniqueness
+    // layer (Task 133 F-3) rejects the payload at load → the store degrades
+    // to the fallback → the page renders its honest truly-empty state.
+    await page.addInitScript(() => {
+      localStorage.setItem("nordhem_wish_v1", JSON.stringify(["solbakken-3-seat-sofa", "solbakken-3-seat-sofa"]));
+    });
+    await page.goto("/wishlist");
+    // The degraded empty wishlist — not a false ghost note.
+    await expect(page.getByRole("heading", { name: "Your wishlist (0)" })).toBeVisible();
+    await expect(page.getByText("no longer available")).toHaveCount(0);
+    await expect(page.getByText("Nothing saved yet")).toBeVisible();
+    // No card renders (the payload was rejected whole, not deduped).
+    await expect(page.locator("main article")).toHaveCount(0);
   });
 
   test("search shows an error state (not 'No products found') when the API fails", async ({ page }) => {
@@ -1001,6 +1060,43 @@ test.describe("SEO metadata blanket (Task 119)", () => {
     // linked; the page itself must declare noindex wherever it IS readable.
     await page.goto("/order/NH-20260101-000001");
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+  });
+
+  test("the /order/ lookup normalizes case like /track-order — a hand-typed lowercase number still finds the order (Task 133 F-5)", async ({ request, page }) => {
+    // Two surfaces, one identifier, two disciplines: trackOrder() ran
+    // .trim().toUpperCase() on the input while the order page compared the
+    // raw URL segment — a shopper who hand-types the number in lowercase (or
+    // pastes with whitespace) got "We can't find that order" for an order
+    // the tracking page found with the SAME input, and the not-found copy
+    // then directs them to /track-order, where it works. The confirmation
+    // redirect always uses the canonical mint — this is the manual-typing
+    // corner only. Write-capable probe (a real order): finally net.
+    let orderNumber = "";
+    try {
+      const res = await request.post("/api/checkout", {
+        headers: { "x-forwarded-for": "10.9.124.7" },
+        data: {
+          email: "order-case-probe@nordhem.sg",
+          fullName: "Order Case Probe",
+          phone: "+65 91234567",
+          address: "Blk 1 Testing Rd #01-01",
+          postal: "089001",
+          deliveryMethod: "delivery",
+          deliverySlot: "Standard (3–5 days)",
+          paymentMethod: "card",
+          lines: [{ productId: 1, qty: 1 }],
+        },
+      });
+      expect(res.status()).toBe(201);
+      const body = (await res.json()) as { data?: { orderNumber?: string } };
+      orderNumber = body.data?.orderNumber ?? "";
+      expect(orderNumber).toBeTruthy();
+      await page.goto(`/order/${orderNumber.toLowerCase()}`);
+      await expect(page.getByRole("heading", { name: /Tak! Your order is confirmed/ })).toBeVisible();
+      await expect(page.getByText("We can’t find that order")).toHaveCount(0);
+    } finally {
+      await deleteProbeOrders("order-case-probe@nordhem.sg");
+    }
   });
 
   test("utility client pages carry page-level noindex (Task 124 F-17)", async ({ page }) => {
@@ -2075,8 +2171,14 @@ test.describe("checkout qty/productId type strictness (Task 124 F-5)", () => {
     // a string productId). A non-number type must drop the line like every
     // other non-numeric value — an all-dropped bag is EMPTY_BAG.
     // The RED path of this probe WRITES (today: 201) — safety-net cleanup.
-    const client = new Client({ connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db" });
-    await client.connect();
+    // Task 133 F-2: the pre-133 finally deleted the order rows with two
+    // manual queries but never restored the INVENTORY placeOrder decremented
+    // — the RED-run net was rows-only while every sibling spec used the
+    // shared helper (the uniform-net claim in AGENTS/CLAUDE was not true for
+    // this Task-124-era relic). Honest-RED by temporary route mutation: the
+    // old net stranded the decrement (demonstrated live — product-1 tampines
+    // 45→44 with the order rows deleted); the deleteProbeOrders swap restores
+    // it on the same mutation run (re-derived from the inserted rows).
     try {
       for (const [label, line] of [
         ["boolean qty", { productId: 1, qty: true }],
@@ -2100,9 +2202,7 @@ test.describe("checkout qty/productId type strictness (Task 124 F-5)", () => {
         expect(body.error?.code, label).toBe("EMPTY_BAG");
       }
     } finally {
-      await client.query("delete from order_items where order_id in (select id from orders where email = 'typeqty-probe@nordhem.sg')");
-      await client.query("delete from orders where email = 'typeqty-probe@nordhem.sg'");
-      await client.end();
+      await deleteProbeOrders("typeqty-probe@nordhem.sg");
     }
   });
 });
@@ -2473,11 +2573,22 @@ test.describe("inspiration index pieces total (Task 122 F-16)", () => {
     // The detail page splits "Room budget $800" from "These pieces $667";
     // the index labelled the BUDGET as "Shop this room · $800.00" — the
     // exact conflation Task 119 F-4 fixed on the detail page.
+    // Task 133 F-6a: the expectation DERIVES from the catalogue like the
+    // page itself (the business sibling's DEFAULT_LIST_CENTS pattern — a
+    // price edit on the room's pieces self-corrects the pin instead of
+    // false-REDing it; the pre-133 literal "667.00" was one edit away).
+    const renter = INSPIRATIONS.find((r) => r.slug === "renter-refresh-800");
+    expect(renter).toBeTruthy();
+    const piecesTotal = (renter!.productSlugs as readonly string[])
+      .map((s) => PRODUCTS.find((p) => p.slug === s))
+      .filter((p): p is (typeof PRODUCTS)[number] => !!p)
+      .reduce((a, p) => a + p.priceCents, 0);
     await page.goto("/inspiration");
     const card = page.locator("a", { hasText: "Renter refresh" });
     await expect(card).toBeVisible();
-    await expect(card.getByText(/Shop this room/)).toContainText("667.00");
-    await expect(card.getByText(/Shop this room/)).not.toContainText("800.00");
+    await expect(card.getByText(/Shop this room/)).toContainText(formatSGD(piecesTotal));
+    // The editorial budget must stay out of the shoppable-total slot.
+    await expect(card.getByText(/Shop this room/)).not.toContainText(formatSGD(renter!.budgetCents));
   });
 });
 

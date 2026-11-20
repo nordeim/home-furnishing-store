@@ -29,6 +29,13 @@ export const FREE_DELIVERY_THRESHOLD_CENTS = 20000; // $200
 export const STANDARD_DELIVERY_FEE_CENTS = 1200; // $12
 export const EXPRESS_DELIVERY_FEE_CENTS = 2900; // $29
 
+// Task 133 F-1: the int4 ceiling Postgres enforces on serial id columns.
+// A crafted productId of 2^31 passes every JS gate (number, integer, > 0)
+// but the driver rejects the parameter for the integer column (22003) —
+// the reviews boundary used to surface that as a 500 for a client fault.
+// One shared bound; every id-taking verb refuses above it with 422.
+export const MAX_INT4 = 2_147_483_647;
+
 // Task 126 F-1: the shape the checkout boundary accepts for an idempotency
 // key (client-minted double-submit guard). Malformed keys are dropped by the
 // route, never refused — dedupe is an enhancement, not a persisted field.

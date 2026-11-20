@@ -164,12 +164,12 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 177 tests at the pure seams
+npm run test             # Vitest unit — 179 tests at the pure seams
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 117 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 120 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
@@ -244,42 +244,41 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 177 unit + 117 e2e, all green | NORDHEM-native harness (Tasks 114/117–132); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131; the unit tree is TZ-pure since Task 132 — verified by the three-TZ run) |
+| Test suite | ✅ 179 unit + 120 e2e, all green | NORDHEM-native harness (Tasks 114/117–133); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131; the unit tree is TZ-pure since Task 132 — verified by the three-TZ run) |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
 
-Current cycle (2026-11-20, Task 129): workspace-refresh re-audit (fresh-clone
-baseline all green at 163/111 with zero DB residue; **a FRESH rootless
-PostgreSQL 17 install via `docs/setup_pg_z.sh`** — no snapshot restore this
-cycle, the first fully-fresh initdb since the lesson-31 class appeared; mobile
-drawer taxonomy 8/8 at 390/1440 incl. the F-7 param-close regression check —
-no Tailwind v4 bug; hydration live-verified; sitemap 42 URLs, robots coherent,
-og dimensions live-verified on home + PDP + inspiration) that caught **the
-residue-net claim being half false** (three write-capable refusal specs — the
-nullqty order probe, the overlong-review-body probe, the
-bad-rating/short-name probe — plus the positive-control slot-coherence spec
-carried no RED-run `finally` net while the docs said every one did; all
-netted), **the enum-boundary field-class gap** (`deliveryMethod`/
-`paymentMethod` still String()-coerced — `paymentMethod: ["card"]` placed a
-real 201 on a crafted type — and `promoCode` silently null-dropped crafted
-types; the trio is now TYPE-strict + whitelist-strict like storeSlug/
-deliverySlot, with `promoCode: null` kept as the UI's accepted "no promo"
-encoding), **the unpinned business half of Task-128 F-9** (the TRADE_RATE
-label/saving/estimate rows now carry a derived e2e pin), **the last racy
-interaction-first bare goto** (the search-freeze spec's sleep-then-click,
-plus two letter-violating freeze-spec siblings — converted to `gotoHydrated`),
-the **unpinned checkout array-body guard** (the Task-128 `Array.isArray`
-branch, now probed), the **enumeration-scoped producer fs-pin** (now scans
-every `.ts/.tsx` under `src/`), the **last hand-duplicated store list** (the
-route whitelist, checkout options and Header picker derive from `STORES` via
-`storeName()`), and the **cwd-relative fs-pin paths** (IDEMPOTENCY_KEY_RE +
-docs-counts pins resolve from `import.meta.dirname`). Two audit claims
-verified TRUE (all ten Task-128 seams held; the reference repo stayed
-quiescent with md5-identical catalogs — nothing to port, fifth cycle).
-Suite grew to 163 unit + 113 e2e. Details in `worklog.md` and
-`docs/plans/2026-11-20-task129-remediation-plan.md`.
+Current cycle (2026-11-20, Task 133): fresh-clone workspace re-audit (the
+rootless PostgreSQL data dir survived but needed the lesson-31 restore
+EXTENDED — the first observed NESTED pair, `pg_logical/snapshots` +
+`pg_logical/mappings`, joined the known top-level set; mobile-nav taxonomy
+8/8 at 390/1440 — no Tailwind v4 bug; hydration live-verified; sitemap 42
+URLs, robots coherent, og dimensions live-verified on home + PDP +
+inspiration; baseline gates green at 177/116 with zero DB residue; the
+reference repo quiescent — ninth cycle of "nothing to port") that caught
+**the reviews int4-overflow 500** (a crafted `productId: 2147483648` passed
+every JS gate but the driver rejects the int4 parameter with 22003 — the
+POST answered 500 REVIEW_FAILED for a pure client fault, the GET silently
+degraded to `[]`; proven live; the shared `MAX_INT4` seam bounds both verbs
+to 422), **the typeqty residue-net gap** (the Task-124-era spec's finally
+deleted order rows but stranded the inventory decrement — the uniform-net
+claim was not true for this one relic; honest-RED by temporary mutation
+demonstrated the stranded decrement live, the `deleteProbeOrders` swap
+restores it), **the persisted-payload duplicate corner** (`["slug","slug"]`
+passed the element validator and rendered the FALSE "1 saved item is no
+longer available." note; the uniqueness layer degrades duplicates to the
+fallback), the **unpinned `priceTotals` net===0 delivery corner** (the
+historically load-bearing free-delivery edge, pinned), the **/order/
+lookup-normalization asymmetry** (hand-typed lowercase numbers not-found on
+/order/ while /track-order found them; the page mirrors the track
+discipline), and a **pin-hardening batch** (the inspiration pieces-total
+derives from the catalogue; the TZ fs-pin catches numeric-args Date
+constructors; the PERSISTED_STORAGE_KEYS producer scan is fail-closed
+against computed keys — both proven by mutation). Suite grew to 179 unit +
+120 e2e. Details in `worklog.md` and
+`docs/plans/2026-11-20-task133-remediation-plan.md`.
 
 Current cycle (2026-11-20, Task 132): fresh-clone workspace re-audit (the
 sandbox had been reset — node_modules/.env rebuilt, the rootless PostgreSQL
@@ -366,6 +365,37 @@ the **priceTotals percent cap**. Plus an eleven-claim docs-truth sweep
 rotted line-count tables — dropped per the Task-129 precedent). Suite
 grew to 169 unit + 116 e2e. Details in `worklog.md` and
 `docs/plans/2026-11-20-task130-remediation-plan.md`.
+
+Current cycle (2026-11-20, Task 129): workspace-refresh re-audit (fresh-clone
+baseline all green at 163/111 with zero DB residue; **a FRESH rootless
+PostgreSQL 17 install via `docs/setup_pg_z.sh`** — no snapshot restore this
+cycle, the first fully-fresh initdb since the lesson-31 class appeared; mobile
+drawer taxonomy 8/8 at 390/1440 incl. the F-7 param-close regression check —
+no Tailwind v4 bug; hydration live-verified; sitemap 42 URLs, robots coherent,
+og dimensions live-verified on home + PDP + inspiration) that caught **the
+residue-net claim being half false** (three write-capable refusal specs — the
+nullqty order probe, the overlong-review-body probe, the
+bad-rating/short-name probe — plus the positive-control slot-coherence spec
+carried no RED-run `finally` net while the docs said every one did; all
+netted), **the enum-boundary field-class gap** (`deliveryMethod`/
+`paymentMethod` still String()-coerced — `paymentMethod: ["card"]` placed a
+real 201 on a crafted type — and `promoCode` silently null-dropped crafted
+types; the trio is now TYPE-strict + whitelist-strict like storeSlug/
+deliverySlot, with `promoCode: null` kept as the UI's accepted "no promo"
+encoding), **the unpinned business half of Task-128 F-9** (the TRADE_RATE
+label/saving/estimate rows now carry a derived e2e pin), **the last racy
+interaction-first bare goto** (the search-freeze spec's sleep-then-click,
+plus two letter-violating freeze-spec siblings — converted to `gotoHydrated`),
+the **unpinned checkout array-body guard** (the Task-128 `Array.isArray`
+branch, now probed), the **enumeration-scoped producer fs-pin** (now scans
+every `.ts/.tsx` under `src/`), the **last hand-duplicated store list** (the
+route whitelist, checkout options and Header picker derive from `STORES` via
+`storeName()`), and the **cwd-relative fs-pin paths** (IDEMPOTENCY_KEY_RE +
+docs-counts pins resolve from `import.meta.dirname`). Two audit claims
+verified TRUE (all ten Task-128 seams held; the reference repo stayed
+quiescent with md5-identical catalogs — nothing to port, fifth cycle).
+Suite grew to 163 unit + 113 e2e. Details in `worklog.md` and
+`docs/plans/2026-11-20-task129-remediation-plan.md`.
 
 Current cycle (2026-11-19, Task 128): workspace-refresh re-audit (mobile-nav
 taxonomy re-verified clean at 390/1440 incl. the F-7 param-close regression

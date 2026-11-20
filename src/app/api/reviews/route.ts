@@ -4,6 +4,7 @@ import { getReviews } from "@/lib/server-data";
 import { products, reviews } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { clientIp, createRateLimiter } from "@/lib/rate-limit";
+import { MAX_INT4 } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,12 @@ export async function GET(req: Request) {
   // text hit the DB layer as NaN). Missing stays a 400; a present-but-
   // malformed value is a 422 (the boundary stance).
   if (!raw) return NextResponse.json({ ok: false, error: { code: "BAD_REQUEST", message: "productId is required." } }, { status: 400 });
-  if (!/^\d+$/.test(raw) || Number(raw) <= 0) {
+  // Task 126 F-5 whole-number discipline + Task 133 F-1: the int4 ceiling —
+  // a 10-digit id passes the regex but the driver rejects the parameter for
+  // the integer column (22003 → degrade-to-[] here, a silent inconsistency
+  // with the 1.5 refusal). Present-but-above-MAX_INT4 is a 422 like every
+  // other malformed value.
+  if (!/^\d+$/.test(raw) || Number(raw) <= 0 || Number(raw) > MAX_INT4) {
     return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "productId must be a whole number." } }, { status: 422 });
   }
   const productId = Number(raw);
@@ -65,8 +71,12 @@ export async function POST(req: Request) {
     // error (422), not an FK-crash 500. The existence check closes the gap the
     // comment always claimed: an unknown-but-positive id used to reach the
     // insert and fail as a Postgres FK violation (500).
+    // Task 133 F-1: the int4 ceiling on the numeric-arg sibling — 2^31
+    // passed every JS gate below and the products.id lookup answered 22003
+    // → 500 REVIEW_FAILED for a pure client fault (the Task-118 F-6 class,
+    // upper-bound corner; observed live). Same 422 as the unknown-id gate.
     if (
-      typeof productId !== "number" || !Number.isInteger(productId) || productId <= 0 ||
+      typeof productId !== "number" || !Number.isInteger(productId) || productId <= 0 || productId > MAX_INT4 ||
       typeof rating !== "number" || !Number.isInteger(rating) || rating < 1 || rating > 5 ||
       typeof body.author !== "string" || body.author.trim().length < 2 ||
       !(typeof body.title === "string" || body.title == null) ||

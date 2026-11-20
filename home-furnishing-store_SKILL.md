@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 2.6.0
-last_updated: "2026-11-20 (Task 132: TZ-pure test gates, fulfilment-pin structural binding, wishlist all-ghost honesty, probe-email uniqueness)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 177/177 unit (TZ-pure — verified UTC/Singapore/New_York) · 117/117 e2e · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
+version: 2.7.0
+last_updated: "2026-11-20 (Task 133: reviews int4-overflow bound, typeqty residue-net completion, persisted-payload uniqueness, order-lookup normalization parity, pin-hardening batch)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 179/179 unit (TZ-pure — verified UTC/Singapore/New_York; the fs-pin also fails numeric-args Date constructors since Task 133) · 120/120 e2e · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -24,7 +24,11 @@ project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 177/177 
 > business-derived-pin cycle, and the Task 130 store-coherent-fulfilment/
 > unique-violation-discrimination/wishlist-heading-honesty cycle, and the
 > Task 131 wishlist-count-parity/fulfilment-seam-structural-pin/orderNumber-
-> crypto-suffix/DEPLOYMENT-truth cycle. `AGENTS.md` is the quick operator
+> crypto-suffix/DEPLOYMENT-truth cycle, the Task 132 TZ-pure-test-gates/
+> fulfilment-pin-binding/wishlist-all-ghost/probe-email-uniqueness cycle, and
+> the Task 133 reviews-int4-overflow-bound/typeqty-residue-net-completion/
+> persisted-payload-uniqueness/order-lookup-normalization-parity/pin-
+> hardening cycle. `AGENTS.md` is the quick operator
 > reference, the PAD is the full blueprint, and this skill is the
 > pattern/lesson layer an agent needs before touching the code. When code and
 > this document disagree, **the code wins** — then fix this document in the
@@ -97,8 +101,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 177/177
-npm run test:e2e                                               # 117/117 (live Postgres for the journey)
+npm run test                                                   # 179/179
+npm run test:e2e                                               # 120/120 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -477,8 +481,9 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
     slicing a 300-char address to 200 creates a delivery-breaking order AND
     can transform invalid input into valid (a truncated string could pass a
     length check it should have failed). Caps on customer-facing order data
-    return 422 with field copy; slicing is for cheap display fields
-    (reviews).
+    return 422 with field copy; slicing has no remaining write-boundary use
+    (reviews refused at caps since Task 122 F-11 — display-layer formatting
+    is the only sanctioned slicing).
 19. **A check that isn't atomic isn't a check.** The Task-119 LOW_STOCK
     validation read availability, inserted the order, then decremented —
     three statements, one window: two concurrent last-unit orders both
@@ -847,6 +852,44 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
     decrement"), and the pin-strengthening's RED vehicle is the mutation
     demo: temporarily introduce the drift shape, observe the OLD pin stay
     green (the blindness proven) and the NEW pin go RED, then revert.
+    Task 133 widened the class twice (the pin-hardening batch, both
+    mutation-proven): the TZ fs-pin now also fails on NUMERIC-ARGS Date
+    constructors (a string-literal-only scan was blind to the year-first
+    form — the same LOCAL-time class), and the PERSISTED_STORAGE_KEYS
+    producer scan is FAIL-CLOSED (a call whose first argument is a template
+    literal/lowercase const previously escaped the scan silently — the
+    pattern must match every call site or fail by name; a scan that
+    silently skips non-conforming shapes is a pin that lies).
+55. **Validate the STORAGE range, not just the JS type — every id/quantity
+    boundary has an int4 ceiling the driver enforces for you as a 500
+    (Task 133 F-1).** `productId: 2147483648` is a number, an integer, and
+    positive — it passes every JS gate — but Postgres rejects the parameter
+    for the int4 column (22003 value out of range), and the route's generic
+    catch answered 500 REVIEW_FAILED for a pure client fault while its own
+    comment claimed the FK-crash class closed (Task 118 F-6 had probed the
+    LOWER bound and the unknown-id corner; the UPPER bound was never
+    probed — proven live on the dev server before the fix). The read-verb
+    sibling silently degraded to `[]` — inconsistent with its own 1.5 → 422
+    stance. Rule: when a boundary takes a numeric id/quantity, bound it by
+    the COLUMN'S storage range (the shared `MAX_INT4` seam), not just by
+    JS-level integer/positivity checks — and probe the full numeric range
+    (negative, zero, fraction, unknown, and the storage ceiling), because
+    the comment that says "closed" only covers the shapes its author
+    thought to test.
+56. **A cleanup net is complete only if it restores EVERYTHING the write
+    path mutates — audit nets by content diff, not by presence (Task 133
+    F-2).** The typeqty e2e spec's finally deleted the order rows with two
+    manual queries but never restored the inventory decrement — and both
+    uniform-net sweeps (Tasks 126/129) passed it by because the spec *had*
+    a finally. The uniformity claim ("every write-capable refusal spec
+    carries the full net") was audited by presence, not by content: the
+    diff that matters is what the write path mutates (orders + order_items
+    + inventory) minus what the net restores. Rule: sweep RED-run nets by
+    content — for each write-capable spec, enumerate the mutated tables
+    from the code path and check the finally inverts every one (the shared
+    `deleteProbeOrders` helper exists precisely so this diff is one call);
+    a partial net is a delayed flake (gotcha #13's exact failure mode,
+    stranded silently across RED runs).
 
 ## 13. Pitfalls to Avoid
 
@@ -969,8 +1012,8 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | Commands & gotchas | `AGENTS.md` |
 | Architecture detail | `Project_Architecture_Document.md` |
 | Decision record | `docs/implementation-plan.md` |
-| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-20-task131-remediation-plan.md` (16 plans: Tasks 114, 117–131) |
-| Screenshots | `docs/screenshots/01…74-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 75 PNGs) |
+| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-20-task133-remediation-plan.md` (18 plans: Tasks 114, 117–133) |
+| Screenshots | `docs/screenshots/01…84-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 85 PNGs) |
 | SSH push runbook | `docs/how-to-git-push-using-ssh-wrapper_SKILL.md` |
 | Working history | `worklog.md` (Tasks 113+ NORDHEM; the 1–112 predecessor lineage was operator-trimmed) |
 | Money/validators | `src/lib/utils.ts` |
@@ -979,5 +1022,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (177) — 10 files |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (117) — 109 storefront + 8 mobile |
+| Unit suite | `tests/unit/*.test.ts` (179) — 10 files |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (120) — 112 storefront + 8 mobile |

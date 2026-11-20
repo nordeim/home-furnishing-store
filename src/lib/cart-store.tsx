@@ -52,12 +52,24 @@ function isValidCartLine(v: unknown): boolean {
   );
 }
 
+// Task 133 F-3: the third validation layer — UNIQUENESS. The shape check
+// (Task 121 F-4) and the element checks (Task 122 F-3) still admitted a
+// crafted duplicate payload: ["slug","slug"] passed every element gate while
+// the catalogue returns unique slugs, so the wishlist page rendered the FALSE
+// "1 saved item is no longer available." above the available product's card;
+// a duplicated cart line produced duplicate React keys and a doubled
+// subtotal. The UI's own writers can never mint duplicates (toggle/add are
+// idempotent by key) — a duplicate payload is crafted junk and degrades to
+// the fallback like every other wrong shape (the [null] precedent).
 export function isValidCartPayload(v: unknown): v is CartLine[] {
-  return Array.isArray(v) && v.every(isValidCartLine);
+  return (
+    Array.isArray(v) && v.every(isValidCartLine) &&
+    new Set(v.map((l) => l.productId)).size === v.length
+  );
 }
 
 export function isValidWishPayload(v: unknown): v is string[] {
-  return Array.isArray(v) && v.every((s) => typeof s === "string");
+  return Array.isArray(v) && v.every((s) => typeof s === "string") && new Set(v).size === v.length;
 }
 
 // Task 123 F-13: the promo store's predicate accepted any string — a crafted

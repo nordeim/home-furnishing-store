@@ -39,6 +39,20 @@ describe("priceTotals (server-truth pricing rules)", () => {
     expect(t.discountCents).toBe(1500);
     expect(t.totalCents).toBe(0);
   });
+  it("a fully-discounted DELIVERY order still ships free — the net===0 corner (Task 133 F-4)", () => {
+    // The sibling cap pins above use click-collect, where the fee is 0
+    // regardless — the `|| net === 0` delivery branch (utils.ts) was pinned
+    // by NOTHING. placeOrder's own comment records that the pre-Task-119
+    // hand-rolled copy "had already drifted from it on the net===0 delivery
+    // edge" — the historically load-bearing corner of the money seam. A
+    // regression deleting the clause would charge $12 delivery on a
+    // fully-discounted order and pass the whole unit suite pre-133.
+    const t = priceTotals({ subtotalCents: 1500, promo: { kind: "fixed", value: 2000 }, deliveryMethod: "delivery" });
+    expect(t.discountCents).toBe(1500);
+    expect(t.deliveryFeeCents).toBe(0);
+    expect(t.gstCents).toBe(0);
+    expect(t.totalCents).toBe(0);
+  });
   it("percent promo is capped at the subtotal too — a >100% promo must never mint negative money (Task 130 F-7)", () => {
     // The fixed branch capped; the percent branch did not — an unreachable-
     // today (seed/DB-controlled promos, no admin API) but defensive parity
@@ -653,11 +667,23 @@ describe("TZ-pure test tree (Task 132 F-1)", () => {
     const dir = import.meta.dirname;
     const files = readdirSync(dir).filter((f) => f.endsWith(".test.ts"));
     const zless: string[] = [];
+    const numericCtor: string[] = [];
     for (const f of files) {
       const src = readFileSync(resolve(dir, f), "utf8");
       const hits = src.match(/new Date\("[^"\n]*T\d{2}:\d{2}:\d{2}(?![Zz]|[+-]\d{2}:?\d{2})[^"\n]*"\)/g);
       if (hits) zless.push(...hits.map((h) => `${f}: ${h}`));
+      // Task 133 F-6b: the NUMERIC-ARGS constructor is the same TZ-coupled
+      // class — a Date fed year-first numeric arguments parses as LOCAL
+      // time, and a string-literal-only scan is blind to it (the pre-133
+      // pin matched double-quoted literals alone; a numeric-args pin would
+      // escape it entirely). No legitimate numeric-args use exists in the
+      // unit tree. (The example shape is deliberately not spelled out here
+      // — the scan includes this file, and the pattern source below escapes
+      // its paren so it cannot match itself.)
+      const numeric = src.match(/new Date\(\s*\d/g);
+      if (numeric) numericCtor.push(...numeric.map((h) => `${f}: ${h}…`));
     }
     expect(zless, "date-time literals without a timezone designator parse as LOCAL time — suffix them with Z (the sibling SGT pins' discipline)").toEqual([]);
+    expect(numericCtor, "numeric-args Date constructors parse as LOCAL time (the same TZ-coupled class) — use Z-suffixed literals").toEqual([]);
   });
 });

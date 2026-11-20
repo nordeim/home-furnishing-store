@@ -26,7 +26,12 @@ export default async function OrderPage({ params }: { params: Promise<{ number: 
     // Malformed percent-encoding (e.g. /order/%ZZ) throws URIError — decode
     // inside the guard so it lands in the friendly not-found state, not the
     // error boundary (Task 118 F-15).
-    const decoded = decodeURIComponent(number);
+    // Task 133 F-5: normalize like trackOrder() does (trim + uppercase) —
+    // the order number is minted uppercase (NH-YYYYMMDD-XXXXXX), and a
+    // hand-typed lowercase URL used to answer "We can't find that order"
+    // for an order the tracking page found with the SAME input. Two
+    // surfaces, one identifier, one discipline.
+    const decoded = decodeURIComponent(number).trim().toUpperCase();
     const rows = await db.select().from(orders).where(eq(orders.orderNumber, decoded)).limit(1);
     order = rows[0] ?? null;
     if (order) items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id));
