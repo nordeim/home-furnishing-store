@@ -57,6 +57,19 @@ export function ShopInner({ initial }: { initial: ShopInitial }) {
       setItems(initial.items);
       setLoading(false);
       setError(null);
+    } else if (prevView.cat !== cat || prevView.sort !== sort) {
+      // Task 138 F-1: a FRESH server view (cat/sort navigation) arrived
+      // under an active keyword/price filter — the held `items` still
+      // describe the PREVIOUS view, and loading only flips inside the
+      // 250ms debounce callback, so the commit that renders the new
+      // heading carried the departed view's rows and the strip quoted
+      // their count (the Task-137 F-5 honesty gate closed loading/error
+      // but not this resync window). Mark the view unsettled at the
+      // transition itself: skeletons + no count claim until the refetch
+      // lands. Typing/price-slider changes (same cat/sort) keep the
+      // show-previous-results debounce behaviour — this branch fires only
+      // when the server view itself changed.
+      setLoading(true);
     }
   }
 

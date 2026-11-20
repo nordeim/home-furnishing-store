@@ -7,7 +7,7 @@ import { gotoHydrated } from "./helpers";
 // Task 124 F-14: the sitemap count derives from the catalogue constants (the
 // unit suite's approach) — a hardcoded 42 broke on the first catalogue edit.
 import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, catalogMaxDiscountPercent, storeName } from "../../src/lib/catalog";
-import { GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, FAMILY_VOUCHER_CENTS, FAMILY_POINTS_PER_VOUCHER, FAMILY_POINTS_PER_DOLLAR, TRADE_RATE, formatSGD } from "../../src/lib/utils";
+import { GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, FAMILY_VOUCHER_CENTS, FAMILY_POINTS_PER_VOUCHER, FAMILY_POINTS_PER_DOLLAR, TRADE_RATE, formatSGD, ASSEMBLY_FEE_CENTS, DESIGN_SERVICE_FEE_CENTS } from "../../src/lib/utils";
 
 // Task 126 F-3: the max-discount pins derive from the catalogue (the same
 // seam the hero/strip/offers copy interpolates) — a catalogue edit
@@ -659,6 +659,85 @@ test.describe("client resilience (fetch failure ≠ empty state)", () => {
     // view-dependent claim.
     await expect(page.getByText(/prices include 9% GST/)).toBeVisible();
   });
+
+  test("a fresh server view under an active keyword filter settles through the loading state — never the departed view's rows or count (Task 138 F-1)", async ({ page }) => {
+    // The Task-137 F-5 strip gate closed the loading/error states; the
+    // resync window BETWEEN server views stayed outside it. The resync
+    // resets `items` only on the server view (q === "" && max === 0), so a
+    // category/sort navigation under an active keyword kept loading=false
+    // through the 250ms debounce — the commit that rendered the fresh
+    // "Kitchen" heading still carried the PREVIOUS living/oak view's rows
+    // and the strip quoted their count, only flipping to skeletons 250ms
+    // later (inside the timeout callback). The transient is pinned by
+    // CAPTURING the DOM at the exact commit (MutationObserver keyed on the
+    // heading) — auto-retrying assertions would bridge the window (the
+    // first draft of this probe false-passed exactly that way). Hold the
+    // client-side kitchen refetch open forever so the captured state
+    // persists for the post-assertions.
+    await page.route("**/api/products*", async (route) => {
+      const url = new URL(route.request().url());
+      if (url.searchParams.get("cat") === "kitchen") {
+        await new Promise<void>(() => {}); // hold open — the intermediate state is the test subject
+      }
+      return route.continue();
+    });
+    await gotoHydrated(page, "/shop?cat=living");
+    // Settle the keyword-filtered living view first: the single oak match
+    // (HAVBRIS) is in, the non-oak living bestseller (SOLBAKKEN) is out —
+    // that pair is the settled-filtered-view marker, count-independent.
+    await page.getByRole("textbox", { name: "Filter products by keyword" }).fill("oak");
+    await expect(page.getByText("HAVBRIS lounge chair").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("SOLBAKKEN 3-seat sofa")).toHaveCount(0);
+    // Install the commit-capture BEFORE the click: resolve the strip /
+    // skeleton / departed-rows state at the commit that first renders the
+    // "Kitchen" heading (the heading and the strip live in the same
+    // ShopInner render output — one atomic React commit).
+    await page.evaluate(() => {
+      const w = window as unknown as { __nordhemResyncCap?: unknown };
+      w.__nordhemResyncCap = null;
+      const capture = () => {
+        const h1 = document.querySelector("main h1");
+        if (h1?.textContent === "Kitchen") {
+          const strip = document.querySelector("main h1 + p");
+          // NB: scope the departed-rows check to product-card LINKS in main —
+          // body.textContent would always match: the initial SSR flight
+          // payload (a <script> in body) embeds the living-view catalogue,
+          // including HAVBRIS, forever.
+          w.__nordhemResyncCap = {
+            strip: strip?.textContent ?? null,
+            skeletons: !!document.querySelector('main [role="status"][aria-label="Loading products"]'),
+            productLinksInMain: document.querySelectorAll('main a[href^="/product/"]').length,
+          };
+          return true;
+        }
+        return false;
+      };
+      if (capture()) return;
+      const mo = new MutationObserver(() => { if (capture()) mo.disconnect(); });
+      mo.observe(document.querySelector("main") as Node, { childList: true, subtree: true, characterData: true });
+    });
+    // Navigate to Kitchen under the active keyword: the RSC navigation
+    // delivers the fresh server view; the client-side refetch is held.
+    await page.getByRole("button", { name: "Kitchen", exact: true }).click();
+    await page.waitForFunction(() => (window as unknown as { __nordhemResyncCap?: unknown }).__nordhemResyncCap !== null, undefined, { timeout: 10_000 });
+    const state = await page.evaluate(() => (window as unknown as { __nordhemResyncCap?: { strip: string | null; skeletons: boolean; productLinksInMain: number } }).__nordhemResyncCap);
+    expect(state, "the fresh-view commit was captured").toBeTruthy();
+    // The commit that renders the fresh heading must NOT carry the
+    // departed view's count claim ("1 products" for the oak-filtered
+    // living view)…
+    expect(state!.strip).not.toMatch(/\d+ products/);
+    // …must render skeletons…
+    expect(state!.skeletons).toBe(true);
+    // …and must NOT still show the departed view's product cards.
+    expect(state!.productLinksInMain).toBe(0);
+    // The static truth tail survives — it is not a view-dependent claim.
+    expect(state!.strip).toContain("prices include");
+    // The held state persists: still skeletons, still no count, still no
+    // departed rows (the fetch never lands under the held route).
+    await expect(page.getByText(/\d+ products/)).toHaveCount(0);
+    await expect(page.getByRole("status", { name: "Loading products" })).toBeVisible();
+    await expect(page.locator("main a[href^='/product/']")).toHaveCount(0);
+  });
 });
 
 test.describe("bag → checkout → order journey (live DB)", () => {
@@ -1152,6 +1231,26 @@ test.describe("SEO metadata blanket (Task 119)", () => {
     await expect(page.locator("main")).toContainText(
       `FLAT20${flat20 ? ` for $${flat20.value / 100} off orders over $${flat20.minSubtotalCents / 100}.` : ""}`
     );
+  });
+
+  test("the services + PDP assembly/design fee copy derives from the utils constants (Task 138 F-5)", async ({ page }) => {
+    // The Task-126 F-3 discipline closed the delivery/GST/express/threshold
+    // fee copy; the assembly + design-service fees stayed hand-copied literal
+    // pairs ($25 ×4 sites, $190 ×2) — a fee change was a coordinated
+    // multi-file sweep with no gate (the fee-rot class in miniature). The
+    // pins derive from the same constants the pages interpolate — a fee
+    // edit self-corrects copy and pins together (the Task-127 pattern).
+    await page.goto("/services");
+    await expect(page.locator("main")).toContainText(`from $${ASSEMBLY_FEE_CENTS / 100} per item`);
+    await expect(page.locator("main")).toContainText(`from $${DESIGN_SERVICE_FEE_CENTS / 100} · redeemable`);
+    // The crawler-facing metadata quotes the same figures (the Task-120
+    // F-4 stance: route descriptions must agree with the product's own copy).
+    const desc = (await page.locator('meta[name="description"]').getAttribute("content")) ?? "";
+    expect(desc).toContain(`assembly from $${ASSEMBLY_FEE_CENTS / 100}`);
+    expect(desc).toContain(`home design service from $${DESIGN_SERVICE_FEE_CENTS / 100}`);
+    // A PDP carries the same derived figure in its details copy.
+    await page.goto("/product/solbakken-3-seat-sofa");
+    await expect(page.locator("main")).toContainText(`Assembly from $${ASSEMBLY_FEE_CENTS / 100} ·`);
   });
 
   test("family metadata matches the page's own earn-rate math (Task 120 F-4)", async ({ page }) => {

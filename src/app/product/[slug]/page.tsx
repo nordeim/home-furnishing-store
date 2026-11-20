@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAllProducts, getInventory, getProductBySlug, getReviewCount, getReviews } from "@/lib/server-data";
-import { formatSGD, stars, visibleBadges, SITE_ORIGIN, jsonLdScript, campaignEnd, STANDARD_DELIVERY_FEE_CENTS, FREE_DELIVERY_THRESHOLD_CENTS, EXPRESS_DELIVERY_FEE_CENTS, GST_RATE } from "@/lib/utils";
-import { CATEGORIES } from "@/lib/catalog";
+import { formatSGD, stars, visibleBadges, SITE_ORIGIN, jsonLdScript, campaignEnd, STANDARD_DELIVERY_FEE_CENTS, FREE_DELIVERY_THRESHOLD_CENTS, EXPRESS_DELIVERY_FEE_CENTS, GST_RATE, ASSEMBLY_FEE_CENTS } from "@/lib/utils";
+import { CATEGORIES, productDiscountPercent } from "@/lib/catalog";
 import { ProductCard } from "@/components/ProductCard";
 import { BuyBox } from "@/components/BuyBox";
 import { ReviewSection } from "@/components/ReviewSection";
@@ -53,9 +53,9 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   // Breadcrumb label uses the category's display name, not the raw slug
   // (Task 119 F-16: "living" → "Living room"; CATEGORIES is the single map).
   const categoryName = CATEGORIES.find((c) => c.slug === p.categorySlug)?.name ?? p.categorySlug;
-  const discount = p.compareAtCents && p.compareAtCents > p.priceCents
-    ? Math.round(((p.compareAtCents - p.priceCents) / p.compareAtCents) * 100)
-    : 0;
+  // Task 138 F-3: the shared per-product seam (the card chip + the marketing
+  // max derive from the same helper — the formula is no longer triplicated).
+  const discount = productDiscountPercent(p);
   // Shared star seam: a 4.5 renders 4 full + a faded half, not 5 full stars
   // while the aria-label truthfully says 4.5 (Task 118 F-14).
   const ratingStars = stars(parseFloat(String(p.ratingAvg)));
@@ -140,7 +140,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             </div>
           )}
           <div className="mt-4 grid grid-cols-3 gap-3 text-center text-[13px]">
-            {[["Flat-pack", "Fits any lift"], ["Assembly", "from $25"], ["365-day", "returns"]].map(([a, b]) => (
+            {[["Flat-pack", "Fits any lift"], ["Assembly", `from $${ASSEMBLY_FEE_CENTS / 100}`], ["365-day", "returns"]].map(([a, b]) => (
               <div key={a} className="rounded-xl bg-[#f5f3ee] p-3">
                 <p className="font-black text-[15px]">{a}</p><p className="text-[#5b5b5b]">{b}</p>
               </div>
@@ -199,7 +199,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             <summary className="cursor-pointer p-4 font-bold">Delivery, assembly & returns</summary>
             <p className="px-4 pb-4 text-[14px] leading-relaxed text-[#444]">
               {`Delivery from $${STANDARD_DELIVERY_FEE_CENTS / 100} (free over $${FREE_DELIVERY_THRESHOLD_CENTS / 100}) · Express next-day $${EXPRESS_DELIVERY_FEE_CENTS / 100} · Click & Collect free in 2 hours ·`}
-              Assembly from $25 · 365-day returns with proof of purchase.
+              {`Assembly from $${ASSEMBLY_FEE_CENTS / 100} · 365-day returns with proof of purchase.`}
             </p>
           </details>
         </div>

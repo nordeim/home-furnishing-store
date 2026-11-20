@@ -28,6 +28,11 @@ export const GST_RATE = 0.09;
 export const FREE_DELIVERY_THRESHOLD_CENTS = 20000; // $200
 export const STANDARD_DELIVERY_FEE_CENTS = 1200; // $12
 export const EXPRESS_DELIVERY_FEE_CENTS = 2900; // $29
+// Task 138 F-5: service-fee display constants — the assembly + home-design
+// fee copy across home/services/PDP interpolates these (the Task-126 F-3
+// delivery-fee discipline, extended to the last hand-copied fee pair).
+export const ASSEMBLY_FEE_CENTS = 2500; // $25 per item
+export const DESIGN_SERVICE_FEE_CENTS = 19000; // $190, offsets the purchase
 
 // Task 133 F-1: the int4 ceiling Postgres enforces on serial id columns.
 // A crafted productId of 2^31 passes every JS gate (number, integer, > 0)

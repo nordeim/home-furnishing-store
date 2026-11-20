@@ -157,31 +157,21 @@ export function matchesProductQuery(
   return `${p.name} ${p.tagline} ${p.description} ${p.sku} ${p.categorySlug}`.toLowerCase().includes(needle.toLowerCase());
 }
 
-export function findProduct(slug: string): SeedProduct | undefined {
-  return PRODUCTS.find((p) => p.slug === slug);
-}
-
 /**
- * Client-side promo lookup for DISPLAY ONLY (cart + checkout totals preview).
- * The server re-validates every code against the promotions table in
- * placeOrder() / /api/promotions/validate — those remain the truth (ADR-005).
- * Unknown codes return null so the UI can never show a phantom discount
- * (the old inline switch defaulted every unknown code to 10% off).
- */
-export function findPromo(code: string): Pick<PromoLike, "kind" | "value"> | null {
-  const c = code.trim().toUpperCase();
-  const promo = PROMOS.find((p) => p.code === c);
-  return promo ? { kind: promo.kind, value: promo.value } : null;
-}
-
-/**
- * Task 122 F-5: the min-spend display gate. findPromo drops
- * minSubtotalCents, so the cart/checkout preview happily showed WELCOME10's
- * 10% on an $89 bag that placeOrder() refuses (INVALID_PROMO — minimum
- * $150). effectivePromo resolves a code ONLY when the given subtotal meets
- * its minimum: below it, the code is not effective and the preview shows no
- * discount — display and server refusal can no longer diverge on this axis.
- * The server re-validation remains the truth at write time (ADR-005).
+ * Task 122 F-5: the min-spend display gate — the LIVE client-side promo
+ * finder (cart + checkout totals preview). The pre-Task-122 `findPromo`
+ * finder resolved a code regardless of subtotal, so the preview happily
+ * showed WELCOME10's 10% on an $89 bag that placeOrder() refuses
+ * (INVALID_PROMO — minimum $150). effectivePromo resolves a code ONLY when
+ * the given subtotal meets its minimum: below it, the code is not effective
+ * and the preview shows no discount — display and server refusal can no
+ * longer diverge on this axis. The server re-validates every code at write
+ * time in placeOrder() / /api/promotions/validate (ADR-005).
+ * Task 138 F-4: `findPromo` (and its siblings findProduct + productImage —
+ * zero consumers) was RETIRED here: dead exports since the cart/checkout
+ * preview moved to this seam (the Task-114 lesson-8 discipline — retire
+ * dead code when the replacement lands; a maintainer could "fix" display
+ * behaviour in a seam no page reads).
  */
 export function effectivePromo(
   code: string | null,
@@ -209,10 +199,6 @@ export function findPromoMinimumCents(code: string): number | null {
   return promo ? promo.minSubtotalCents : null;
 }
 
-export function productImage(p: { imageUrls: string[] }, i = 0): string {
-  return p.imageUrls[i] ?? p.imageUrls[0] ?? "";
-}
-
 /**
  * Display label for a store slug in customer-facing copy ("tampines" →
  * "Tampines"). Task 119: the order/track pages rendered the raw slug
@@ -226,19 +212,28 @@ export function storeName(slug: string): string {
 }
 
 /**
+ * Task 138 F-3: the ONE per-product discount-percent seam. The chip formula
+ * (Math.round over the compare-at delta) was hand-duplicated at three sites
+ * — the ProductCard chip, the PDP chip and the catalogMaxDiscountPercent
+ * body (the Task-126 F-3 max seam landed without its per-product sibling) —
+ * so a rounding or edge-rule change desynchronized card chips, PDP chips
+ * and the marketing max claim silently. Every chip and the max derivation
+ * below now consume this seam.
+ */
+export function productDiscountPercent(p: { priceCents: number; compareAtCents?: number | null }): number {
+  return p.compareAtCents && p.compareAtCents > p.priceCents
+    ? Math.round(((p.compareAtCents - p.priceCents) / p.compareAtCents) * 100)
+    : 0;
+}
+
+/**
  * Task 126 F-3: the ONE max-discount derivation. "Up to 24% off" was a
  * hardcoded literal at five marketing surfaces (hero, header strip, offers
  * metadata ×2, offers copy) — a catalogue edit turned every claim into a lie
  * with the gates green. Same display formula as the PDP's per-product chip
- * (Math.round over the compare-at delta), applied across the catalogue.
+ * (Math.round over the compare-at delta), applied across the catalogue —
+ * composed through productDiscountPercent since Task 138 F-3.
  */
 export function catalogMaxDiscountPercent(): number {
-  return Math.max(
-    0,
-    ...PRODUCTS.map((p) =>
-      p.compareAtCents && p.compareAtCents > p.priceCents
-        ? Math.round(((p.compareAtCents - p.priceCents) / p.compareAtCents) * 100)
-        : 0,
-    ),
-  );
+  return Math.max(0, ...PRODUCTS.map((p) => productDiscountPercent(p)));
 }

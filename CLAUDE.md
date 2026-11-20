@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-21 (Task 137: PDP unified-outage-signal unification + ReviewSection recovery state, cart-promo envelope-trust completion, outage-branch characterization pins, shop-strip honesty, docs truth)
+last_updated: 2026-11-21 (Task 138: shop resync-window honesty, store-count derivation, productDiscountPercent seam, dead-export retirement, fee-copy derivation, starter-kit guard)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -130,17 +130,17 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`src/**`, `next.config.ts`) |
 | `npm run typecheck:tests` | Test-tree TypeScript check (`tests/**` via `tsconfig.tests.json` — both scopes are live gates) |
-| `npm run test` | Vitest unit suite (190 tests, pure seams) |
+| `npm run test` | Vitest unit suite (198 tests, pure seams) |
 | `npm run test:watch` | Vitest in watch mode (the same suite, re-run on change) |
-| `npm run test:e2e` | Playwright e2e (131 tests, production build on :3100) |
+| `npm run test:e2e` | Playwright e2e (133 tests, production build on :3100) |
 | `npm run test:e2e:install` | One-time: install the pinned Playwright Chromium build (the fresh-clone cache miss) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
-**Current state (Tasks 114–137, extended this cycle):** a NORDHEM-native suite is wired into the gates.
+**Current state (Tasks 114–138, extended this cycle):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 190 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 198 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
@@ -155,7 +155,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   operator docs (AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT — DEPLOYMENT.md
   joined in Task 131), not remembered). Node environment with a localStorage shim
   (`tests/unit/setup.ts`); no jsdom, no component rendering.
-- **E2E (Playwright, 131 tests)** against the **production build** (the webServer
+- **E2E (Playwright, 133 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
   hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
@@ -352,8 +352,8 @@ fix and passes after.
   that derive from the same constants the pages interpolate (a rate edit
   self-corrects copy and pins together — the Task-127 claim now true).
   The storefront spec's interaction-first coverage is complete: zero bare
-  interaction-first gotos remain (44 gotoHydrated call sites in the storefront
-  spec after the Task-129 conversions and the Task-131..137 probes — 46 across
+  interaction-first gotos remain (45 gotoHydrated call sites in the storefront
+  spec after the Task-129 conversions and the Task-131..138 probes — 47 across
   both files, the mobile spec contributing its two sites), and every
   write-capable refusal spec carries its RED-run `finally` net.
 - **Task-129 seams:** every write-capable refusal spec is netted — including
@@ -530,6 +530,30 @@ fix and passes after.
   strip suppresses its count claim under `loading || error` (the GST /
   free-delivery tail is static truth and stays — the wishlist-heading
   honesty sibling).
+
+- **Task-138 seams:** the shop resync block flips `loading` for cat/sort
+  transitions under an active keyword/price filter (a fresh server view
+  arrived with `items` still describing the PREVIOUS view, and
+  `setLoading(true)` only fired inside the 250 ms debounce callback — the
+  commit rendering the fresh heading carried the departed view's rows with
+  the strip quoting their count; skeletons + no count claim at the
+  transition itself, the Task-137 F-5 gate extended to the resync window —
+  e2e-pinned by a commit-time DOM capture keyed on the heading, because
+  auto-retrying assertions bridge the 250 ms window); the store COUNT
+  derives from the `STORES` seed everywhere (the hero stat, the
+  Click-&-Collect strip, both checkout refusal messages interpolate
+  `STORES.length` — the Task-129 list-derivation class completed one tier
+  over); `productDiscountPercent` in `catalog.ts` is the ONE per-product
+  discount seam (the card chip, the PDP chip and `catalogMaxDiscountPercent`
+  all consume it — the Task-126 F-3 max seam's per-product sibling);
+  `findProduct`/`findPromo`/`productImage` are RETIRED (dead exports since
+  the Task-122 display-gate move to `effectivePromo` — the lesson-8
+  retirement discipline, pins repointed at the live seams);
+  `ASSEMBLY_FEE_CENTS`/`DESIGN_SERVICE_FEE_CENTS` drive the $25/$190
+  service-fee copy at all seven sites (the Task-126 F-3 fee discipline's
+  last hand-copied pair); and the offers starter-kit set-copy is guarded on
+  the resolved rows (`KIT_SLUGS` + `bundles.length === KIT_SLUGS.length` —
+  the HERO_SLUG departure-guard discipline).
 
 - **`main` branch only** — no feature branches (operator contract).
 - Conventional Commits, atomic units (`fix:`, `feat:`, `docs:` — history uses

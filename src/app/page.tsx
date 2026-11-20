@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getAllProducts, getInspirations } from "@/lib/server-data";
-import { campaignEndLabel, formatSGD, SITE_ORIGIN, EXPRESS_DELIVERY_FEE_CENTS, FREE_DELIVERY_THRESHOLD_CENTS, STANDARD_DELIVERY_FEE_CENTS, GST_RATE } from "@/lib/utils";
+import { campaignEndLabel, formatSGD, SITE_ORIGIN, EXPRESS_DELIVERY_FEE_CENTS, FREE_DELIVERY_THRESHOLD_CENTS, STANDARD_DELIVERY_FEE_CENTS, GST_RATE, ASSEMBLY_FEE_CENTS, DESIGN_SERVICE_FEE_CENTS } from "@/lib/utils";
 import { CATEGORIES, PRODUCTS, STORES, catalogMaxDiscountPercent } from "@/lib/catalog";
 import { ProductCard } from "@/components/ProductCard";
 
@@ -82,7 +82,7 @@ export default async function HomePage() {
             <dl className="mt-8 flex gap-8 text-[13px] text-white/80">
               <div><dt className="text-[22px] font-black text-white">365</dt><dd>day returns</dd></div>
               <div><dt className="text-[22px] font-black text-white">${FREE_DELIVERY_THRESHOLD_CENTS / 100}+</dt><dd>free delivery</dd></div>
-              <div><dt className="text-[22px] font-black text-white">3</dt><dd>SG stores</dd></div>
+              <div><dt className="text-[22px] font-black text-white">{STORES.length}</dt><dd>SG stores</dd></div>
             </dl>
           </div>
           <div className="relative">
@@ -173,7 +173,7 @@ export default async function HomePage() {
             <h2 className="mt-2 text-[clamp(1.6rem,3vw,2.4rem)] font-black leading-tight">A 2-room Flexi BTO that feels like a hug</h2>
             <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/80">
               Our planners turned a 47 sqm Tampines flat into a calm, low-maintenance retreat —
-              washable fabrics, reachable storage, one warm pendant. From $190 including 3D views.
+              washable fabrics, reachable storage, one warm pendant. {`From $${DESIGN_SERVICE_FEE_CENTS / 100} including 3D views.`}
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link href="/planning-tools" className="rounded-full bg-[#ffdb00] px-6 py-3 text-[14px] font-black text-black hover:bg-white focus-ring">Book a planner</Link>
@@ -249,8 +249,8 @@ export default async function HomePage() {
         <div className="mx-auto grid max-w-7xl gap-6 px-4 py-12 sm:px-6 md:grid-cols-4">
           {[
             { t: `Delivery from $${STANDARD_DELIVERY_FEE_CENTS / 100}`, d: `Free over $${FREE_DELIVERY_THRESHOLD_CENTS / 100}. Slots incl. evenings & weekends.`, h: "/services" },
-            { t: "Assembly from $25", d: "Certified crews, packaging taken away.", h: "/services" },
-            { t: "Click & Collect in 2 hrs", d: "Free at all 3 stores. We load your car.", h: "/stores" },
+            { t: `Assembly from $${ASSEMBLY_FEE_CENTS / 100}`, d: "Certified crews, packaging taken away.", h: "/services" },
+            { t: "Click & Collect in 2 hrs", d: `Free at all ${STORES.length} stores. We load your car.`, h: "/stores" },
             { t: "365-day returns", d: "Changed your mind? No drama, full refund.", h: "/help" },
           ].map((s) => (
             <Link key={s.t} href={s.h} className="rounded-xl bg-white/5 p-5 hover:bg-white/10 focus-ring">

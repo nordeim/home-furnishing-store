@@ -127,10 +127,10 @@ export async function POST(req: Request) {
     // promoCode): the checkout page's store select always sends a real
     // string, and an absent field keeps the documented "tampines" default.
     if ("storeSlug" in body && typeof body.storeSlug !== "string")
-      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Choose one of our three stores." } }, { status: 422 });
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: `Choose one of our ${STORES.length} stores.` } }, { status: 422 });
     const storeSlug = String(body.storeSlug ?? "tampines");
     if (!STORE_SLUGS.includes(storeSlug))
-      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Choose one of our three stores." } }, { status: 422 });
+      return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: `Choose one of our ${STORES.length} stores.` } }, { status: 422 });
     // Task 127 F-2: deliverySlot joins the TYPE-strict set — String() coercion
     // let a single-element array ride into the DELIVERY_SLOTS coherence check
     // below (same class as the five free-text fields above; an absent slot

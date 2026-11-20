@@ -164,13 +164,13 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 190 tests at the pure seams
+npm run test             # Vitest unit — 198 tests at the pure seams
 npm run test:watch       # the same suite, re-run on change
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 131 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 133 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
@@ -245,11 +245,46 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 190 unit + 131 e2e, all green | NORDHEM-native harness (Tasks 114/117–137); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131; the unit tree is TZ-pure since Task 132 — verified by the three-TZ run) |
+| Test suite | ✅ 198 unit + 133 e2e, all green | NORDHEM-native harness (Tasks 114/117–138); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131; the unit tree is TZ-pure since Task 132 — verified by the three-TZ run) |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
+
+Current cycle (2026-11-21, Task 138): fresh-clone workspace re-audit (the
+sandbox had been reset — node_modules + `.env` rebuilt, the pinned
+Playwright Chromium 1255 re-installed after the cache miss; the rootless
+PostgreSQL 17.12 data dir survived the recycle WITHOUT the postmaster
+process — pid-liveness checked before pid removal per the Task-137
+addendum lesson, and the lesson-31 empty-subdirectory restore ran EXTENDED:
+the first-observed pg_replslot plus pg_commit_ts/pg_dynshmem/pg_stat/
+pg_stat_temp/pg_tblspc/pg_twophase joined the known set; DDL contract +
+seed quantities verified by direct SQL, inventory 1379; mobile-nav taxonomy
+8/8 at 390/1440 — no Tailwind v4 bug; sitemap/robots/og/noindex/404/
+security headers re-verified live; baseline gates green at 190/131 with
+zero DB residue; the reference repo quiescent — fourteenth cycle of
+"nothing to port") that caught **the shop resync-window honesty gap** (the
+Task-137 F-5 strip gate closed loading/error but the resync window BETWEEN
+server views stayed outside it — a category/sort navigation under an active
+keyword filter rendered the fresh heading above the DEPARTED view's rows
+with the strip quoting their count for the 250ms debounce window; the
+resync block now flips loading at the transition itself — e2e-pinned by a
+commit-time DOM capture because auto-retrying assertions bridge the
+window), **the store-count literal quartet** ("3" SG stores, "all 3
+stores", the checkout refusal's "three stores" ×2 — the Task-129
+list-derivation class completed one tier over, fs-pinned), **the
+discount-formula triplication** (the card chip, the PDP chip and the max
+derivation each carried the formula — one `productDiscountPercent` seam
+feeds all three now), **three dead catalog exports** (`findProduct`,
+`findPromo`, `productImage` — zero production consumers since Task 122's
+display-gate move; retired, pins repointed at the live seams), **the $25/$190
+fee-copy literals** (the assembly + design-service fee pair joined the
+Task-126 fee-derivation discipline — `ASSEMBLY_FEE_CENTS`/
+`DESIGN_SERVICE_FEE_CENTS` drive all seven sites, fs-pinned + e2e-pinned),
+and **the offers starter-kit departure guard** (the set-copy derives from
+the resolved rows — a departed slug degrades to neutral copy, never an
+assertion the chips contradict). Suite grew to 198 unit + 133 e2e. Details
+in `worklog.md` and `docs/plans/2026-11-21-task138-remediation-plan.md`.
 
 Current cycle (2026-11-21, Task 137): workspace-refresh re-audit (git pull
 → Task-136 + the session_38 narrative; the rootless PostgreSQL 17.12 data
@@ -277,8 +312,8 @@ outage copy, the PDP unavailable note, the reviews-GET `DB_DOWN` envelope
 — shipped unpinned; all now fs-pinned, mutation-proven), and the **shop-
 strip honesty** (the strip quoted a stale product count above the error
 state — the count claim is now gated on the settled view, e2e-pinned).
-Suite grew to 190 unit + 131 e2e. Details in `worklog.md` and
-`docs/plans/2026-11-21-task137-remediation-plan.md`.
+Suite grew to 198 unit + 133 e2e. Details in `worklog.md` and
+`docs/plans/2026-11-21-task138-remediation-plan.md`.
 
 Current cycle (2026-11-21, Task 136): workspace-refresh re-audit (fresh
 clone after a sandbox reset — the rootless PostgreSQL 17.12 data dir

@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 2.11.0
-last_updated: "2026-11-21 (Task 137: PDP unified-outage-signal unification + ReviewSection recovery state, cart-promo envelope-trust completion, outage-branch characterization pins, shop-strip honesty, docs truth)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 190/190 unit (TZ-pure — verified UTC/Singapore/New_York; the fs-pin covers all three quote forms + fractional seconds since Task 134) · 131/131 e2e · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
+version: 2.12.0
+last_updated: "2026-11-21 (Task 138: shop resync-window honesty + store-count derivation + productDiscountPercent seam + dead-export retirement + fee-copy derivation + starter-kit guard)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 198/198 unit (TZ-pure — verified UTC/Singapore/New York; the fs-pin covers all three quote forms + fractional seconds since Task 134) · 133/133 e2e · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -36,7 +36,9 @@ project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 190/190 
 > reviews-degrade-honesty/promo-in-tx-coherence/docs-truth cycle, and the
 > Task 137 PDP-unified-outage-signal/ReviewSection-recovery-state/cart-
 > promo-envelope-trust-completion/outage-branch-pin-coverage/shop-strip-
-> honesty/docs-truth cycle. `AGENTS.md` is the
+> honesty/docs-truth cycle, and the Task 138 shop-resync-window-honesty/
+> store-count-derivation/productDiscountPercent-seam/dead-export-retirement/
+> fee-copy-derivation/starter-kit-guard cycle. `AGENTS.md` is the
 > quick operator reference, the PAD is the full blueprint, and this skill is the
 > pattern/lesson layer an agent needs before touching the code. When code and
 > this document disagree, **the code wins** — then fix this document in the
@@ -109,8 +111,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 190/190
-npm run test:e2e                                               # 131/131 (live Postgres for the journey)
+npm run test                                                   # 198/198
+npm run test:e2e                                               # 133/133 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -1016,6 +1018,33 @@ Task 131).
     the pin set in the same cycle that ships it, or it ships as
     unregistered debt that the next outage silently regresses.
 
+65. **Auto-retrying assertions BRIDGE transient windows — pin the commit
+    itself (Task 138 F-1, the resync-window probe).** A 250 ms-debounce
+    honesty gap (the fresh category heading rendering above the departed
+    view's rows and count) is invisible to `toHaveCount(0)` /
+    `toBeVisible()` assertions: Playwright retries them until the debounce
+    flips the state, so the first probe draft false-passed GREEN against
+    the unfixed tree. The honest vehicle: capture the DOM at the exact
+    commit (a MutationObserver keyed on the heading, resolving the
+    strip/skeleton/rows state into a window variable) and hold the
+    triggering fetch open (`page.route` with a never-resolving handler) so
+    the intermediate state persists. Sibling trap: `document.body
+    .textContent` includes the RSC flight-payload `<script>` text — an
+    SSR-embedded product name matches FOREVER; scope text searches to
+    rendered elements (product-card links in `main`), not the whole body.
+
+66. **A settle gate closed for the terminal states is not closed for the
+    transitions between them (Task 138 F-1).** The Task-137 strip gate
+    suppressed the count claim under `loading || error` — but the resync
+    window between two server views stayed `loading=false` until the
+    debounce fired, so the departed view's count rendered above the fresh
+    heading with the gate green. The fix belongs at the TRANSITION itself
+    (the sanctioned adjust-during-render block flips `loading` when the
+    server view changes under an active filter), not inside the async
+    callback — the callback only ever runs late. Rule: when a discipline
+    names its states, audit the gaps BETWEEN the states before declaring
+    the class closed.
+
 ## 13. Pitfalls to Avoid
 
 - Adding state/auth/payment SDKs without a decision record (ADR-006 deferrals
@@ -1137,15 +1166,15 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | Commands & gotchas | `AGENTS.md` |
 | Architecture detail | `Project_Architecture_Document.md` |
 | Decision record | `docs/implementation-plan.md` |
-| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-21-task137-remediation-plan.md` (22 plans: Tasks 114, 117–137) |
-| Screenshots | `docs/screenshots/01…104-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 105 PNGs) |
+| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-21-task138-remediation-plan.md` (23 plans: Tasks 114, 117–138) |
+| Screenshots | `docs/screenshots/01…109-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 110 PNGs) |
 | SSH push runbook | `docs/how-to-git-push-using-ssh-wrapper_SKILL.md` |
 | Working history | `worklog.md` (Tasks 113+ NORDHEM; the 1–112 predecessor lineage was operator-trimmed) |
 | Money/validators | `src/lib/utils.ts` |
-| Catalogue + findPromo | `src/lib/catalog.ts` |
+| Catalogue + the derivation seams (productDiscountPercent, effectivePromo) | `src/lib/catalog.ts` |
 | DB seam + pricing truth | `src/lib/server-data.ts` |
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (190) — 10 files |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (131) — 123 storefront + 8 mobile |
+| Unit suite | `tests/unit/*.test.ts` (198) — 10 files |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (133) — 125 storefront + 8 mobile |

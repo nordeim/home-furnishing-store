@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { formatSGD, stars, visibleBadges } from "@/lib/utils";
+import { productDiscountPercent } from "@/lib/catalog";
 import { useCart } from "@/lib/cart-store";
 
 export interface CardProduct {
@@ -44,9 +45,9 @@ export function ProductCard({ p }: { p: CardProduct }) {
   const { add, toggleWish, isWished } = useCart();
   const wished = isWished(p.slug);
   const img = p.imageUrls[0] ?? "";
-  const discount = p.compareAtCents && p.compareAtCents > p.priceCents
-    ? Math.round(((p.compareAtCents - p.priceCents) / p.compareAtCents) * 100)
-    : 0;
+  // Task 138 F-3: the shared per-product seam (the PDP chip + the marketing
+  // max derive from the same helper — the formula is no longer triplicated).
+  const discount = productDiscountPercent(p);
   // Several catalogue rows carry the computed chip value as a badge literal
   // (e.g. badges ["-24%"] on a −24% product) — render each chip once.
   const badges = visibleBadges(p.badges, { isNew: p.isNew, discountPercent: discount }).slice(0, 2);

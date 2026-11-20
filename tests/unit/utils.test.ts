@@ -726,3 +726,34 @@ describe("TZ-pure test tree (Task 132 F-1)", () => {
     expect(numericCtor, "numeric-args Date constructors parse as LOCAL time (the same TZ-coupled class) — use Z-suffixed literals").toEqual([]);
   });
 });
+
+// Task 138 F-5: the $25 assembly + $190 design-service fee copy was a
+// hand-copied literal pair across home/services/PDP — the pre-Task-126
+// fee-rot class in miniature (a fee change was a coordinated multi-file
+// sweep with no gate). ASSEMBLY_FEE_CENTS + DESIGN_SERVICE_FEE_CENTS now
+// drive every site; this fs-pin holds the derivation form (the e2e sibling
+// pins the rendered copy against the constants' values).
+describe("fee-copy derivation (Task 138 F-5)", () => {
+  const home = readFileSync(resolve(import.meta.dirname, "../../src/app/page.tsx"), "utf8");
+  const services = readFileSync(resolve(import.meta.dirname, "../../src/app/services/page.tsx"), "utf8");
+  const pdp = readFileSync(resolve(import.meta.dirname, "../../src/app/product/[slug]/page.tsx"), "utf8");
+
+  it("the home strip + design card interpolate both fee constants", () => {
+    expect(home).toContain("ASSEMBLY_FEE_CENTS");
+    expect(home).toContain("DESIGN_SERVICE_FEE_CENTS");
+    expect(home).not.toContain("Assembly from $25");
+    expect(home).not.toContain("From $190 ");
+  });
+
+  it("the services metadata + both card prices interpolate the constants", () => {
+    expect(services).toContain("ASSEMBLY_FEE_CENTS");
+    expect(services).toContain("DESIGN_SERVICE_FEE_CENTS");
+    expect(services).not.toContain("from $25");
+    expect(services).not.toContain("from $190");
+  });
+
+  it("the PDP info chip + details copy interpolate the assembly fee", () => {
+    expect(pdp).toContain("ASSEMBLY_FEE_CENTS");
+    expect(pdp).not.toContain("from $25");
+  });
+});
