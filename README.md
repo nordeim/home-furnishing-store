@@ -164,12 +164,12 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 179 tests at the pure seams
+npm run test             # Vitest unit — 180 tests at the pure seams
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 120 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 125 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
@@ -244,11 +244,48 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 179 unit + 120 e2e, all green | NORDHEM-native harness (Tasks 114/117–133); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131; the unit tree is TZ-pure since Task 132 — verified by the three-TZ run) |
+| Test suite | ✅ 180 unit + 125 e2e, all green | NORDHEM-native harness (Tasks 114/117–134); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131; the unit tree is TZ-pure since Task 132 — verified by the three-TZ run) |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
+
+Current cycle (2026-11-20, Task 134): workspace-refresh re-audit (git pull →
+246bf8c; the rootless PostgreSQL 17.12 data dir survived the recycle RUNNING —
+no lesson-31 restore needed; mobile-nav taxonomy 8/8 at 390/1440 — no
+Tailwind v4 bug; hydration live-verified; sitemap 42 URLs, robots coherent,
+og dimensions live-verified on home + PDP + inspiration; baseline gates green
+at 179/120 with zero DB residue; the reference repo quiescent — tenth cycle
+of "nothing to port") that caught **the cart duplicate-payload coverage
+asymmetry** (Task 133's uniqueness fix pinned the wishlist half at unit AND
+e2e tier while the cart half — the more severe consequence, doubled React
+keys + doubled subtotal — carried the unit pin alone; the sibling e2e probe
+now exists, honest-RED by mutation), **the order-URL decode-corner gap** —
+resolved into a live platform discovery: a RAW malformed-percent request is
+rejected inside Next 16's routing layer BEFORE any app code runs (prod bare
+500 / dev 400, no log; browser parsers normalize a lone `%` first — register
+row), so the pin landed on the browser-reachable normalized form
+(`/order/%25ZZ` → not-found, never a 5xx) and the Task-133 case-sibling's
+negative assertion was repaired in passing (its typographic apostrophe never
+matched the rendered `can&apos;t` — a permanent no-op), **the asymmetric
+stepper ceilings** (every `−` was floor-disabled and pinned while the three
+`+` controls — cart, BuyBox, business quote — stayed enabled-but-inert at
+their 99/99/200 caps; all three now carry the mirrored `disabled={…}` +
+ceiling pins, TRUE-RED first), the **addLine floor clamp** (the found-branch
+clamped only its ceiling — a programmatic negative-qty add stored a negative
+line; both branches now clamp 1–99, fs-pinned), the **MAX_INT4 comment
+truth** (the "every id-taking verb" claim overstated by one verb —
+checkout's lines[] drop out-of-range ids via the catalogue, now named in
+the comment), the **TZ fs-pin widening** (all three quote forms +
+fractional seconds; the lookahead rejects `.` AND digits, closing two
+backtracking splits that let a legitimate `.500Z` false-positive — both
+mutation-proven, the second caught only because the demo was run), and a
+docs-truth pass (README's push-gate line missing `typecheck:tests` — the
+real sixth-doc outlier; the Task-133 baseline count 177/116→177/117;
+SKILL §11's lockstep list missing DEPLOYMENT.md; the AGENTS/PAD unit-suite
+summaries missing the server-data fs-pin). Suite grew to 180 unit + 125
+e2e. Details in `worklog.md` and
+`docs/plans/2026-11-20-task134-remediation-plan.md`.
 
 Current cycle (2026-11-20, Task 133): fresh-clone workspace re-audit (the
 rootless PostgreSQL data dir survived but needed the lesson-31 restore
@@ -256,7 +293,7 @@ EXTENDED — the first observed NESTED pair, `pg_logical/snapshots` +
 `pg_logical/mappings`, joined the known top-level set; mobile-nav taxonomy
 8/8 at 390/1440 — no Tailwind v4 bug; hydration live-verified; sitemap 42
 URLs, robots coherent, og dimensions live-verified on home + PDP +
-inspiration; baseline gates green at 177/116 with zero DB residue; the
+inspiration; baseline gates green at 177/117 with zero DB residue; the
 reference repo quiescent — ninth cycle of "nothing to port") that caught
 **the reviews int4-overflow 500** (a crafted `productId: 2147483648` passed
 every JS gate but the driver rejects the int4 parameter with 22003 — the
@@ -635,7 +672,8 @@ Working conventions for agents and humans (full detail in `AGENTS.md` /
 
 - **main only**, Conventional Commits, atomic changes; push through the SSH
   wrapper with an operator-supplied key that never enters the repo.
-- Gate before every push: cold build + typecheck + lint; never weaken a rule to
+- Gate before every push: cold build + typecheck + `typecheck:tests` + lint + unit
+  suite + e2e (the full chain lives in `AGENTS.md`); never weaken a rule to
   pass one.
 - React 19 / Tailwind v4 specifics: no `forwardRef` needed; CSS-first tokens in
   `@theme` (no `tailwind.config.js`); slash-form arbitrary values only.

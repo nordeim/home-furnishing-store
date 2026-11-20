@@ -523,6 +523,31 @@ test.describe("client resilience (fetch failure ≠ empty state)", () => {
     await expect(page.locator("main article")).toHaveCount(0);
   });
 
+  test("a DUPLICATE persisted cart payload degrades to the honest empty state — no doubled lines or subtotal (Task 134 F-1)", async ({ page }) => {
+    // The cart sibling of the wishlist duplicate probe above — the more
+    // severe of the two halves (duplicate key={productId} React keys + a
+    // doubled subtotal display) yet it shipped Task 133 with the unit pin
+    // alone. Pre-fix, a crafted [line, line] payload passed every element
+    // gate (both lines individually valid) and the page rendered "Your bag
+    // (2)" over two identical cards; the uniqueness layer (Task 133 F-3)
+    // rejects the payload at load → the store degrades to the fallback →
+    // the page renders its honest empty-bag state.
+    await page.addInitScript(() => {
+      localStorage.setItem("nordhem_cart_v1", JSON.stringify([
+        { productId: 1, slug: "solbakken-3-seat-sofa", name: "SOLBAKKEN 3-seat sofa", sku: "NH-SOF-001", imageUrl: "x", unitPriceCents: 129900, qty: 1 },
+        { productId: 1, slug: "solbakken-3-seat-sofa", name: "SOLBAKKEN 3-seat sofa", sku: "NH-SOF-001", imageUrl: "x", unitPriceCents: 129900, qty: 1 },
+      ]));
+    });
+    await gotoHydrated(page, "/cart");
+    // The degraded empty bag — not a doubled render of one line.
+    await expect(page.getByRole("heading", { name: "Your bag is empty" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Your bag \(\d+\)/ })).toHaveCount(0);
+    // No line cards render (the payload was rejected whole, not deduped).
+    await expect(page.locator("main article, main li")).toHaveCount(0);
+    // No subtotal survives a rejected payload.
+    await expect(page.getByText(/\$1,?299/)).toHaveCount(0);
+  });
+
   test("search shows an error state (not 'No products found') when the API fails", async ({ page }) => {
     await page.route("**/api/products*", (route) => route.abort());
     await page.goto("/search?q=sofa");
@@ -761,6 +786,24 @@ test.describe("a11y: focus, steppers and announcements (Task 120)", () => {
     await expect(page.getByRole("button", { name: /Decrease quantity of/ })).toBeDisabled();
     // The plus still works from qty 1.
     await page.getByRole("button", { name: /Increase quantity of/ }).click();
+    await expect(page.getByRole("button", { name: /Decrease quantity of/ })).toBeEnabled();
+  });
+
+  test("cart quantity plus is disabled at the 99 ceiling (the floor's mirror — Task 134 F-3)", async ({ page }) => {
+    // The floor discipline is pinned above; the ceiling shipped without it —
+    // the + at qty 99 stayed enabled and silently no-op'd (the setQty clamp
+    // is invisible to the shopper). Seed a ceiling-qty line directly (the
+    // isValidCartLine contract admits 1-99 — cart-store.tsx) and pin the
+    // disabled state plus the badge integrity at the cap.
+    await page.addInitScript(() => {
+      localStorage.setItem("nordhem_cart_v1", JSON.stringify([
+        { productId: 1, slug: "solbakken-3-seat-sofa", name: "SOLBAKKEN 3-seat sofa", sku: "NH-SOF-001", imageUrl: "x", unitPriceCents: 129900, qty: 99 },
+      ]));
+    });
+    await gotoHydrated(page, "/cart");
+    await expect(page.getByRole("heading", { name: /Your bag \(99\)/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Increase quantity of/ })).toBeDisabled();
+    // The minus stays live at the ceiling (both controls never dead at once).
     await expect(page.getByRole("button", { name: /Decrease quantity of/ })).toBeEnabled();
   });
 
@@ -1093,10 +1136,47 @@ test.describe("SEO metadata blanket (Task 119)", () => {
       expect(orderNumber).toBeTruthy();
       await page.goto(`/order/${orderNumber.toLowerCase()}`);
       await expect(page.getByRole("heading", { name: /Tak! Your order is confirmed/ })).toBeVisible();
-      await expect(page.getByText("We can’t find that order")).toHaveCount(0);
+      // NB: the page renders "can't" with a straight apostrophe (can&apos;)
+      // — a typographic ’ literal never matches (the Task-131 no-op-locator
+      // class, caught while writing the Task-134 sibling probe below).
+      await expect(page.getByText(/We can't find that order/)).toHaveCount(0);
     } finally {
       await deleteProbeOrders("order-case-probe@nordhem.sg");
     }
+  });
+
+  test("a malformed-percent-encoded order URL lands in not-found, never a 500 (Task 134 F-2)", async ({ page }) => {
+    // Task 133 F-5 rewrote the decode line (trim + uppercase); the decode-
+    // throw corner it shares a line with is the Task-118 F-15 / Task-120
+    // F-14 guard — decodeURIComponent of a malformed sequence throws
+    // URIError, and the guard must land it in the friendly not-found state,
+    // not the error boundary. The corner had no pin anywhere (the case
+    // sibling above is the only decode-site probe).
+    //
+    // Scope note (verified against the production build this cycle): a RAW
+    // malformed request (`/order/%ZZ` byte-for-byte, or a valid-percent
+    // malformed-UTF-8 `%E0%A4%A`) is rejected inside Next 16's routing
+    // layer BEFORE any app code runs — the route matcher's own
+    // decodeURIComponent throws DecodeError (prod: bare platform 500 with
+    // no log; dev: 400) — un-interceptable by pages/middleware, and browser
+    // URL parsers normalize a lone `%` to `%25` before sending, so the raw
+    // class is curl/craft-only (register row). The browser-reachable form
+    // is the normalized one — `%25ZZ` — which reaches the page as a raw
+    // param, decodes cleanly to the literal "%ZZ", and lands in the honest
+    // not-found state; the page's own URIError guard (Task-118 F-15) is
+    // defensive depth on this Next version (any input that would throw it
+    // already threw the router's decode first — proven by hoist-mutation
+    // this cycle: the probe stayed GREEN, so the guard never fires through
+    // the public interface). The contract pinned here is the end-to-end
+    // one: weird-but-valid order URLs never 5xx and never render the
+    // outage copy.
+    const res = await page.goto("/order/%25ZZ");
+    expect(res?.status()).toBeLessThan(500);
+    await expect(page.getByRole("heading", { name: /We can't find that order/ })).toBeVisible();
+    // The outage copy must NOT render — a URIError-class typo is a client
+    // input problem, not a DB outage (the Task-120 F-14 distinction).
+    // Straight apostrophe — the rendered copy is can&apos;t.
+    await expect(page.getByRole("heading", { name: /can't check orders right now/ })).toHaveCount(0);
   });
 
   test("utility client pages carry page-level noindex (Task 124 F-17)", async ({ page }) => {
@@ -1864,6 +1944,16 @@ test.describe("PDP stepper floor (Task 121 F-11)", () => {
     await minus.click();
     await expect(minus).toBeDisabled();
   });
+
+  test("PDP quantity plus is disabled at the 99 ceiling (cart-page parity — Task 134 F-3)", async ({ page }) => {
+    // The cart ceiling pin seeds localStorage; the PDP qty is component
+    // state — drive it to the cap through the input (its own onChange clamp
+    // admits 99) and pin the mirrored disabled state.
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
+    await page.getByLabel("Qty").fill("99");
+    await expect(page.getByRole("button", { name: "Increase quantity" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Decrease quantity" })).toBeEnabled();
+  });
 });
 
 test.describe("shop loading announcement (Task 121 F-13)", () => {
@@ -2551,6 +2641,19 @@ test.describe("business quote stepper floor (Task 122 F-15)", () => {
     await minus.click(); // 2 → 1
     await minus.click(); // 1 → 0 — the floor
     await expect(minus).toBeDisabled();
+  });
+
+  test("the quote plus button is disabled at the 200 ceiling (the floor's mirror — Task 134 F-3)", async ({ page }) => {
+    // The quote calculator has no qty input — drive the Staff locker tower
+    // from its default 2 up to the 200 cap and pin the mirrored disabled
+    // state (198 clicks; the business panel is client-local, no fetches).
+    await gotoHydrated(page, "/business");
+    const plus = page.getByRole("button", { name: "More Staff locker tower" });
+    for (let i = 0; i < 198; i++) {
+      await plus.click();
+    }
+    await expect(plus).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Fewer Staff locker tower" })).toBeEnabled();
   });
 });
 

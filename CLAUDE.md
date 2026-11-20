@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-20 (Task 133: reviews int4-overflow bound, typeqty residue-net completion, persisted-payload uniqueness, order-lookup normalization parity, pin-hardening batch)
+last_updated: 2026-11-20 (Task 134: cart-duplicate e2e parity, order-URL decode pin, stepper ceiling state, addLine floor clamp, TZ-pin widening, docs gate truth)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -129,15 +129,15 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`typecheck:tests` covers the test tree) |
-| `npm run test` | Vitest unit suite (179 tests, pure seams) |
-| `npm run test:e2e` | Playwright e2e (120 tests, production build on :3100) |
+| `npm run test` | Vitest unit suite (180 tests, pure seams) |
+| `npm run test:e2e` | Playwright e2e (125 tests, production build on :3100) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
-**Current state (Tasks 114–133, extended this cycle):** a NORDHEM-native suite is wired into the gates.
+**Current state (Tasks 114–134, extended this cycle):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 179 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 180 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
@@ -151,7 +151,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   with the fs-computed reality — count-lockstep is enforced across all five
   operator docs, not remembered). Node environment with a localStorage shim
   (`tests/unit/setup.ts`); no jsdom, no component rendering.
-- **E2E (Playwright, 120 tests)** against the **production build** (the webServer
+- **E2E (Playwright, 125 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
   hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
@@ -446,6 +446,23 @@ fix and passes after.
   the catalogue; the TZ fs-pin fails on numeric-args Date constructors; the
   PERSISTED_STORAGE_KEYS producer scan is fail-closed against computed
   keys — the last two proven by mutation).
+- **Task-134 seams:** the cart duplicate-payload probe joins its wishlist
+  sibling at the e2e tier (a duplicated `nordhem_cart_v1` payload degrades
+  to the honest empty bag — never doubled React keys/subtotal;
+  honest-RED by mutation); the order-URL decode corner is pinned on the
+  browser-reachable form (`/order/%25ZZ` → not-found, never a 5xx — a RAW
+  malformed request is platform-handled inside Next 16's routing layer
+  before app code runs, register row; the Task-133 case-sibling's negative
+  assertion was repaired in passing — its typographic apostrophe never
+  matched the rendered `can&apos;t`, a permanent no-op); the three `+`
+  steppers (cart/BuyBox/business) disable at their 99/99/200 ceilings like
+  their floor-disabled `−` siblings; `addLine`'s found-branch clamps its
+  floor (`Math.max(1, …)` — both branches now 1–99, fs-pinned); the
+  `MAX_INT4` comment names checkout's drop-exception (lines[] ids DROP via
+  the catalogue `byId.get` — the documented answer, not a 422); and the TZ
+  zless fs-pin covers all three quote forms + fractional seconds (the
+  lookahead rejects `.` and digits — closing TWO backtracking splits that
+  let a legitimate `.500Z` false-positive, both mutation-proven).
 
 - **`main` branch only** — no feature branches (operator contract).
 - Conventional Commits, atomic units (`fix:`, `feat:`, `docs:` — history uses

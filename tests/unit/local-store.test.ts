@@ -208,6 +208,27 @@ describe("createLocalStore (localStorage-backed external store)", () => {
       expect(isValidWishPayload([])).toBe(true);
     });
   });
+
+  // Task 134 F-4: addLine's found-branch clamped only its ceiling — a
+  // programmatic add(line, -5) on an existing line stored a negative qty
+  // (in-memory negative badge/subtotal until reload, where the load-time
+  // predicate degrades the payload). No UI path passes a negative qty
+  // (BuyBox/ProductCard pass >= 1), so this is hardening — but the found
+  // branch must carry the same Math.max(1, ...) floor its new-line sibling
+  // has had since the store shipped. addLine is module-internal (not an
+  // exportable pure seam), so the pin is the fs-scan — the
+  // server-data.test.ts fulfilment-seam precedent.
+  describe("addLine qty clamping (Task 134 F-4)", () => {
+    it("BOTH addLine branches clamp at the floor and the ceiling (fs-pin)", () => {
+      const src = fs.readFileSync(path.resolve(import.meta.dirname, "../../src/lib/cart-store.tsx"), "utf8");
+      // The new-line branch (the original form):
+      expect(src, "the new-line branch keeps its floor+ceiling clamp").toContain("qty: Math.min(99, Math.max(1, qty))");
+      // The found-branch (Task 134 F-4 — pre-fix it read Math.min(99, l.qty + qty)):
+      expect(src, "the found-branch clamps at the floor too").toContain("qty: Math.min(99, Math.max(1, l.qty + qty))");
+      // The unclamped found-branch form must be gone entirely.
+      expect(src, "the unclamped found-branch form is retired").not.toContain("Math.min(99, l.qty + qty)");
+    });
+  });
 });
 
 

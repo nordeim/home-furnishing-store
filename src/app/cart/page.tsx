@@ -113,7 +113,7 @@ export default function CartPage() {
                   <div className="flex items-center rounded-full border border-[#ddd]">
                     <button onClick={() => setQty(l.productId, l.qty - 1)} disabled={l.qty <= 1} className="grid h-9 w-9 place-items-center rounded-full hover:bg-[#f5f3ee] focus-ring disabled:cursor-not-allowed disabled:opacity-40" aria-label={`Decrease quantity of ${l.name}`}>−</button>
                     <span className="w-8 text-center font-black" aria-live="polite">{l.qty}</span>
-                    <button onClick={() => setQty(l.productId, l.qty + 1)} className="grid h-9 w-9 place-items-center rounded-full hover:bg-[#f5f3ee] focus-ring" aria-label={`Increase quantity of ${l.name}`}>+</button>
+                    <button onClick={() => setQty(l.productId, l.qty + 1)} disabled={l.qty >= 99} className="grid h-9 w-9 place-items-center rounded-full hover:bg-[#f5f3ee] focus-ring disabled:cursor-not-allowed disabled:opacity-40" aria-label={`Increase quantity of ${l.name}`}>+</button>
                   </div>
                   <p className="font-black">{formatSGD(l.unitPriceCents * l.qty)}</p>
                 </div>

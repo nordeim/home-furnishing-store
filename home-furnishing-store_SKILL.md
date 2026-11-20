@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 2.7.0
-last_updated: "2026-11-20 (Task 133: reviews int4-overflow bound, typeqty residue-net completion, persisted-payload uniqueness, order-lookup normalization parity, pin-hardening batch)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 179/179 unit (TZ-pure — verified UTC/Singapore/New_York; the fs-pin also fails numeric-args Date constructors since Task 133) · 120/120 e2e · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
+version: 2.8.0
+last_updated: "2026-11-20 (Task 134: cart-duplicate e2e parity, order-URL decode pin, stepper ceiling state, addLine floor clamp, TZ-pin widening, docs gate truth)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 180/180 unit (TZ-pure — verified UTC/Singapore/New_York; the fs-pin covers all three quote forms + fractional seconds since Task 134) · 125/125 e2e · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -25,10 +25,12 @@ project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 179/179 
 > unique-violation-discrimination/wishlist-heading-honesty cycle, and the
 > Task 131 wishlist-count-parity/fulfilment-seam-structural-pin/orderNumber-
 > crypto-suffix/DEPLOYMENT-truth cycle, the Task 132 TZ-pure-test-gates/
-> fulfilment-pin-binding/wishlist-all-ghost/probe-email-uniqueness cycle, and
-> the Task 133 reviews-int4-overflow-bound/typeqty-residue-net-completion/
+> fulfilment-pin-binding/wishlist-all-ghost/probe-email-uniqueness cycle, the
+> Task 133 reviews-int4-overflow-bound/typeqty-residue-net-completion/
 > persisted-payload-uniqueness/order-lookup-normalization-parity/pin-
-> hardening cycle. `AGENTS.md` is the quick operator
+> hardening cycle, and the Task 134 cart-duplicate-e2e-parity/order-URL-
+> decode-pin/stepper-ceiling-state/addLine-floor-clamp/TZ-pin-widening/docs-
+> gate-truth cycle. `AGENTS.md` is the quick operator
 > reference, the PAD is the full blueprint, and this skill is the
 > pattern/lesson layer an agent needs before touching the code. When code and
 > this document disagree, **the code wins** — then fix this document in the
@@ -101,8 +103,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 179/179
-npm run test:e2e                                               # 120/120 (live Postgres for the journey)
+npm run test                                                   # 180/180
+npm run test:e2e                                               # 125/125 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -400,8 +402,10 @@ git status   # no .env, *.key, db/*.db, test-results/, playwright-report/
 
 Plus: changed surfaces verified at 390 and 1440; SEO surfaces re-pinned if
 routes changed; screenshots refreshed for docs surfaces that changed;
-README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
-(count lockstep: route/test/table counts are documentation claims).
+README/AGENTS/CLAUDE/PAD/this SKILL + `docs/DEPLOYMENT.md` + `worklog.md`
+updated in the same commit (count lockstep: route/test/table counts are
+documentation claims — DEPLOYMENT.md joined the pinned six-doc set in
+Task 131).
 
 ## 12. Lessons Learnt (this lineage)
 
@@ -890,6 +894,36 @@ README/AGENTS/CLAUDE/PAD/this SKILL + `worklog.md` updated in the same commit
     `deleteProbeOrders` helper exists precisely so this diff is one call);
     a partial net is a delayed flake (gotcha #13's exact failure mode,
     stranded silently across RED runs).
+57. **A fix that ships two halves must pin both halves at the same tier —
+    audit coverage by SYMMETRY, not by presence (Task 134 F-1).** Task 133's
+    uniqueness layer landed on the cart and wishlist predicates together,
+    but the e2e probe was written for the wishlist half only; the cart half
+    — the MORE severe consequence (duplicate React keys + doubled subtotal)
+    — kept the unit pin alone, and the commit message's "unit-pinned +
+    e2e-probed" was true of only one of the two. A per-file grep for the
+    key name (the usual sweep) found the one seeding site and read it as
+    covered — the asymmetry only surfaces when you ask, for EACH half of a
+    two-surface fix, "which tier pins THIS half?". Rule: when a fix names
+    two surfaces, enumerate the pin tier of each; a GREEN-on-arrival pin
+    must still be mutation-proven against its own half (disable the guard,
+    watch the probe fail).
+58. **The platform layer answers some crafted-input classes before your
+    code runs — pin what the APP can own, register what the PLATFORM owns,
+    and prove which is which by mutation (Task 134 F-2).** The order-URL
+    decode corner looked like an app-guard question (decodeURIComponent
+    inside a try, URIError classified to not-found); the pin attempt
+    surfaced the truth — Next 16's route matcher decodes path segments
+    itself and a raw malformed-percent request throws DecodeError INSIDE
+    the router (prod: bare platform 500, no log; dev: 400) before any page
+    code runs; browser URL parsers normalize a lone `%` to `%25` first, so
+    the raw class is curl-only. The in-page URIError guard is unreachable
+    defensive depth on this version (hoist-mutation kept the probe GREEN —
+    the guard never fires through the public interface). Rule: before
+    pinning a "my code handles X" claim on a request-input class, run the
+    crafted input against the PRODUCTION build and against a mutation of
+    the guard — the observable (which layer answers, with what status) is
+    the pin; the unreachable guard stays as depth with an honest comment,
+    and the platform-owned class becomes a register row, not a code fix.
 
 ## 13. Pitfalls to Avoid
 
@@ -1012,8 +1046,8 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | Commands & gotchas | `AGENTS.md` |
 | Architecture detail | `Project_Architecture_Document.md` |
 | Decision record | `docs/implementation-plan.md` |
-| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-20-task133-remediation-plan.md` (18 plans: Tasks 114, 117–133) |
-| Screenshots | `docs/screenshots/01…84-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 85 PNGs) |
+| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-20-task134-remediation-plan.md` (19 plans: Tasks 114, 117–134) |
+| Screenshots | `docs/screenshots/01…89-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 90 PNGs) |
 | SSH push runbook | `docs/how-to-git-push-using-ssh-wrapper_SKILL.md` |
 | Working history | `worklog.md` (Tasks 113+ NORDHEM; the 1–112 predecessor lineage was operator-trimmed) |
 | Money/validators | `src/lib/utils.ts` |
@@ -1022,5 +1056,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (179) — 10 files |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (120) — 112 storefront + 8 mobile |
+| Unit suite | `tests/unit/*.test.ts` (180) — 10 files |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (125) — 117 storefront + 8 mobile |

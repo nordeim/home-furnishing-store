@@ -22,11 +22,11 @@ ORM + PostgreSQL.
 | `npm run start` | Serve the production build |
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
-| `npm run test` | Vitest unit suite (179 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, docs-counts pins incl. the PAD + the TZ-pure-tree fs-pin + the numeric-args-ctor widening) |
-| `npm run test:e2e` | Playwright e2e (120 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
+| `npm run test` | Vitest unit suite (180 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, server-data fulfilment-seam fs-pin + the addLine-clamp fs-pin, docs-counts pins incl. the PAD + the TZ-pure-tree fs-pin + the numeric-args-ctor widening) |
+| `npm run test:e2e` | Playwright e2e (125 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
-The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–133):
+The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–134):
 `tests/unit` (10 files) + `tests/e2e` (mobile-navigation + storefront specs
 incl. the fetch-failure resilience pair, the API rate-limit pins, PDP badge
 dedupe, cart promo persistence, JSON-LD live-inventory + LOW_STOCK commerce
@@ -295,6 +295,39 @@ PERSISTED_STORAGE_KEYS producer scan is fail-closed — a computed-key
 `createLocalStore` call (template literal/lowercase const) previously escaped
 the scan silently, now fails by name, proven by mutation).
 
+And the Task-134 pins: the **cart duplicate-payload e2e parity** (the
+Task-133 F-3 rollout pinned the wishlist half at both tiers but the cart
+half — the more severe consequence, doubled React keys + doubled subtotal —
+carried the unit pin alone; the sibling probe now seeds a duplicated
+`nordhem_cart_v1` payload and asserts the degraded honest empty-bag state,
+honest-RED by mutation — the Set check disabled, the probe REDs against the
+mutant), the **order-URL decode-corner pin** (a malformed-percent order URL
+— scoped by live platform evidence: a RAW malformed request is rejected
+inside Next 16's routing layer before any app code runs, prod 500/dev 400,
+browser parsers normalize a lone `%` first; the browser-reachable
+normalized form `/order/%25ZZ` is what the probe pins: not-found, never a
+5xx, never the outage copy — and the Task-133 case-sibling's negative
+assertion was repaired in passing: it quoted a typographic apostrophe the
+rendered `can&apos;t` never matches, a permanent no-op), the **stepper
+ceiling completion** (the three `+` controls — cart/BuyBox/business quote —
+stayed enabled-but-inert at their 99/99/200 caps while every `−` was
+floor-disabled and pinned; all three now carry the mirrored
+`disabled={…}` + ceiling pins, TRUE-RED first), the **addLine floor clamp**
+(the found-branch clamped only its ceiling — a programmatic negative-qty
+add stored a negative line; both branches now clamp 1–99, fs-pinned —
+`addLine` is module-internal, the server-data fulfilment-seam precedent),
+the **MAX_INT4 comment truth** (the "every id-taking verb refuses above it
+with 422" claim overstated by one verb — checkout's lines[] DROP
+out-of-range ids via the catalogue `byId.get` before any DB touch; the
+comment now names the exception), and the **TZ fs-pin widening** (the
+zless scan now covers all three quote forms and fractional-seconds
+literals — the first via a quote-class widening, the second via a
+dot-and-digit negative-lookahead that closes TWO backtracking splits:
+the optional fraction group can match empty and test the lookahead on
+`.`, and `\d+` can give back digits and test it on a stray `0` — both
+proven by mutation, the second one caught only because the mutation demo
+was run).
+
 **Test counts are documentation claims, pinned by test** (Task 119):
 `tests/unit/docs-counts.test.ts` fs-computes the real counts and fails the run
 if any live-tense claim in AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT disagrees
@@ -309,10 +342,11 @@ change (count-lockstep, no exceptions).
 | `.env.example` single-variable contract, postgres-only compose, `allowedDevOrigins` | `tests/unit/env-example.test.ts` |
 | The Tailwind candidate-scan guard present in `globals.css` | `tests/unit/tailwind-scan-guard.test.ts` |
 | SEO policy coherence (robots vs sitemap, `SITE_ORIGIN`, no raw origin literal in `src/app`) | `tests/unit/robots-sitemap.test.ts` |
-| `PERSISTED_STORAGE_KEYS` covers every `createLocalStore` producer under `src/`; persisted payloads are shape-, element- AND uniqueness-valid (duplicates degrade to the fallback) | `tests/unit/local-store.test.ts` (producer-side fs-scan, fail-closed since Task 133; predicate pins) |
+| `PERSISTED_STORAGE_KEYS` covers every `createLocalStore` producer under `src/`; persisted payloads are shape-, element- AND uniqueness-valid (duplicates degrade to the fallback); addLine's BOTH branches clamp qty 1–99 (Task 134 F-4) | `tests/unit/local-store.test.ts` (producer-side fs-scan, fail-closed since Task 133; predicate pins; the clamp fs-pin) |
 | placeOrder fulfilment seam (one store-default derivation; `fulfilStore` read at BOTH the availability lock and the decrement — exactly two occurrences) | `tests/unit/server-data.test.ts` |
-| The checkout route consumes the exported `IDEMPOTENCY_KEY_RE` shape; the unit tree stays TZ-pure (no Z-less date-time literals, no numeric-args Date constructors); `priceTotals`' net===0 delivery corner (Task 133 F-4) | `tests/unit/utils.test.ts` (fs-pins + the corner pin) |
+| The checkout route consumes the exported `IDEMPOTENCY_KEY_RE` shape; the unit tree stays TZ-pure (no Z-less date-time literals in ANY quote form, no fractional-seconds false-positives, no numeric-args Date constructors); `priceTotals`' net===0 delivery corner (Task 133 F-4) | `tests/unit/utils.test.ts` (fs-pins + the corner pin; quote-class + backtrack-closed lookahead since Task 134) |
 | The reviews boundary bounds `productId` above by `MAX_INT4` (both verbs 422, never a 22003 → 500/degrade) | `tests/e2e/storefront.spec.ts` (Task 133 F-1 probe pair) |
+| A duplicated persisted CART payload degrades to the honest empty bag (never doubled lines/subtotal); a normalized malformed-percent order URL lands in not-found (never a 5xx, never the outage copy); the cart/BuyBox/business `+` steppers disable at their 99/99/200 ceilings | `tests/e2e/storefront.spec.ts` (Task 134 F-1/F-2/F-3 probes) |
 
 ## Hard-won gotchas (read before changing anything)
 
@@ -423,8 +457,8 @@ rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_
 npm run typecheck          # app scope (src/**, next.config.ts)
 npm run typecheck:tests    # the test tree (tsconfig.tests.json) — both scopes are live gates
 npm run lint               # 0 errors expected
-npm run test               # 179/179 unit
-npm run test:e2e           # 120/120 e2e (needs a live Postgres for the checkout journey)
+npm run test               # 180/180 unit
+npm run test:e2e           # 125/125 e2e (needs a live Postgres for the checkout journey)
 ```
 
 There is no hosted CI; the local gate is the only gate.

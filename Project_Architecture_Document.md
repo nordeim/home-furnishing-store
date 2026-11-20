@@ -1,4 +1,4 @@
-# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.18.0
+# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.19.0
 
 **Classification:** Internal Engineering Reference
 **Status:** DEFINITIVE, PRODUCTION-LOCKED BLUEPRINT
@@ -7,6 +7,66 @@
 **Audience:** Senior Engineers, Tech Leads, DevOps, and Onboarding Engineers (human and AI)
 **Rule:** Every architectural decision in this document traces to a specific rationale.
 Nothing is here "because it's popular."
+
+#### Revision Block — v1.19.0 (Task 134 — cart-duplicate e2e parity, order-URL decode pin, stepper ceiling state, addLine floor clamp, TZ-pin widening, docs gate truth)
+
+- `[TST]` **The cart duplicate-payload seam shipped unit-only coverage (F-1,
+  MEDIUM — the cycle's headline)**: Task 133's uniqueness fix pinned the
+  wishlist half at BOTH tiers (unit + the e2e probe) while the cart half —
+  the more severe consequence of the two (duplicate `key={productId}` React
+  keys + a doubled subtotal display, the predicate's own comment) — carried
+  the unit pin alone; the only `nordhem_cart_v1` e2e seeding site wrote a
+  single VALID line. The sibling probe now exists (duplicated payload → the
+  degraded honest empty bag, never doubled lines/subtotal), honest-RED by
+  mutation (the Set check disabled → the probe REDs against the mutant).
+- `[TST]` **The `/order/[number]` decode-throw corner was unpinned — and
+  pinning it surfaced a live platform truth (F-2, MEDIUM→reframed)**: a RAW
+  malformed-percent request (`/order/%ZZ` byte-for-byte, or valid-percent
+  malformed-UTF-8 `%E0%A4%A`) is rejected INSIDE Next 16's routing layer
+  before any app code runs (the route matcher's own decodeURIComponent
+  throws DecodeError — prod: bare platform 500 with no log; dev: 400),
+  un-interceptable by pages/middleware, and browser URL parsers normalize a
+  lone `%` to `%25` first — so the raw class is curl/craft-only (register
+  row). The page-level URIError guard (Task-118 F-15) is defensive depth on
+  this Next version — proven by hoist-mutation (the probe stayed GREEN, so
+  the guard never fires through the public interface). The pin landed on
+  the browser-reachable normalized form: `/order/%25ZZ` → not-found, never
+  a 5xx, never the outage copy. The Task-133 case-sibling's negative
+  assertion was repaired in passing (its typographic apostrophe never
+  matched the rendered `can&apos;t` — a permanent no-op, the Task-131
+  broken-locator class).
+- `[COR]` **The stepper ceilings were the un-pinned mirror of the pinned
+  floors (F-3, LOW)**: every `−` control was floor-disabled and e2e-pinned
+  (Tasks 120/121/122) while the three `+` controls — cart, BuyBox, business
+  quote — stayed enabled-but-inert at their 99/99/200 caps (the setQty
+  clamp is invisible to the shopper). All three now carry the mirrored
+  `disabled={…}` + ceiling pins (cart: seeded qty-99 payload; PDP: the qty
+  input's own clamp; business: 198-click drive), TRUE-RED first.
+- `[COR]` **addLine's found-branch lacked the floor clamp its sibling had
+  (F-4, INFO)**: `Math.min(99, l.qty + qty)` — a programmatic negative-qty
+  add stored a negative line (no UI path passes one; hardening). Both
+  branches now clamp 1–99, fs-pinned (the server-data fulfilment-seam
+  precedent — addLine is module-internal).
+- `[DOC]` **The MAX_INT4 comment overstated its rollout (F-5, INFO)**:
+  "every id-taking verb refuses above it with 422" — checkout's lines[]
+  DROP out-of-range ids via the catalogue `byId.get` (EMPTY_BAG) — the
+  documented stance, now named in the comment as the deliberate exception.
+- `[TST]` **The TZ zless fs-pin's two blind spots (F-6, INFO — both
+  mutation-proven, the second caught ONLY because the demo was run)**: the
+  scan now covers all three quote forms (a single-quoted/backtick Z-less
+  literal escaped the double-quoted-only regex) and fractional-seconds
+  literals — where the naive fix false-positives: the optional fraction
+  group backtracks to empty (lookahead tests `.`) and `\d+` gives back
+  digits (lookahead tests a stray `0`); the lookahead now rejects `.` AND
+  digits, closing both backtracking splits — a legitimate `.500Z` never
+  flags while a Z-less `.500` still does.
+- `[DOC]` **Docs-truth pass (D-1..D-4, 1 MEDIUM + 2 LOW + 1 INFO)**:
+  README's push-gate line omitted `typecheck:tests` AND the suites — the
+  real sixth-doc outlier (the Task-133 "5-of-6" claim was 4-of-6 before
+  its fix and README stayed short after it); README's Task-133 baseline
+  count 177/116 → 177/117; SKILL §11's lockstep list omitted
+  `docs/DEPLOYMENT.md`; the AGENTS/PAD unit-suite summaries omitted the
+  server-data fulfilment-seam fs-pin (the tenth unit file).
 
 #### Revision Block — v1.18.0 (Task 133 — reviews int4-overflow bound, typeqty residue-net completion, persisted-payload uniqueness, order-lookup normalization parity, pin-hardening batch)
 
@@ -1188,7 +1248,7 @@ non-app artifacts remain in the tree (§10).
 | DB driver | `pg` (node-postgres) | 8.20.0 | Pooled connections, `drizzle-orm/node-postgres` adapter |
 | Database | PostgreSQL | 15+ recommended | Relational catalogue/orders; `drizzle-kit push` for schema |
 | Lint | ESLint flat config + `eslint-config-next/core-web-vitals` | 9.39.4 | One linter, Next-aware rules |
-| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–133) — 179 unit + 120 e2e, all green (§7) |
+| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–134) — 180 unit + 125 e2e, all green (§7) |
 | Imagery | Pexels CDN | — | Licensed stock, zero local pipeline (ADR-007) |
 
 ### 1.3 Architecture Decision Records (ADRs)
@@ -1690,12 +1750,12 @@ auth is a design event, not a patch.
 
 ## 7. Testing Strategy
 
-### 7.1 Test Distribution — Current State (Tasks 114–133: NORDHEM-native)
+### 7.1 Test Distribution — Current State (Tasks 114–134: NORDHEM-native)
 
 | Category | Files | Status | Location |
 |----------|-------|--------|----------|
-| Unit (Vitest) | 10 files, 179 tests | ✅ Green — pure seams: `utils` money/validators + `familyVoucherCents` + `visibleBadges`, `catalog` invariants + `findPromo` + `storeName`, `local-store` external-store contract (+ the Task-133 uniqueness layer), `mask`, robots/sitemap SEO policy, env/compose/config + scan-guard lineage pins, `rate-limit` factory (Task 119), the `orderStepIndex` ladder seam (Task 120), **docs-counts pin** (Task 119; Task 120 extended it to the PAD; Task 131 F-7 added DEPLOYMENT.md — fails the run on any stale live-tense count claim in AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT) | `tests/unit/` |
-| E2E (Playwright) | 2 specs, 120 tests | ✅ Green — production build on `:3100`, pinned `DATABASE_URL`: mobile-navigation project (390×844), desktop storefront/commerce journeys (incl. the live-DB checkout round-trip), API boundary validation (422/400 incl. the Task-133 int4-overflow pair), wishlist/search fetch-failure resilience, JSON-LD live-inventory + LOW_STOCK 422 (Task 119, via direct pinned-DB manipulation with restore), the SEO metadata blanket (Task 119; Task 120 completed it for the six title-only routes and pinned the /family earn-rate), the checkout boundary set (Task 120: malformed-JSON 400, field-cap 422, concurrent last-unit oversell → exactly one 201/one 422 LOW_STOCK), and the a11y pins (focus indication, stepper floor, alert role) | `tests/e2e/` |
+| Unit (Vitest) | 10 files, 180 tests | ✅ Green — pure seams: `utils` money/validators + `familyVoucherCents` + `visibleBadges`, `catalog` invariants + `findPromo` + `storeName`, `local-store` external-store contract (+ the Task-133 uniqueness layer, + the Task-134 addLine clamp fs-pin), `mask`, robots/sitemap SEO policy, env/compose/config + scan-guard lineage pins, `rate-limit` factory (Task 119), the `orderStepIndex` ladder seam (Task 120), the `server-data` fulfilment-seam fs-pin (Task 131 F-2), **docs-counts pin** (Task 119; Task 120 extended it to the PAD; Task 131 F-7 added DEPLOYMENT.md — fails the run on any stale live-tense count claim in AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT) | `tests/unit/` |
+| E2E (Playwright) | 2 specs, 125 tests | ✅ Green — production build on `:3100`, pinned `DATABASE_URL`: mobile-navigation project (390×844), desktop storefront/commerce journeys (incl. the live-DB checkout round-trip), API boundary validation (422/400 incl. the Task-133 int4-overflow pair), wishlist/search fetch-failure resilience, JSON-LD live-inventory + LOW_STOCK 422 (Task 119, via direct pinned-DB manipulation with restore), the SEO metadata blanket (Task 119; Task 120 completed it for the six title-only routes and pinned the /family earn-rate), the checkout boundary set (Task 120: malformed-JSON 400, field-cap 422, concurrent last-unit oversell → exactly one 201/one 422 LOW_STOCK), and the a11y pins (focus indication, stepper floor, alert role) | `tests/e2e/` |
 | Type coverage | `tsconfig.tests.json` | ✅ `npm run typecheck:tests` (node + vitest/globals types) | repo root |
 
 The predecessor's 73-unit/15-e2e tree (ely-beauty imports, undeclared
@@ -1727,8 +1787,8 @@ the code, never to hit a number.
 rm -rf .next && DATABASE_URL=… npm run build   # cold build (cache can mask the scan-guard failure)
 npm run typecheck && npm run typecheck:tests  # app scope + test tree
 npm run lint                                   # 0 errors / 0 warnings
-npm run test                                   # 179/179 unit
-npm run test:e2e                               # 120/120 e2e (live Postgres for the journey)
+npm run test                                   # 180/180 unit
+npm run test:e2e                               # 125/125 e2e (live Postgres for the journey)
 # runtime smoke of touched routes against `npm run start`
 ```
 
@@ -1792,7 +1852,7 @@ npm run dev                       # http://localhost:3000
 | `npm run dev` / `build` / `start` | root | Dev / cold production build / serve |
 | `npm run lint` | root | ESLint (flat; `skills/` ignored) |
 | `npm run typecheck` / `typecheck:tests` | root | App-scope / test-tree `tsc --noEmit` |
-| `npm run test` / `test:e2e` | root | Vitest unit (179) / Playwright e2e (120, production build on :3100) |
+| `npm run test` / `test:e2e` | root | Vitest unit (180) / Playwright e2e (125, production build on :3100) |
 | `npx drizzle-kit push` | root | Apply `src/db/schema.ts` |
 | `python3 docs/ssh_git_wrapper_v3.py --key-file K --remote git@github.com:nordeim/home-furnishing-store.git` | repo | Verified SSH push to main (see the runbook) |
 
@@ -1983,8 +2043,8 @@ directions across remediation cycles. The file inventory is the reference;
 | `src/app/product/[slug]/page.tsx` | — | PDP: metadata, gallery, stock/aisle, reviews, related |
 | `src/app/api/checkout/route.ts` | — | Validation (TYPE-strict incl. the storeSlug guard — Task 130 F-1), rate limit, `placeOrder` delegation, envelope |
 | `src/components/Header.tsx` | — | Utility strip, search, store picker (external store), category nav, mobile drawer (Escape-close) |
-| `tests/unit/` | 10 files | 179 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges/DELIVERY_SLOTS/orderNumber-SGT/isUniqueViolationOn/MAX_INT4, catalog incl. findPromoMinimumCents, local-store incl. the promo predicate + the Task-133 uniqueness layer, mask, robots/sitemap, env/compose/config + scan-guard pins, server-data fulfilment-seam fs-pin (Task 131 F-2)) |
-| `tests/e2e/` | 2 specs | 120 Playwright tests: mobile-navigation (iPhone-13 emulation, 390×844), storefront/commerce journeys, API boundary validation (incl. the int4-overflow pair — Task 133 F-1), fetch-failure resilience, slot coherence, review-count truth, fulfilment-store coherence (Task 130 F-2), the wishlist all-ghost honesty pin (Task 132 F-3), the duplicate-payload degraded-honesty pin (Task 133 F-3), the /order/ lowercase-lookup pin (Task 133 F-5) |
+| `tests/unit/` | 10 files | 180 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges/DELIVERY_SLOTS/orderNumber-SGT/isUniqueViolationOn/MAX_INT4, catalog incl. findPromoMinimumCents, local-store incl. the promo predicate + the Task-133 uniqueness layer, mask, robots/sitemap, env/compose/config + scan-guard pins, server-data fulfilment-seam fs-pin (Task 131 F-2)) |
+| `tests/e2e/` | 2 specs | 125 Playwright tests: mobile-navigation (iPhone-13 emulation, 390×844), storefront/commerce journeys, API boundary validation (incl. the int4-overflow pair — Task 133 F-1), fetch-failure resilience, slot coherence, review-count truth, fulfilment-store coherence (Task 130 F-2), the wishlist all-ghost honesty pin (Task 132 F-3), the duplicate-payload degraded-honesty pins (wish Task 133 F-3 + cart Task 134 F-1), the /order/ lowercase-lookup + normalized-decode pins (Task 133 F-5 + Task 134 F-2), and the stepper ceiling pins (Task 134 F-3) |
 | `src/components/ProductCard.tsx` | — | Card + `Rating`; wishlist/add-to-bag affordances |
 | `docs/implementation-plan.md` | — | Stack decision record, deviations ledger, acceptance criteria |
 | `docs/reference-investigation.md` | — | Reference-site evidence (Verified/Reasoned/Assumed/Unknown) |

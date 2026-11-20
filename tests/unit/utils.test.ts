@@ -664,13 +664,24 @@ describe("TZ-pure test tree (Task 132 F-1)", () => {
     // Z-suffixed discipline the Task-127 SGT pins established. Date-ONLY
     // literals are UTC by spec and stay legal. The scan includes this file;
     // the pattern source below cannot match itself (its paren is escaped).
+    // Task 134 F-6: the quote class is now ALL THREE quote forms (a
+    // single-quoted/backtick Z-less literal escaped the double-quoted-only
+    // scan — the repo's uniform double-quote style was the only thing
+    // holding it) and the designator lookahead consumes a fractional-
+    // seconds component first AND rejects a bare "." or DIGIT — the dot
+    // because the optional group backtracks to empty on a legitimate
+    // "…T00:00:00.500Z" and false-positives it, the digit because \d+
+    // backtracks to ".50" and lets the lookahead pass on the stray "0"
+    // (both proven by mutation this cycle; the dot/digit-in-lookahead closes
+    // the backtrack splits so ".500Z" never flags while a Z-less ".500"
+    // still does).
     const dir = import.meta.dirname;
     const files = readdirSync(dir).filter((f) => f.endsWith(".test.ts"));
     const zless: string[] = [];
     const numericCtor: string[] = [];
     for (const f of files) {
       const src = readFileSync(resolve(dir, f), "utf8");
-      const hits = src.match(/new Date\("[^"\n]*T\d{2}:\d{2}:\d{2}(?![Zz]|[+-]\d{2}:?\d{2})[^"\n]*"\)/g);
+      const hits = src.match(/new Date\(["'`][^"'\n]*T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?![Zz.\d]|[+-]\d{2}:?\d{2})[^"'\n]*["'`]\)/g);
       if (hits) zless.push(...hits.map((h) => `${f}: ${h}`));
       // Task 133 F-6b: the NUMERIC-ARGS constructor is the same TZ-coupled
       // class — a Date fed year-first numeric arguments parses as LOCAL

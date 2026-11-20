@@ -38,7 +38,7 @@ export default function BusinessPage() {
               <div className="flex items-center rounded-full border border-[#ddd]">
                 <button onClick={() => setQty((q) => ({ ...q, [u.id]: Math.max(0, (q[u.id] ?? 0) - 1) }))} disabled={(qty[u.id] ?? 0) === 0} className="grid h-9 w-9 place-items-center rounded-full hover:bg-[#f5f3ee] focus-ring disabled:cursor-not-allowed disabled:opacity-40" aria-label={`Fewer ${u.label}`}>−</button>
                 <span className="w-8 text-center font-black" aria-live="polite">{qty[u.id] ?? 0}</span>
-                <button onClick={() => setQty((q) => ({ ...q, [u.id]: Math.min(200, (q[u.id] ?? 0) + 1) }))} className="grid h-9 w-9 place-items-center rounded-full hover:bg-[#f5f3ee] focus-ring" aria-label={`More ${u.label}`}>+</button>
+                <button onClick={() => setQty((q) => ({ ...q, [u.id]: Math.min(200, (q[u.id] ?? 0) + 1) }))} disabled={(qty[u.id] ?? 0) >= 200} className="grid h-9 w-9 place-items-center rounded-full hover:bg-[#f5f3ee] focus-ring disabled:cursor-not-allowed disabled:opacity-40" aria-label={`More ${u.label}`}>+</button>
               </div>
             </div>
           ))}

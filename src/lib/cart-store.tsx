@@ -100,7 +100,7 @@ function addLine(line: Omit<CartLine, "qty">, qty = 1) {
     const found = prev.find((l) => l.productId === line.productId);
     if (found) {
       return prev.map((l) =>
-        l.productId === line.productId ? { ...l, qty: Math.min(99, l.qty + qty) } : l,
+        l.productId === line.productId ? { ...l, qty: Math.min(99, Math.max(1, l.qty + qty)) } : l,
       );
     }
     return [...prev, { ...line, qty: Math.min(99, Math.max(1, qty)) }];

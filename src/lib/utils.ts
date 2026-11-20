@@ -33,7 +33,11 @@ export const EXPRESS_DELIVERY_FEE_CENTS = 2900; // $29
 // A crafted productId of 2^31 passes every JS gate (number, integer, > 0)
 // but the driver rejects the parameter for the integer column (22003) —
 // the reviews boundary used to surface that as a 500 for a client fault.
-// One shared bound; every id-taking verb refuses above it with 422.
+// One shared bound; the id-LOOKUP verbs (reviews GET/POST) refuse above it
+// with 422. Checkout's lines[] is the deliberate exception: unknown or
+// out-of-range ids DROP via the catalogue byId.get before any DB touch
+// (EMPTY_BAG when the bag empties) — the drop, not a 422, is that
+// boundary's documented answer to the same fault class.
 export const MAX_INT4 = 2_147_483_647;
 
 // Task 126 F-1: the shape the checkout boundary accepts for an idempotency
