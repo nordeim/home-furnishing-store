@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-21 (Task 142: track-order full-field gate, reviews POST field gate, XFF docs-truth pin, e2e boot-contract pin, fetch-failure fixed copy, dead-export retirement)
+last_updated: 2026-11-21 (Task 143: orderSuffix mint-space fold fix, seedInventoryRows store-derivation, vitest config .mts rename)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -130,7 +130,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`src/**`, `next.config.ts`) |
 | `npm run typecheck:tests` | Test-tree TypeScript check (`tests/**` via `tsconfig.tests.json` — both scopes are live gates) |
-| `npm run test` | Vitest unit suite (213 tests, pure seams) |
+| `npm run test` | Vitest unit suite (218 tests, pure seams) |
 | `npm run test:watch` | Vitest in watch mode (the same suite, re-run on change) |
 | `npm run test:e2e` | Playwright e2e (146 tests, production build on :3100 — the suite always boots its own pinned server) |
 | `npm run test:e2e:install` | One-time: install the pinned Playwright Chromium build (the fresh-clone cache miss) |
@@ -138,9 +138,9 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 
 ## Testing Strategy
 
-**Current state (Tasks 114–142, extended this cycle):** a NORDHEM-native suite is wired into the gates.
+**Current state (Tasks 114–143, extended this cycle):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 213 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 218 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
@@ -355,7 +355,7 @@ fix and passes after.
   self-corrects copy and pins together — the Task-127 claim now true).
   The storefront spec's interaction-first coverage is complete: zero bare
   interaction-first gotos remain (59 gotoHydrated call sites in the storefront
-  spec after the Task-129 conversions and the Task-131..142 probes — 61 across
+  spec after the Task-129 conversions and the Task-131..143 probes — 61 across
   both files, the mobile spec contributing its two sites), and every
   write-capable refusal spec carries its RED-run `finally` net.
 - **Task-129 seams:** every write-capable refusal spec is netted — including
@@ -424,7 +424,7 @@ fix and passes after.
   — observed live; the Z-less-literal fs-pin in `utils.test.ts` holds the
   class unrecurrable, and the GREEN discipline is the three-TZ run —
   UTC/Singapore/New_York all pass identically; deliberately NO `TZ` pin in
-  `vitest.config.ts`, which would silently mask the next TZ-coupled test);
+  `vitest.config.mts`, which would silently mask the next TZ-coupled test);
   the fulfilment-seam fs-pin binds BOTH sites (`eq(inventory.storeSlug,
   fulfilStore)` exactly twice — lock AND decrement; the pre-132 presence-only
   regex was satisfied by the lock alone, demonstrated by temporary mutation);

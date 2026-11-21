@@ -268,3 +268,24 @@ it("the outage surfaces the seams own are pinned — order-page copy, PDP note, 
     "the reviews POST must delegate its DB work to the submitReview seam (the Task-136 F-2 funnel)",
   ).toBe(true);
 });
+
+it("the inventory seed consumes the seedInventoryRows seam — zero positional store indices (Task 143 J-2)", () => {
+  // The pre-143 seed was three positional STORES[0..2] pushes pinned to
+  // exactly 3 stores: a 4th seed store would seed ZERO inventory rows (every
+  // checkout selecting it refuses LOW_STOCK "Only 0 left") and a store
+  // removal threw on undefined.slug inside ensureSeed (swallowed — reads
+  // degrade, the write path dies). The rows now derive from the STORES
+  // catalogue via the seedInventoryRows seam in src/lib/catalog.ts; this
+  // fs-pin holds the wiring in place so a positional revert cannot return
+  // silently. STORES[0].slug stays sanctioned (the placeOrder default — the
+  // Task-140 F-3 pin requires it); any index ≥ 1 is the positional class.
+  expect(
+    SOURCE.includes("seedInventoryRows(p.id)"),
+    "ensureSeed must consume the seedInventoryRows seam (src/lib/catalog.ts) — a hand-written positional row list re-opens the stranded-store class",
+  ).toBe(true);
+  const positional = SOURCE.match(/STORES\[[1-9]\d*\]/g) ?? [];
+  expect(
+    positional.length,
+    `server-data.ts must not index STORES positionally beyond the sanctioned [0] default (found ${positional.join(", ")}) — derive from the catalogue via seedInventoryRows instead`,
+  ).toBe(0);
+});

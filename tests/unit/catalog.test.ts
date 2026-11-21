@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, effectivePromo, findPromoMinimumCents, storeName, matchesProductQuery, catalogMaxDiscountPercent, productDiscountPercent } from "@/lib/catalog";
+import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, effectivePromo, findPromoMinimumCents, storeName, matchesProductQuery, catalogMaxDiscountPercent, productDiscountPercent, seedInventoryRows } from "@/lib/catalog";
 
 describe("catalogue invariants (seed + static fallback contract)", () => {
   it("ships the documented counts", () => {
@@ -362,5 +362,55 @@ describe("checkout default derivation (Task 140 F-3)", () => {
       "src/components/Header.tsx must not hand-copy the store display label (storeName(STORES[0].slug) is the derivation — the picker default must follow a store rename)",
     ).toBe(false);
     expect(header).toContain("storeName(STORES[0].slug)");
+  });
+});
+
+describe("seedInventoryRows (the inventory seed derives from the STORES catalogue — Task 143 J-2)", () => {
+  it("covers EVERY seed store exactly once — a store-list edit can never strand a store without rows", () => {
+    // The pre-143 seed was three positional STORES[0..2] pushes: a 4th seed
+    // store would have gotten ZERO inventory rows (every checkout selecting
+    // it refuses LOW_STOCK "Only 0 left") and a removal threw on
+    // undefined.slug. The seam maps over STORES, so coverage is structural.
+    for (const productId of [1, 7, 13, 24]) {
+      const rows = seedInventoryRows(productId);
+      expect(rows, `product ${productId} must seed one row per store`).toHaveLength(STORES.length);
+      const slugs = rows.map((r) => r.storeSlug);
+      expect(new Set(slugs).size, "no store may be seeded twice for one product").toBe(slugs.length);
+      for (const s of STORES) {
+        expect(slugs, `store ${s.slug} must carry a seed row for product ${productId}`).toContain(s.slug);
+      }
+    }
+  });
+
+  it("reproduces the documented seeded-DB contract — 72 rows at 1379 total, quantities never negative", () => {
+    // The live DB contract (verified by direct SQL every cycle: 24 products
+    // × 3 stores = 72 inventory rows summing to 1379). Pinning the total
+    // here means the derivation can never silently drift the seed quantities
+    // while every gate stays green.
+    let total = 0;
+    let rows = 0;
+    for (let productId = 1; productId <= 24; productId++) {
+      for (const row of seedInventoryRows(productId)) {
+        expect(row.quantity, `product ${productId} store ${row.storeSlug}`).toBeGreaterThanOrEqual(0);
+        expect(Number.isInteger(row.quantity)).toBe(true);
+        total += row.quantity;
+        rows++;
+      }
+    }
+    expect(rows).toBe(72);
+    expect(total).toBe(1379);
+  });
+
+  it("mints well-formed aisle-bin codes with the per-store letter pairs", () => {
+    // The hand-written form shipped A…-B… / C…-D… / E…-F… pairs with
+    // moduli 24/12, 20/10, 16/8. The derivation must keep the exact shape
+    // (the stores page renders these verbatim as aisle/bin locations).
+    const pairs = ["AB", "CD", "EF"];
+    for (const [i, s] of STORES.entries()) {
+      const row = seedInventoryRows(5).find((r) => r.storeSlug === s.slug)!;
+      expect(row.aisleBin, `store ${s.slug} aisleBin pattern`).toMatch(
+        new RegExp(`^${pairs[i][0]}[0-9]{2}-${pairs[i][1]}[0-9]{2}$`),
+      );
+    }
   });
 });

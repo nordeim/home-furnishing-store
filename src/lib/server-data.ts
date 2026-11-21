@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { categories, inspirations, inventory, orderItems, orders, products, promotions, reviews, stores } from "@/db/schema";
 import type { Order, OrderItem, Review } from "@/db/schema";
-import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, matchesProductQuery } from "@/lib/catalog";
+import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, matchesProductQuery, seedInventoryRows } from "@/lib/catalog";
 import {
   clampInt,
   isUniqueViolationOn,
@@ -41,18 +41,14 @@ export function ensureSeed(): Promise<void> {
         await db.insert(promotions).values(PROMOS.map((p) => ({ ...p }))).onConflictDoNothing();
         await db.insert(inspirations).values(INSPIRATIONS.map((i) => ({ ...i }))).onConflictDoNothing();
         const all = await db.select().from(products);
+        // Task 143 J-2: the inventory rows derive from the STORES catalogue
+        // via the seedInventoryRows seam (src/lib/catalog.ts) — the previous
+        // positional STORES[0..2] trio was pinned to exactly 3 stores (a 4th
+        // seed store would seed ZERO rows; a removal threw on undefined.slug).
+        // Byte-identical output for the current seed (72 rows @ 1379).
         const invRows: Array<{ productId: number; storeSlug: string; quantity: number; aisleBin: string }> = [];
         for (const p of all) {
-          const base = (p.id * 37) % 40;
-          invRows.push(
-            // Task 140 F-3: the seed's inventory rows follow the STORES catalogue
-            // order by index (the first store carries the deepest stock, the
-            // later ones thinner) — a store-list edit no longer strands seed
-            // rows under a departed slug (the same derivation the defaults use).
-            { productId: p.id, storeSlug: STORES[0].slug, quantity: Math.max(0, base + 8), aisleBin: `A${String((p.id % 24) + 1).padStart(2, "0")}-B${String((p.id % 12) + 1).padStart(2, "0")}` },
-            { productId: p.id, storeSlug: STORES[1].slug, quantity: Math.max(0, base - 4), aisleBin: `C${String((p.id % 20) + 1).padStart(2, "0")}-D${String((p.id % 10) + 1).padStart(2, "0")}` },
-            { productId: p.id, storeSlug: STORES[2].slug, quantity: Math.max(0, base - 10), aisleBin: `E${String((p.id % 16) + 1).padStart(2, "0")}-F${String((p.id % 8) + 1).padStart(2, "0")}` },
-          );
+          invRows.push(...seedInventoryRows(p.id));
         }
         if (invRows.length) await db.insert(inventory).values(invRows).onConflictDoNothing();
         const seedReviews = [

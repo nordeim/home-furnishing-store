@@ -229,6 +229,40 @@ describe("orderNumber suffix mint (Task 131 F-4)", () => {
       Object.defineProperty(globalThis, "crypto", { value: original, configurable: true });
     }
   });
+
+  it("a top-region fill mints its MASKED value — the uint32→base36 fold is closed (Task 143 J-1)", () => {
+    // 0x90000000 = 2,415,919,104 > 36^6 = 2,176,782,336, so the unmasked
+    // uint32 stringifies to SEVEN base36 chars and slice(0,6) used to fold
+    // the top half of the mint space onto the bottom half (floor(v/36)):
+    // this exact fill minted "13YDJ4" pre-fix, with the heaviest suffix
+    // carrying 37 preimages and observed collisions ~10x the uniform rate.
+    // The mask (& 0x7fffffff → 268,435,456 = 2^28 → "4fti4g") keeps every
+    // value under 36^6, so the mint is uniform over ~2^31 and the
+    // "~2^31 entropy" claim in the seam comment is TRUE.
+    const original = globalThis.crypto;
+    let fill = [0, 0, 0, 0x90];
+    Object.defineProperty(globalThis, "crypto", {
+      value: {
+        getRandomValues: (arr: Uint8Array) => {
+          arr[0] = fill[0];
+          arr[1] = fill[1];
+          arr[2] = fill[2];
+          arr[3] = fill[3];
+          return arr;
+        },
+      },
+      configurable: true,
+    });
+    try {
+      expect(orderNumber(new Date("2026-11-19T02:30:00Z"))).toBe("NH-20261119-4FTI4G");
+      // The boundary of the mask itself: 0x7fffffff = 2,147,483,647 < 36^6
+      // is the LARGEST masked value — still exactly 6 chars, no fold.
+      fill = [0xff, 0xff, 0xff, 0x7f];
+      expect(orderNumber(new Date("2026-11-19T02:30:00Z"))).toMatch(/^NH-20261119-[0-9A-Z]{6}$/);
+    } finally {
+      Object.defineProperty(globalThis, "crypto", { value: original, configurable: true });
+    }
+  });
 });
 
 // Task 123 F-3: the checkout boundary enforces the UI's own slot contract —

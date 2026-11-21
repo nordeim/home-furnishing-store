@@ -188,15 +188,20 @@ export function orderNumber(now: Date = new Date()): string {
  * Math.random mint had two defects: V8's xorshift128+ state is recoverable
  * from observed outputs, and a mantissa with trailing zero bits minted
  * FEWER than 6 chars ((0.5).toString(36) = "0.i" → slice = "I"). 4 bytes →
- * uint32 → base36 keeps ~2^31 entropy (36^6 ≈ 2.18e9) with exactly 6 chars
- * on every path. Mirrors mintIdempotencyKey (Task 127 F-6): getRandomValues
- * first; Math.random only as the both-primitives-absent last resort.
+ * uint32 → masked to 31 bits → base36 keeps a uniform ~2^31 entropy with
+ * exactly 6 chars on every path. Task 143 J-1: the mask is load-bearing —
+ * an unmasked uint32 exceeds 36^6 (≈2.18e9) half the time, and slice(0,6)
+ * on the 7-char string FOLDED the top half of the mint space onto the
+ * bottom (floor(v/36), 37 preimages for the heaviest suffix, ~10x the
+ * uniform collision rate); 2^31−1 < 36^6, so the masked mint never folds.
+ * Mirrors mintIdempotencyKey (Task 127 F-6): getRandomValues first;
+ * Math.random only as the both-primitives-absent last resort.
  */
 function orderSuffix(): string {
   try {
     const bytes = new Uint8Array(4);
     crypto.getRandomValues(bytes);
-    const v = ((bytes[0] ?? 0) | ((bytes[1] ?? 0) << 8) | ((bytes[2] ?? 0) << 16) | (bytes[3] ?? 0) * 0x1000000) >>> 0;
+    const v = (((bytes[0] ?? 0) | ((bytes[1] ?? 0) << 8) | ((bytes[2] ?? 0) << 16) | (bytes[3] ?? 0) * 0x1000000) >>> 0) & 0x7fffffff;
     return v.toString(36).padStart(6, "0").slice(0, 6).toUpperCase();
   } catch {
     return Math.random().toString(36).slice(2, 8).padStart(6, "0").toUpperCase();

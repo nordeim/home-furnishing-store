@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 2.16.0
-last_updated: "2026-11-21 (Task 142: track-order full-field gate + reviews POST field gate + XFF docs-truth pin + e2e boot-contract pin + fetch-failure fixed copy + dead-export retirement)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 213/213 unit (TZ-pure — verified UTC/Singapore/New York; the fs-pin covers all three quote forms + fractional seconds since Task 134) · 146/146 e2e (webServer pins TRUST_PROXY=1 and always boots its own pinned server — reuseExistingServer: false since Task 142) · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body + the gotoHydrated claims + the XFF-probe claims pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
+version: 2.17.0
+last_updated: "2026-11-21 (Task 143: orderSuffix mint-space fold fix + seedInventoryRows store-derivation + vitest config .mts rename)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 218/218 unit (TZ-pure — verified UTC/Singapore/New York; the fs-pin covers all three quote forms + fractional seconds since Task 134) · 146/146 e2e (webServer pins TRUST_PROXY=1 and always boots its own pinned server — reuseExistingServer: false since Task 142) · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body + the gotoHydrated claims + the XFF-probe claims pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -43,7 +43,12 @@ project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 213/213 
 > starter-kit-guard-polarity-proof/dead-export-retirement cycle, and the
 > Task 140 recovery-count-honesty/wishlist-removal-settle/checkout-
 > default-derivation/Tailwind-v4-button-cursor/promo-label-gate/PDP-
-> scan-dedup cycle.
+> scan-dedup cycle, and the Task 141 header-store-default-derivation/
+> checkout-track-order-envelope-field-gates/reduced-CSP/no-store-recovery-
+> refetch/TRUST_PROXY-gate cycle, and the Task 142 track-order-full-field/
+> reviews-POST-field-gate/XFF-docs-truth/e2e-boot-contract/fetch-failure-
+> fixed-copy cycle, and the Task 143 orderSuffix-mint-fold/seedInventoryRows-
+> store-derivation/vitest-config-mts cycle.
 > `AGENTS.md` is the
 > quick operator reference, the PAD is the full blueprint, and this skill is the
 > pattern/lesson layer an agent needs before touching the code. When code and
@@ -117,7 +122,7 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 213/213
+npm run test                                                   # 218/218
 npm run test:e2e                                               # 146/146 (live Postgres for the journey)
 ```
 
@@ -1153,6 +1158,43 @@ Task 131).
     EADDRINUSE, an honest, attributable error) and a pin must hold
     the config's boot contract, not just its env block.
 
+75. **A random mint's ENTIRE value space must be exercised by its pins, not
+    just the happy-path corner — truncation folds are invisible to
+    small-value tests.** The Task-131 orderSuffix pin hand-worked
+    `[1,0,0,0]`→`000001` and `[0,1,0,0]`→`000074` (the bottom of the uint32
+    space) plus a 6-char REGEX on `[255,255,255,255]` — while the real mint
+    exceeded 36^6 almost half the time and `slice(0,6)` silently folded the
+    top half onto the bottom (37 preimages per heavy suffix, ~10× the
+    documented collision rate) for NINETEEN cycles. The regex pin proved
+    "6 chars" but not "uniform" — the "~2^31 entropy" claim was never
+    computed by anything. Rules: (a) when a mint maps a WIDER space onto a
+    NARROWER one (uint32 → 6 base36 chars), pin a deterministic fill from
+    the region the mapping DISCARDS and assert the exact masked/uniform
+    output; (b) mask at the source (`& 0x7fffffff` keeps 2^31−1 < 36^6 —
+    every value fits, no fold possible) rather than truncating at the
+    string tier; (c) an entropy claim in a comment is a docs claim — if no
+    test computes it, it is wrong.
+
+76. **Seed data indexed positionally is a coordinated-edit trap — derive
+    per-item rows from the catalogue and pin the TOTAL.** ensureSeed's
+    inventory rows hand-pushed `STORES[0]`/`STORES[1]`/`STORES[2]` — the
+    store-list derivation discipline (Tasks 129/138/139/140) had fixed every
+    CONSUMER of the list but never the SEED's own row generator: a 4th store
+    would seed zero inventory (every checkout against it refuses LOW_STOCK
+    "Only 0 left" — a store that exists but can never sell), and a removal
+    threw `undefined.slug` inside the swallowed seed catch (reads degrade,
+    the write path dies). The fix extracts a pure `seedInventoryRows()`
+    seam in the catalogue module (index-derived offsets/aisle-letters/
+    moduli — byte-identical for the current seed) with two pin layers:
+    behavioral (every seed slug covered exactly once + the documented
+    72-rows@1379 total so quantities can never drift silently) and
+    structural (the seed consumes the seam; zero positional `STORES[≥1]`
+    indices — `STORES[0]` stays sanctioned where the default-derivation pin
+    requires it). Rule: a seed that hand-enumerates what a catalogue array
+    already knows is a list-derivation gap — and pin the seed's documented
+    totals, because an identical-output refactor is the only kind that can
+    land without a DDL cycle.
+
 ## 13. Pitfalls to Avoid
 
 - Adding state/auth/payment SDKs without a decision record (ADR-006 deferrals
@@ -1274,8 +1316,8 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | Commands & gotchas | `AGENTS.md` |
 | Architecture detail | `Project_Architecture_Document.md` |
 | Decision record | `docs/implementation-plan.md` |
-| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-21-task142-remediation-plan.md` (27 plans: Tasks 114, 117–142) |
-| Screenshots | `docs/screenshots/01…129-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 130 PNGs) |
+| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-21-task143-remediation-plan.md` (28 plans: Tasks 114, 117–143) |
+| Screenshots | `docs/screenshots/01…134-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 135 PNGs) |
 | SSH push runbook | `docs/how-to-git-push-using-ssh-wrapper_SKILL.md` |
 | Working history | `worklog.md` (Tasks 113+ NORDHEM; the 1–112 predecessor lineage was operator-trimmed) |
 | Money/validators | `src/lib/utils.ts` |
@@ -1284,5 +1326,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (213) — 10 files |
+| Unit suite | `tests/unit/*.test.ts` (218) — 10 files |
 | E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (146) — 138 storefront + 8 mobile |

@@ -23,13 +23,13 @@ ORM + PostgreSQL.
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
 | `npm run typecheck:tests` | `tsc --noEmit -p tsconfig.tests.json` — the **test tree** (`tests/**`; both scopes are live gates) |
-| `npm run test` | Vitest unit suite (213 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, server-data fulfilment-seam fs-pin + the qty-writer clampInt fs-pin + the SORT_KEYS derivation pin + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin + the PDP unified-outage-signal + recovery pins + the outage-branch characterization pins, docs-counts pins incl. the PAD + the TZ-pure-tree fs-pin + the numeric-args-ctor widening + the Task-138 store-count/productDiscountPercent/fee-copy/starter-kit derivation fs-pins + the Task-139 store-count blast-radius fs-pin + the gotoHydrated docs-claims pin + the Task-140 recovery-count/checkout-default-derivation/cache-wrap fs-pins + the Task-141 Header store-default/no-store-refetch/TRUST_PROXY-gate/env-doc pins + the Task-142 XFF-docs-claims pin + the e2e-boot-contract pin) |
+| `npm run test` | Vitest unit suite (218 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, server-data fulfilment-seam fs-pin + the qty-writer clampInt fs-pin + the SORT_KEYS derivation pin + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin + the PDP unified-outage-signal + recovery pins + the outage-branch characterization pins, docs-counts pins incl. the PAD + the TZ-pure-tree fs-pin + the numeric-args-ctor widening + the Task-138 store-count/productDiscountPercent/fee-copy/starter-kit derivation fs-pins + the Task-139 store-count blast-radius fs-pin + the gotoHydrated docs-claims pin + the Task-140 recovery-count/checkout-default-derivation/cache-wrap fs-pins + the Task-141 Header store-default/no-store-refetch/TRUST_PROXY-gate/env-doc pins + the Task-142 XFF-docs-claims pin + the e2e-boot-contract pin + the Task-143 orderSuffix mint-mask pin + the seedInventoryRows coverage/total/pattern pins + the seed-consumption fs-pin) |
 | `npm run test:watch` | Vitest in watch mode (the same suite, re-run on change) |
 | `npm run test:e2e` | Playwright e2e (146 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` and `TRUST_PROXY=1` (**the suite always boots its own pinned server** — `reuseExistingServer: false` since Task 142 H-4: a stale `:3100` server would be reused WITHOUT the env pins and 429 mid-suite; kill stale servers first with `pkill -f next-server`, the process is named `next-server`) (Task 140 added the reviews GET count probe, the wishlist removal-window settle pin, the Tailwind-v4 button-cursor pin and the cart promo label-gate probe; Task 141 added the checkout success-envelope + track-order nested-envelope probes and the reduced-CSP header pin; Task 142 added the track-order full-field probe, the reviews POST field-gate probe and the four fetch-failure fixed-copy probes) |
 | `npm run test:e2e:install` | One-time: install the pinned Playwright Chromium build (the fresh-clone cache miss) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
-The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–142):
+The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–143):
 `tests/unit` (10 files) + `tests/e2e` (mobile-navigation + storefront specs
 incl. the fetch-failure resilience pair, the API rate-limit pins, PDP badge
 dedupe, cart promo persistence, JSON-LD live-inventory + LOW_STOCK commerce
@@ -247,7 +247,7 @@ on `TZ=America/New_York`); both fixed to the impl's discipline + a NEW
 fs-pin holds the whole unit tree to Z-suffixed date-time literals — and the
 GREEN verification is the three-TZ run: `TZ=UTC`, `TZ=Asia/Singapore` and
 `TZ=America/New_York` must all pass identically; NO `TZ` pin in
-`vitest.config.ts` — a pinned TZ would convert any future TZ-coupled test
+`vitest.config.mts` — a pinned TZ would convert any future TZ-coupled test
 into a silent always-pass), the **fulfilment-seam pin strengthening** (the
 Task-131 pin only asserted the file contained `eq(inventory.storeSlug,
 fulfilStore)` SOMEWHERE — the availability lock satisfied it alone; a
@@ -531,6 +531,26 @@ transport failure — never the browser's "Failed to fetch" TypeError
 text; the envelope refusals keep the server's honest copy; the Task-119
 resilience class completed to the POST seams).
 
+And the Task-143 pins: the **orderSuffix mint-mask pin** (a deterministic
+truncation-region fill — bytes `[0,0,0,0x90]`, uint32 2,415,919,104 > 36^6 —
+must mint its MASKED value `4FTI4G`, never the folded `13YDJ4`; the unmasked
+uint32 exceeded 36^6 half the time and `slice(0,6)` folded the top half of
+the mint space onto the bottom — 37 preimages for the heaviest suffix,
+~10× the uniform collision rate, the "~2^31 entropy" claim was false; the
+`& 0x7fffffff` mask keeps every value under 36^6, making the claim true),
+the **seedInventoryRows behavioral pins** (the inventory seed seam covers
+EVERY seed store exactly once — a 4-store catalogue cannot strand a store
+with zero rows, the pre-143 positional STORES[0..2] class; the documented
+72-rows@1379 seeded-DB contract pinned so the derivation can never drift
+the seed quantities; the aisle-bin letter pairs well-formed), and the
+**seed-consumption fs-pin** (ensureSeed consumes the seam —
+`seedInventoryRows(p.id)` present, ZERO positional `STORES[1-9…]` indices
+in server-data.ts; `STORES[0]` stays sanctioned for the placeOrder default
+the Task-140 F-3 pin requires). Plus the vitest config rename
+(`vitest.config.ts` → `vitest.config.mts` — the ESM-in-CJS
+`configLoader: 'native'` warning is gone; Vite's future default is
+pre-empted).
+
 **Test counts are documentation claims, pinned by test** (Task 119):
 `tests/unit/docs-counts.test.ts` fs-computes the real counts and fails the run
 if any live-tense claim in AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT disagrees
@@ -581,6 +601,8 @@ change (count-lockstep, no exceptions).
 | The XFF-probe docs claims equal the fs-computed counts (39 sites / 36 distinct identities) in AGENTS ×2 + PAD | `tests/unit/docs-counts.test.ts` (Task 142 H-3 pin) |
 | The e2e boot contract: `playwright.config.ts` webServer pins `TRUST_PROXY: "1"` AND `reuseExistingServer: false` (the suite always boots its own pinned server — a stale :3100 fails fast with EADDRINUSE instead of voiding the env pins mid-suite) | `tests/unit/rate-limit.test.ts` (Task 142 H-4 fs-pin) |
 | A transport failure (route abort) at any of the four POST consumers (checkout, track-order, reviews, cart promo) renders the FIXED service copy in the scoped alert — never the browser's TypeError text; envelope refusals keep the server copy | `tests/e2e/storefront.spec.ts` (Task 142 H-6 probes ×4) |
+| The orderSuffix mint masks to 31 bits before base36 — a truncation-region fill mints its masked value, never the fold; the "~2^31 entropy" seam comment is true | `tests/unit/utils.test.ts` (Task 143 J-1 deterministic-fill pin) |
+| The inventory seed derives from the STORES catalogue via `seedInventoryRows` (src/lib/catalog.ts) — every seed store covered exactly once, the documented 72-rows@1379 contract pinned, aisle-bin pairs well-formed; ensureSeed consumes the seam with ZERO positional store indices ≥ 1 in server-data.ts | `tests/unit/catalog.test.ts` (Task 143 J-2 behavioral pins) + `tests/unit/server-data.test.ts` (the seed-consumption fs-pin) |
 
 ## Hard-won gotchas (read before changing anything)
 
@@ -691,7 +713,7 @@ rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_
 npm run typecheck          # app scope (src/**, next.config.ts)
 npm run typecheck:tests    # the test tree (tsconfig.tests.json) — both scopes are live gates
 npm run lint               # 0 errors expected
-npm run test               # 213/213 unit
+npm run test               # 218/218 unit
 npm run test:e2e           # 146/146 e2e (needs a live Postgres for the checkout journey)
 ```
 

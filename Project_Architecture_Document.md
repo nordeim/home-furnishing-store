@@ -1,4 +1,4 @@
-# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.26.0
+# NORDHEM Singapore — Master Project Architecture Document (PAD) v1.28.0
 
 **Classification:** Internal Engineering Reference
 **Status:** DEFINITIVE, PRODUCTION-LOCKED BLUEPRINT
@@ -67,6 +67,14 @@ Nothing is here "because it's popular."
   count 177/116 → 177/117; SKILL §11's lockstep list omitted
   `docs/DEPLOYMENT.md`; the AGENTS/PAD unit-suite summaries omitted the
   server-data fulfilment-seam fs-pin (the tenth unit file).
+
+#### Revision Block — v1.28.0 (Task 143 — orderSuffix mint-space fold fix, seedInventoryRows store-derivation, vitest config .mts rename)
+
+- `[SEC]` **The orderSuffix mint silently folded the top half of its uint32 mint space (J-1, LOW — the cycle's headline)**: 4 crypto bytes → uint32 → `toString(36).padStart(6,"0").slice(0,6)` — but a uniform uint32 exceeds 36^6 (2,176,782,336) **49.2% of the time**, and slicing the 7-char string drops the LAST base36 digit, mapping `v → floor(v/36)`: the entire top half folded onto values the bottom half also produces directly (37 preimages for the heaviest suffix; 98 collision pairs observed in 200k mints vs ~9.19 expected — ~10× the uniform rate) while the seam comment claimed "~2^31 entropy". The order number is half of the PII lookup pair (`/track-order` + the number-only `/order/[number]`); exploitability stays contained (email pair, 20/min/IP, the unique index + clean retry) but the birthday bound effectively dropped ~55k → ~21k orders/day. Fix: the `& 0x7fffffff` mask before base36 — 2^31−1 < 36^6, so every masked value is ≤ 6 chars, uniform over ~2^31, and the comment is now TRUE. Pin: the deterministic truncation-region fill (`[0,0,0,0x90]` → uint32 2,415,919,104 → MUST mint the masked `4FTI4G`, never the folded `13YDJ4`), TRUE RED observed. All pre-existing pins stay green (verified: `[1,0,0,0]→000001`, `[0,1,0,0]→000074`, the 6-char regex on `[255,255,255,255]`).
+- `[COR]` **The inventory seed was positionally pinned to exactly 3 stores (J-2, INFO — the derivation discipline one tier short)**: ensureSeed's three hand-written pushes indexed `STORES[0..2]` — a 4th seed store would seed ZERO inventory rows (every checkout selecting it refuses LOW_STOCK "Only 0 left"), and a store REMOVAL threw on `undefined.slug` inside the seed (swallowed — reads degrade, the write path dies). The rows now derive from the STORES catalogue via the `seedInventoryRows(productId)` pure seam in `src/lib/catalog.ts` (index-derived depth offsets +8/−4/−10…, aisle letters A/C/E… + B/D/F…, bin moduli 24/20/16… + 12/10/8… — byte-identical 72 rows @ 1379 for the current seed, so the seeded-DB contract is unchanged). Pins: behavioral (every seed slug covered exactly once; the documented 72@1379 total; well-formed aisle-bin pairs) + the structural fs-pin (ensureSeed consumes the seam; ZERO positional `STORES[≥1]` indices — `STORES[0]` stays sanctioned for the placeOrder default the Task-140 F-3 pin requires). Mutation-honest RED on both layers (the positional revert fails the fs-pin; a 4-store stub demonstrates the stranded-store gap).
+- `[HYG]` **The vitest config joined Vite's native-config-loader future (J-3, INFO)**: every unit run printed the `configLoader: 'native'` warning (ESM syntax — `import.meta.dirname` — in a file loaded as CommonJS; the native loader is planned as Vite's future default). Renamed `vitest.config.ts` → `vitest.config.mts` (ESM-native); the warning is gone, the suite is byte-identical, and the four live operator-doc references follow. `playwright.config.ts` needed NO change — its Task-142 boot contract (`reuseExistingServer: false` + `TRUST_PROXY: "1"`) re-verified green inside the 146/146 run.
+- `[REG]` **Registered (evaluated; DECISIONS recorded)**: `ely-beauty_SKILL.md` at the repo root stays (already documented as historical in AGENTS.md §"Inherited ely-beauty artifacts" — provenance curation, excluded from every gate); the prose store-name enumerations (stores/page ×2, home ×2, layout — "Tampines, Jurong and Alexandra" beside derived counts) stay the PAD-registered editorial-enumeration class (every count and functional list already derives; revisit if the store catalogue ever actually changes); the vitest `isolate: false` perf hint stays unadopted (a worker-semantics change for ~0.8s on a 1.5s suite). The prior cycles' standing register (full nonce CSP, GET throttling → edge layer, jsdom, store-picker wiring + predicate, schema seed-slug defaults, submitReview tx window, footer editorial links) carries forward unchanged.
+- `[DOC]` **Docs-truth: zero mismatches at audit; count-lockstep swept** (unit 218 / e2e 146 / gotoHydrated 59+2 across the six live-tense doc sites; the historical "Suite grew to" ledgers keep their era counts per the history rule).
 
 #### Revision Block — v1.27.0 (Task 142 — track-order full-field gate, reviews POST field gate, XFF docs-truth pin, e2e boot-contract pin, fetch-failure fixed copy, dead-export retirement)
 
@@ -360,7 +368,7 @@ Nothing is here "because it's popular."
   Task-127 pins' discipline), and a NEW fs-pin holds the whole unit tree to
   Z-suffixed date-time literals. The GREEN discipline is the three-TZ run
   (UTC/Singapore/New_York pass identically); deliberately NO `TZ` pin in
-  `vitest.config.ts` — a pinned TZ would convert any future TZ-coupled test
+  `vitest.config.mts` — a pinned TZ would convert any future TZ-coupled test
   into a silent always-pass.
 - `[TST]` **The Task-131 fulfilment-seam fs-pin did not bind the decrement
   (F-2, LOW)**: the presence-only regex was satisfied by the availability
@@ -1458,7 +1466,7 @@ non-app artifacts remain in the tree (§10).
 | DB driver | `pg` (node-postgres) | 8.20.0 | Pooled connections, `drizzle-orm/node-postgres` adapter |
 | Database | PostgreSQL | 15+ recommended | Relational catalogue/orders; `drizzle-kit push` for schema |
 | Lint | ESLint flat config + `eslint-config-next/core-web-vitals` | 9.39.4 | One linter, Next-aware rules |
-| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–142) — 213 unit + 146 e2e, all green (§7) |
+| Unit/E2E | Vitest 5.1 / Playwright 1.65 (chromium) | lockfile-pinned | NORDHEM-native suite (Task 114; extended Tasks 117–143) — 218 unit + 146 e2e, all green (§7) |
 | Imagery | Pexels CDN | — | Licensed stock, zero local pipeline (ADR-007) |
 
 ### 1.3 Architecture Decision Records (ADRs)
@@ -1696,7 +1704,7 @@ home-furnishing-store/
 ├── AGENTS.md · CLAUDE.md · README.md · this PAD
 ├── drizzle.config.json            ← local dev DB URL for drizzle-kit push
 ├── eslint.config.mjs · tsconfig.json · tsconfig.tests.json (inherited)
-├── vitest.config.ts · playwright.config.ts (live: node-env unit; prod-build e2e on :3100)
+├── vitest.config.mts · playwright.config.ts (live: node-env unit; prod-build e2e on :3100)
 └── worklog.md                     ← session-by-session history (Tasks 113+; the operator
                                     trimmed the Tasks 1–112 predecessor lineage at 6ef81d1)
 ```
@@ -1968,7 +1976,7 @@ auth is a design event, not a patch.
 
 | Category | Files | Status | Location |
 |----------|-------|--------|----------|
-| Unit (Vitest) | 10 files, 213 tests | ✅ Green — pure seams: `utils` money/validators + `familyVoucherCents` + `visibleBadges` + the `SORT_KEYS` whitelist/derivation pins (Task 135 F-2), `catalog` invariants + `findPromoMinimumCents` + `storeName` + the Task-138 store-count/productDiscountPercent/starter-kit derivation fs-pins, `local-store` external-store contract (+ the Task-133 uniqueness layer, + the Task-134/135 three-writer qty-clamp fs-pin), `mask`, robots/sitemap SEO policy, env/compose/config + scan-guard lineage pins, `rate-limit` factory (Task 119), the `orderStepIndex` ladder seam (Task 120), the `server-data` fulfilment-seam fs-pin (Task 131 F-2) + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin (Task 136 F-2/F-3/F-4) + the PDP unified-outage-signal + recovery pins + the outage-branch characterization pins (Task 137 F-1/F-3, mutation-proven), **docs-counts pin** (Task 119; Task 120 extended it to the PAD; Task 131 F-7 added DEPLOYMENT.md — fails the run on any stale live-tense count claim in AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT) | `tests/unit/` |
+| Unit (Vitest) | 10 files, 218 tests | ✅ Green — pure seams: `utils` money/validators + `familyVoucherCents` + `visibleBadges` + the `SORT_KEYS` whitelist/derivation pins (Task 135 F-2), `catalog` invariants + `findPromoMinimumCents` + `storeName` + the Task-138 store-count/productDiscountPercent/starter-kit derivation fs-pins, `local-store` external-store contract (+ the Task-133 uniqueness layer, + the Task-134/135 three-writer qty-clamp fs-pin), `mask`, robots/sitemap SEO policy, env/compose/config + scan-guard lineage pins, `rate-limit` factory (Task 119), the `orderStepIndex` ladder seam (Task 120), the `server-data` fulfilment-seam fs-pin (Task 131 F-2) + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin (Task 136 F-2/F-3/F-4) + the PDP unified-outage-signal + recovery pins + the outage-branch characterization pins (Task 137 F-1/F-3, mutation-proven), **docs-counts pin** (Task 119; Task 120 extended it to the PAD; Task 131 F-7 added DEPLOYMENT.md — fails the run on any stale live-tense count claim in AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT) | `tests/unit/` |
 | E2E (Playwright) | 2 specs, 146 tests | ✅ Green — production build on `:3100`, pinned `DATABASE_URL`: mobile-navigation project (390×844), desktop storefront/commerce journeys (incl. the live-DB checkout round-trip), API boundary validation (422/400 incl. the Task-133 int4-overflow pair + the Task-135 cat/sort 422 pair), wishlist/search fetch-failure resilience + the Task-135 envelope-trust pair + the Task-136 shop-grid envelope probe + the Task-137 cart promo-apply envelope probe + the Task-138 resync-window commit-capture probe + the fee-copy derivation pin, JSON-LD live-inventory + LOW_STOCK 422 (Task 119, via direct pinned-DB manipulation with restore), the SEO metadata blanket (Task 119; Task 120 completed it for the six title-only routes and pinned the /family earn-rate), the checkout boundary set (Task 120: malformed-JSON 400, field-cap 422, concurrent last-unit oversell → exactly one 201/one 422 LOW_STOCK), and the a11y pins (focus indication, stepper floor, alert role) | `tests/e2e/` |
 | Type coverage | `tsconfig.tests.json` | ✅ `npm run typecheck:tests` (node + vitest/globals types) | repo root |
 
@@ -2001,7 +2009,7 @@ the code, never to hit a number.
 rm -rf .next && DATABASE_URL=… npm run build   # cold build (cache can mask the scan-guard failure)
 npm run typecheck && npm run typecheck:tests  # app scope + test tree
 npm run lint                                   # 0 errors / 0 warnings
-npm run test                                   # 213/213 unit
+npm run test                                   # 218/218 unit
 npm run test:e2e                               # 146/146 e2e (live Postgres for the journey; the webServer pins TRUST_PROXY=1 and always boots its own server)
 # runtime smoke of touched routes against `npm run start`
 ```
@@ -2067,7 +2075,7 @@ npm run dev                       # http://localhost:3000
 | `npm run dev` / `build` / `start` | root | Dev / cold production build / serve |
 | `npm run lint` | root | ESLint (flat; `skills/` ignored) |
 | `npm run typecheck` / `typecheck:tests` | root | App-scope / test-tree `tsc --noEmit` |
-| `npm run test` / `test:e2e` | root | Vitest unit (213) / Playwright e2e (146, production build on :3100 with TRUST_PROXY=1 — the suite always boots its own pinned server) — `npm run test:watch` re-runs the unit suite on change |
+| `npm run test` / `test:e2e` | root | Vitest unit (218) / Playwright e2e (146), production build on :3100 with TRUST_PROXY=1 — the suite always boots its own pinned server) — `npm run test:watch` re-runs the unit suite on change |
 | `npx drizzle-kit push` | root | Apply `src/db/schema.ts` |
 | `python3 docs/ssh_git_wrapper_v3.py --key-file K --remote git@github.com:nordeim/home-furnishing-store.git` | repo | Verified SSH push to main (see the runbook) |
 
@@ -2258,7 +2266,7 @@ directions across remediation cycles. The file inventory is the reference;
 | `src/app/product/[slug]/page.tsx` | — | PDP: metadata, gallery, stock/aisle, reviews, related |
 | `src/app/api/checkout/route.ts` | — | Validation (TYPE-strict incl. the storeSlug guard — Task 130 F-1), rate limit, `placeOrder` delegation, envelope |
 | `src/components/Header.tsx` | — | Utility strip, search, store picker (external store), category nav, mobile drawer (Escape-close) |
-| `tests/unit/` | 10 files | 213 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges/DELIVERY_SLOTS/orderNumber-SGT/isUniqueViolationOn/MAX_INT4 + the SORT_KEYS seam pins, catalog incl. findPromoMinimumCents + the Task-138 store-count/discount-seam/starter-kit fs-pins, utils incl. the Task-138 fee-copy derivation fs-pins, local-store incl. the promo predicate + the Task-133 uniqueness layer + the Task-135 qty-writer clamp fs-pin, mask, robots/sitemap, env/compose/config + scan-guard pins, server-data incl. the fulfilment-seam fs-pin (Task 131 F-2) + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin (Task 136) + the PDP unified-outage-signal + recovery pins + the outage-branch characterization pins (Task 137)) |
+| `tests/unit/` | 10 files | 218 unit tests at the pure seams (utils incl. familyVoucherCents/visibleBadges/DELIVERY_SLOTS/orderNumber-SGT/isUniqueViolationOn/MAX_INT4 + the SORT_KEYS seam pins, catalog incl. findPromoMinimumCents + the Task-138 store-count/discount-seam/starter-kit fs-pins, utils incl. the Task-138 fee-copy derivation fs-pins, local-store incl. the promo predicate + the Task-133 uniqueness layer + the Task-135 qty-writer clamp fs-pin, mask, robots/sitemap, env/compose/config + scan-guard pins, server-data incl. the fulfilment-seam fs-pin (Task 131 F-2) + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin (Task 136) + the PDP unified-outage-signal + recovery pins + the outage-branch characterization pins (Task 137)) |
 | `tests/e2e/` | 2 specs | 146 Playwright tests: mobile-navigation (iPhone-13 emulation, 390×844), storefront/commerce journeys, API boundary validation (incl. the int4-overflow pair — Task 133 F-1 — and the unknown cat/sort 422 pair — Task 135 F-2), fetch-failure resilience + the envelope-trust pair (Task 135 F-5) + the shop-grid envelope probe (Task 136 F-1) + the cart promo-apply envelope probe (Task 137 F-2) + the resync-window commit-capture probe (Task 138 F-1) + the fee-copy derivation pin (Task 138 F-5), slot coherence, review-count truth, fulfilment-store coherence (Task 130 F-2), the wishlist all-ghost honesty pin (Task 132 F-3), the duplicate-payload degraded-honesty pins (wish Task 133 F-3 + cart Task 134 F-1), the /order/ lowercase-lookup + normalized-decode pins (Task 133 F-5 + Task 134 F-2), and the stepper ceiling pins (Task 134 F-3) |
 | `src/components/ProductCard.tsx` | — | Card + `Rating`; wishlist/add-to-bag affordances |
 | `docs/implementation-plan.md` | — | Stack decision record, deviations ledger, acceptance criteria |

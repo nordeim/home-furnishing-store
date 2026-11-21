@@ -107,6 +107,43 @@ export const STORES: SeedStore[] = [
   { slug: "alexandra", name: "NORDHEM Alexandra", address: "317 Alexandra Road, Singapore 159965", hours: "Mon–Sun 10:00–21:00 · Click & Collect till 21:30", phone: "+65 6788 0602", imageUrl: IMG.kitchen1 },
 ];
 
+/**
+ * Task 143 J-2: the per-product inventory SEED rows, derived from the STORES
+ * catalogue instead of positional STORES[0..2] indices. The old three-push
+ * form was pinned to exactly 3 stores: a 4th seed store would have gotten
+ * ZERO inventory rows (every checkout selecting it refuses LOW_STOCK "Only 0
+ * left"), and a store REMOVAL threw on `undefined.slug` inside ensureSeed.
+ * Every parameter derives from the store index so a store-list edit can
+ * never strand a store: depth offset (+8 first store, then −4, −10, −16…
+ * in −6 steps — the first store carries the deepest stock), aisle letters
+ * A/C/E… + B/D/F… pairs, bin moduli 24/20/16… and 12/10/8… (floored at 4/2).
+ * Byte-identical to the previous hand-written rows for the current 3-store
+ * seed (72 rows @ 1379 total — pinned by tests/unit/catalog.test.ts).
+ */
+export interface SeedInventoryRow {
+  productId: number;
+  storeSlug: string;
+  quantity: number;
+  aisleBin: string;
+}
+
+export function seedInventoryRows(productId: number): SeedInventoryRow[] {
+  const base = (productId * 37) % 40;
+  return STORES.map((store, i) => {
+    const depthOffset = i === 0 ? 8 : -4 - 6 * (i - 1);
+    const aisleLetter = String.fromCharCode(65 + 2 * i);
+    const binLetter = String.fromCharCode(66 + 2 * i);
+    const aisleMod = Math.max(4, 24 - 4 * i);
+    const binMod = Math.max(2, 12 - 2 * i);
+    return {
+      productId,
+      storeSlug: store.slug,
+      quantity: Math.max(0, base + depthOffset),
+      aisleBin: `${aisleLetter}${String((productId % aisleMod) + 1).padStart(2, "0")}-${binLetter}${String((productId % binMod) + 1).padStart(2, "0")}`,
+    };
+  });
+}
+
 interface SeedInspiration {
   slug: string;
   title: string;
