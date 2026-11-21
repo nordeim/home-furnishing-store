@@ -1,0 +1,46 @@
+I'll start executing this task systematically. Let me set up the TODO plan and begin.
+The sandbox was FULLY reset this cycle — no repo, no pg/ tree. Cloning fresh: `be75b7d` = Task-138 `9e52cd5` + the session_42 narrative. My cycle is Task 139.
+Now reviewing the root documentation files (AGENTS, CLAUDE, README, PAD, SKILL — the Task-138 state), then the session docs (session_41, session_42, the Task-138 plan, worklog tail). Full context established — my cycle is Task 139.
+Reference repo homenest-store-s cloned for the quiescence check: HEAD `4771c3d`, zero src/tests changes after `ff65bd2` — the fifteenth cycle of "nothing to port".
+PostgreSQL: no data dir survived this recycle (unlike Tasks 135–138) — the FULL `docs/setup_pg_z.sh` path ran from zero (apt-cache major resolution 17 → deb extraction → initdb → scram hba → first start). Schema pushed via drizzle-kit; DDL contract verified (9 tables, named indexes incl. inventory_product_store_uq).
+Gotcha #10 trap confirmed live again: an exported shell DATABASE_URL (a previous session's SQLite leftover) silently overrode `.env` — unset + pinned per command.
+npm install + `.env` + the pinned Playwright Chromium 1255 (fresh-clone cache miss). Baseline gates: lint 0/0 · typechecks clean · 198/198 unit · 133/133 e2e (cold production build) · zero DB residue after the run (direct SQL: 24/8/3/72 seed, inventory 1379).
+Dev server up via 127.0.0.1. Mobile drawer taxonomy with agent-browser at 390×844 + 1440×900:
+T1 PASS (aria-expanded=true, label toggles, panel 622px with 14 links). T2 PASS (dining link → drawer closed, heading "Dining"). T3 PASS (the F-7 regression holds — param-only cat=dining→cat=living closes the drawer). T4 PASS (Escape). T5 PASS (toggle ×2). T6 PASS (display:none, 0×0 rect at 1440; desktop navs visible). T7 PASS (data-hydrated=true + add-to-bag → badge "Shopping bag, 1 item"). T8 PASS (no horizontal overflow at 390px across / /shop /cart /checkout /stores /help /product).
+Mobile taxonomy 8/8 PASS — no Tailwind v4 bug. Tailwind posture verified in code (the @source not scan guard + the @theme block; all aspect-[…] slash-form).
+SEO pass fully green: sitemap 42 URLs no lastmod; robots 7 disallows; og:image 1200×627 + twitter:card on home; noindex nofollow on the order page + all five utility routes (the first grep used the wrong pattern — the real form is "noindex, nofollow"); the branded 404 + 404 status; security headers present, no x-powered-by.
+Now the deep-code audit — dispatching the audit agent (the two-agent cycle discipline) with the standing register excluded:
+Audit returned 0 CRITICAL / 0 HIGH / 0 MEDIUM / 2 LOW / 3 INFO. Re-verifying every finding at line level myself (the lesson-46 discipline):
+F-1 LOW VERIFIED — the store count survives hand-drawn on /stores (metadata ×2 + h1 "Three stores, one island") and /sustainability ("All 3 SG stores") — the Task-138 F-2 pin scoped its negatives to the two files it fixed, and the e2e metadata pin even ASSERTS the hand-copied "Three". F-2 LOW VERIFIED — the gotoHydrated count claims (AGENTS ×2 + CLAUDE + PAD) are live-tense but unpinned. F-3 INFO VERIFIED — the Task-138 F-6 starter-kit pin is presence-only (an inverted ternary satisfies it). F-4 INFO VERIFIED — CLICK_COLLECT_TODAY_CUTOFF_SGT_HOUR's export is dead. F-5 INFO registered (the ReviewSection post-recovery understatement — the pinned Task-137 design edge).
+One sed display artifact almost manufactured a finding (DELIVERY_SLOTSethod] for DELIVERY_SLOTS[method]) — re-verified with a direct read before treating the line as suspect.
+Writing the Task-139 remediation plan (docs/plans/2026-11-21-task139-remediation-plan.md) with every file:line anchor re-verified, then validating it against the codebase.
+TDD execution — Slice A (F-1 store-count derivation): the blast-radius fs-pin TRUE RED first ("expected 0 to be greater than or equal to 3") → the four-site STORES.length interpolation (stores metadata ×2 + h1; the sustainability stat + its new import) → the e2e metadata expectation derived from the seed → GREEN (28/28 catalog). Live-render verified: "3 NORDHEM stores on one island…", "3 stores, one island", "All 3 SG stores + warehouse since 2024.".
+Slice B (F-2 gotoHydrated pin): the docs-counts pin GREEN-on-arrival (docs true at audit) → mutation-honest RED by the temporary AGENTS "45"→"44" edit → byte-clean restore → GREEN. The 11 mid-sweep docs-counts reds (198→200) are the expected lockstep state.
+Slice C (F-3 polarity proof): strengthened the existing pin with the exact joined guarded expression → mutation-proven TWICE — the ===→!== inversion REDed the presence checks, and the subtler BRANCH-SWAP (every original assertion green) REDed exactly the new polarity assertion. Restored, byte-clean.
+Slice D (F-4): the export keyword dropped; typecheck + typecheck:tests prove zero consumers.
+Unit = 200, e2e = 133, gotoHydrated = 45+2. Capturing the 5 Task-139 screenshots (110–114): /stores desktop, /sustainability desktop, /offers desktop, home desktop, /stores mobile @DPR3. All verified non-blank (PNG signatures, dimensions 1440×900 / 1170×2532, byte-density 0.089–0.331 B/px, non-white ratio 45–80%).
+.env.example re-verified: tracked + clean, contract unchanged (DATABASE_URL the only variable read; the pin green within 200/200).
+Now the six-doc lockstep sweep — AGENTS.md (counts, the Task-139 pins paragraph, two Pin map rows), CLAUDE.md (last_updated, the Task-139 seams paragraph), README.md (counts + the Task-139 cycle paragraph newest-first), PAD v1.24.0 (the revision block + five count sites; the historical "Suite grew to" ledgers kept per the history rule), SKILL v2.13.0 (frontmatter, gate chain, lessons 67–68, the preamble, Appendix B — 24 plans, 115 PNGs), DEPLOYMENT.md (gate chain + the 115-139 stamp).
+Lockstep restored — the full unit suite green on the first re-run. Now the full gate on the exact tree to be committed:
+Full gate GREEN: cold build · typechecks + lint clean · 200/200 unit × 3 timezones (UTC/Singapore/New_York) · 133/133 e2e against the cold production build · zero DB residue (orders 0, order_items 0, reviews 5, inventory 72 rows at 1379).
+Writing session_43.md, the worklog Task-139 entry, and the plan addendum.
+Committing the fix (e265f4c — 20 files, 369 insertions), then the SSH wrapper runbook: no ssh binary in this sandbox → paramiko 5.1.0 installed + the Appendix A shim deployed outside the repo; the key parsed (ed25519, SHA256:ih6tiqXs…) to a 0600 file outside the repo.
+Dry-run with the MANDATORY --remote override — clean (remote at be75b7d, HEAD e265f4c ready).
+Real push — wrapper verification + independent HTTPS ls-remote + operator key shredded.
+**Task 139 delivered and pushed — remote `main @ e265f4c` verified** (wrapper verification + independent HTTPS ls-remote, operator key shredded).
+
+## Cycle summary (Verified / Reasoned / Assumed)
+
+**Baseline (all Verified):** Fresh clone → `be75b7d` (Task-138 + session_42) · rootless PostgreSQL 17.12 — FULL from-zero install this cycle (no data-dir restore needed; the setup_pg_z.sh path end-to-end) · DDL + seed verified by direct SQL (24/8/3/72, inventory 1379, zero residue) · mobile drawer taxonomy 8/8 PASS — no Tailwind v4 bug · SEO fully green (sitemap 42, robots, og 1200×627, noindex ×6, branded 404, security headers) · reference repo quiescent (fifteenth "nothing to port").
+
+**Audit → 4 findings fixed TDD-first** (deep-code agent, 0 CRITICAL/HIGH/MEDIUM; every finding re-verified line-level):
+- **F-1 LOW (headline)** — the store-count derivation's tier-over: four sibling literal sites (the /stores metadata ×2 + h1, the /sustainability stat) survived the Task-138 pin because the pin scoped its negatives to the files it fixed; the e2e metadata pin even asserted the hand-copied "Three". All four interpolate `STORES.length` now; the new fs-pin is blast-radius-scoped (the literals must not exist anywhere under src/); the e2e expectation derives from the seed.
+- **F-2 LOW** — the gotoHydrated docs claims (AGENTS ×2 + CLAUDE + PAD) now pinned by docs-counts (fs-computed per-spec counts); mutation-honest RED by a temporary AGENTS edit, byte-clean restore.
+- **F-3 INFO** — the starter-kit guard pin strengthened from presence-only to polarity-proof; mutation-proven twice (operator inversion + branch swap — the swap is the honest demo: every original assertion stayed green and only the new one bit).
+- **F-4 INFO** — one dead export retired (module-private constant; typecheck proves).
+
+**Final gates (Verified):** lint 0/0 · typechecks clean · **200/200 unit × 3 timezones** · **133/133 e2e** (cold) · zero DB residue · screenshots 110–114 (non-blank + live DOM verified) · `.env.example` tracked + clean (contract unchanged, pin green) · six-doc lockstep (PAD v1.24.0, SKILL v2.13.0 lessons 67–68, worklog, session_43, archived plan with addendum).
+
+Key artifacts: [Task-139 plan](/home/z/my-project/home-furnishing-store/docs/plans/2026-11-21-task139-remediation-plan.md) · [session_43 log](/home/z/my-project/home-furnishing-store/docs/session_43.md) · [SKILL.md](/home/z/my-project/home-furnishing-store/home-furnishing-store_SKILL.md)
+
+Next-cycle candidates: the standing deferral register (stores/categories funnel decision, `React cache` dedup, CSP, store-picker wiring, TRUST_PROXY, the ReviewSection post-recovery refetch option).
