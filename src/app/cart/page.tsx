@@ -65,6 +65,10 @@ export default function CartPage() {
       } catch {
         throw new Error("We couldn't reach the promo service — please try again.");
       }
+      // Task 144 K-2: a JSON-null body parses successfully — the json.ok
+      // read below threw the raw TypeError into the outer catch (the H-6
+      // leak class). The null guard joins the transport catch.
+      if (!json || typeof json !== "object") throw new Error("We couldn't reach the promo service — please try again.");
       // Task 137 F-2: the envelope contract is { ok, data } — an ok:true body
       // WITHOUT data (a contract-violating but well-formed-status response)
       // is a FAILURE, never a false "applied" claim: the old gate let the

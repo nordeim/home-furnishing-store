@@ -23,13 +23,13 @@ ORM + PostgreSQL.
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
 | `npm run typecheck:tests` | `tsc --noEmit -p tsconfig.tests.json` — the **test tree** (`tests/**`; both scopes are live gates) |
-| `npm run test` | Vitest unit suite (218 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, server-data fulfilment-seam fs-pin + the qty-writer clampInt fs-pin + the SORT_KEYS derivation pin + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin + the PDP unified-outage-signal + recovery pins + the outage-branch characterization pins, docs-counts pins incl. the PAD + the TZ-pure-tree fs-pin + the numeric-args-ctor widening + the Task-138 store-count/productDiscountPercent/fee-copy/starter-kit derivation fs-pins + the Task-139 store-count blast-radius fs-pin + the gotoHydrated docs-claims pin + the Task-140 recovery-count/checkout-default-derivation/cache-wrap fs-pins + the Task-141 Header store-default/no-store-refetch/TRUST_PROXY-gate/env-doc pins + the Task-142 XFF-docs-claims pin + the e2e-boot-contract pin + the Task-143 orderSuffix mint-mask pin + the seedInventoryRows coverage/total/pattern pins + the seed-consumption fs-pin) |
+| `npm run test` | Vitest unit suite (221 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, server-data fulfilment-seam fs-pin + the qty-writer clampInt fs-pin + the SORT_KEYS derivation pin + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin + the PDP unified-outage-signal + recovery pins + the outage-branch characterization pins, docs-counts pins incl. the PAD + the TZ-pure-tree fs-pin + the numeric-args-ctor widening + the Task-138 store-count/productDiscountPercent/fee-copy/starter-kit derivation fs-pins + the Task-139 store-count blast-radius fs-pin + the gotoHydrated docs-claims pin + the Task-140 recovery-count/checkout-default-derivation/cache-wrap fs-pins + the Task-141 Header store-default/no-store-refetch/TRUST_PROXY-gate/env-doc pins + the Task-142 XFF-docs-claims pin + the e2e-boot-contract pin + the Task-143 orderSuffix mint-mask pin + the seedInventoryRows coverage/total/pattern pins + the seed-consumption fs-pin + the Task-144 negative-promo floor pins + the schema FK-index class fs-pin) |
 | `npm run test:watch` | Vitest in watch mode (the same suite, re-run on change) |
-| `npm run test:e2e` | Playwright e2e (146 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` and `TRUST_PROXY=1` (**the suite always boots its own pinned server** — `reuseExistingServer: false` since Task 142 H-4: a stale `:3100` server would be reused WITHOUT the env pins and 429 mid-suite; kill stale servers first with `pkill -f next-server`, the process is named `next-server`) (Task 140 added the reviews GET count probe, the wishlist removal-window settle pin, the Tailwind-v4 button-cursor pin and the cart promo label-gate probe; Task 141 added the checkout success-envelope + track-order nested-envelope probes and the reduced-CSP header pin; Task 142 added the track-order full-field probe, the reviews POST field-gate probe and the four fetch-failure fixed-copy probes) |
+| `npm run test:e2e` | Playwright e2e (152 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` and `TRUST_PROXY=1` (**the suite always boots its own pinned server** — `reuseExistingServer: false` since Task 142 H-4: a stale `:3100` server would be reused WITHOUT the env pins and 429 mid-suite; kill stale servers first with `pkill -f next-server`, the process is named `next-server`) (Task 140 added the reviews GET count probe, the wishlist removal-window settle pin, the Tailwind-v4 button-cursor pin and the cart promo label-gate probe; Task 141 added the checkout success-envelope + track-order nested-envelope probes and the reduced-CSP header pin; Task 142 added the track-order full-field probe, the reviews POST field-gate probe and the four fetch-failure fixed-copy probes; Task 144 added the four null-body fixed-copy probes and the shop-grid transport/null pair) |
 | `npm run test:e2e:install` | One-time: install the pinned Playwright Chromium build (the fresh-clone cache miss) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
-The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–143):
+The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–144):
 `tests/unit` (10 files) + `tests/e2e` (mobile-navigation + storefront specs
 incl. the fetch-failure resilience pair, the API rate-limit pins, PDP badge
 dedupe, cart promo persistence, JSON-LD live-inventory + LOW_STOCK commerce
@@ -128,7 +128,7 @@ ISO slice), and the **derived-copy completion** (GST ×7, the $200 shop pair,
 FLAT20 on /offers, the family voucher rule ×3 — all interpolate their
 constants; the GST + family e2e pins derive). Task 127 converted the storefront
 spec's then-21 interaction-first blocks to `gotoHydrated` (the mobile spec's
-Task-125 G-5 discipline) — 59 storefront call sites now (61 across both
+Task-125 G-5 discipline) — 67 storefront call sites now (69 across both
 files), zero bare interaction-first gotos. One Task-124 finding was DISPROVEN (browser
 evidence) and one Task-126 audit finding was DISPROVEN by insert-order
 analysis (the ensureSeed "partial-seed blind spot" — categories/stores/
@@ -159,9 +159,9 @@ AND copy — the family/business halves of the Task-127 F-4 class), the
 **Footer SGT year** (the last bare server-local calendar read in src/), and
 the **producer-side store-key fs-pin** (every createLocalStore key — literal
 or constant — must be a member of PERSISTED_STORAGE_KEYS). The storefront
-spec's interaction-first coverage is now complete: 59 gotoHydrated call
-sites in the storefront spec (61 across both files; the Task-129 conversions
-took it from 34 and the Task-131..142 probes grew it past the Task-129-era
+spec's interaction-first coverage is now complete: 67 gotoHydrated call
+sites in the storefront spec (69 across both files; the Task-129 conversions
+took it from 34 and the Task-131..144 probes grew it past the Task-129-era
 count), zero interaction-first bare gotos
 (mechanically re-verified — the Task-127 conversion had left 13, including
 a /cart site both sweeps under-counted). One reference-agent claim was DISPROVEN by direct read
@@ -551,6 +551,29 @@ the Task-140 F-3 pin requires). Plus the vitest config rename
 `configLoader: 'native'` warning is gone; Vite's future default is
 pre-empted).
 
+And the Task-144 pins: the **negative-promo floor pins** (a `value:-2000`
+fixed promo and a `value:-10` percent promo both mint `discountCents === 0`
+— Task 130 F-7 capped the TOP of the discount at the subtotal but not the
+BOTTOM, so a negative DB row (no CHECK constraint on `promotions.value`, no
+positivity check at validate or the in-tx re-read) inflated net/GST/total:
+the customer was overcharged at the write boundary; `Math.max(0, …)` floors
+both branches — the money seam mints nonsense cents in neither direction),
+the **schema FK-index class fs-pin** (`reviews_product_idx` AND
+`order_items_order_idx` both declared — the Task-126 F-7 reviews fix's
+missed sibling: trackOrder/getOrderByNumber filter order_items on orderId
+every confirmation/tracking view and Postgres never auto-indexes FK columns;
+pinning the class, not the site), the **null-body fixed-copy probes ×4**
+(a JSON body of literal `null` PARSES successfully — `Response.json()`
+returns null — so the `json.ok` read threw `TypeError: Cannot read
+properties of null` into the outer catch, rendering the raw browser text
+the Task-142 H-6 claim says never renders; the null guard joins the
+transport catch at the same fixed copy, all four POST seams), and the
+**shop-grid transport/null pair** (the last surface still interpolating
+`e.message` for a transport failure — the browser's raw "Failed to fetch"
+in the customer-facing box; the fetch+parse window now renders fixed copy
+while the envelope refusal keeps the server's honest copy, and the null
+class joins at the same fifth seam).
+
 **Test counts are documentation claims, pinned by test** (Task 119):
 `tests/unit/docs-counts.test.ts` fs-computes the real counts and fails the run
 if any live-tense claim in AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT disagrees
@@ -603,6 +626,10 @@ change (count-lockstep, no exceptions).
 | A transport failure (route abort) at any of the four POST consumers (checkout, track-order, reviews, cart promo) renders the FIXED service copy in the scoped alert — never the browser's TypeError text; envelope refusals keep the server copy | `tests/e2e/storefront.spec.ts` (Task 142 H-6 probes ×4) |
 | The orderSuffix mint masks to 31 bits before base36 — a truncation-region fill mints its masked value, never the fold; the "~2^31 entropy" seam comment is true | `tests/unit/utils.test.ts` (Task 143 J-1 deterministic-fill pin) |
 | The inventory seed derives from the STORES catalogue via `seedInventoryRows` (src/lib/catalog.ts) — every seed store covered exactly once, the documented 72-rows@1379 contract pinned, aisle-bin pairs well-formed; ensureSeed consumes the seam with ZERO positional store indices ≥ 1 in server-data.ts | `tests/unit/catalog.test.ts` (Task 143 J-2 behavioral pins) + `tests/unit/server-data.test.ts` (the seed-consumption fs-pin) |
+| `priceTotals` floors the discount at zero in BOTH branches — a negative DB promo (unchecked integer, no positivity gate at validate or the in-tx re-read) can never INFLATE net/GST/total (Task 130 F-7 capped the top; Task 144 K-1 floors the bottom) | `tests/unit/utils.test.ts` (Task 144 K-1 negative-promo floor pins ×2) |
+| Every per-render FK lookup is indexed in the schema — `reviews_product_idx` AND `order_items_order_idx` declared (the Task-126 F-7 class pinned as a class: trackOrder/getOrderByNumber filter order_items.orderId and Postgres never auto-indexes FK columns) | `tests/unit/server-data.test.ts` (Task 144 K-4 schema fs-pin) |
+| A JSON-null body at any of the four POST consumers (checkout, track-order, reviews, cart promo) renders the FIXED service copy — `null` parses successfully, so the old `json.ok` read leaked the raw `Cannot read properties of null` TypeError into the alert (the Task-142 H-6 claim closed at its parse edge) | `tests/e2e/storefront.spec.ts` (Task 144 K-2 probes ×4) |
+| The shop grid renders FIXED copy in the fetch+parse window (transport abort OR JSON-null body) — never the browser's "Failed to fetch"/TypeError text; the envelope refusal keeps the server's honest copy (the Task-119 resilience class completed to its last surface) | `tests/e2e/storefront.spec.ts` (Task 144 K-3 probes ×2) |
 
 ## Hard-won gotchas (read before changing anything)
 
@@ -713,8 +740,8 @@ rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_
 npm run typecheck          # app scope (src/**, next.config.ts)
 npm run typecheck:tests    # the test tree (tsconfig.tests.json) — both scopes are live gates
 npm run lint               # 0 errors expected
-npm run test               # 218/218 unit
-npm run test:e2e           # 146/146 e2e (needs a live Postgres for the checkout journey)
+npm run test               # 221/221 unit
+npm run test:e2e           # 152/152 e2e (needs a live Postgres for the checkout journey)
 ```
 
 There is no hosted CI; the local gate is the only gate.

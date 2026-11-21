@@ -2,7 +2,7 @@
 
 NORDHEM ships as a **single Next.js application over one PostgreSQL
 database**: one Node process plus Postgres, nothing else. This revision
-(2026-11-21, Tasks 115-139; counts re-pinned by the docs-counts test since
+(2026-11-21, Tasks 115-144; counts re-pinned by the docs-counts test since
 Task 131 F-7) replaces the inherited ElyBeauty-era guide wholesale —
 that document described Prisma + SQLite file databases, an
 `output: "standalone"` build with `.env` baking, `AUTH_SECRET` / Stripe /
@@ -30,10 +30,12 @@ static-catalogue fallback.
 - The build output is the plain `.next/` directory served by `next start`.
   `next.config.ts` sets three things: the platform security-header set
   (X-Content-Type-Options, X-Frame-Options DENY, Referrer-Policy,
-  Permissions-Policy, HSTS) with `poweredByHeader: false` (Task 125 G-1,
-  e2e-pinned), and `allowedDevOrigins: ["127.0.0.1"]`, the dev-mode
-  HMR/hydration guard (irrelevant to the production build). There is no
-  standalone bundle assembly and no `.env` copying into the build.
+  Permissions-Policy, HSTS, plus the reduced Content-Security-Policy of
+  Task 141 F-4 — `object-src 'none'; base-uri 'self'; frame-ancestors
+  'none'; form-action 'self'`, e2e-pinned) with `poweredByHeader: false`
+  (Task 125 G-1, e2e-pinned), and `allowedDevOrigins: ["127.0.0.1"]`, the
+  dev-mode HMR/hydration guard (irrelevant to the production build). There
+  is no standalone bundle assembly and no `.env` copying into the build.
 
 ## 2. Prerequisites
 
@@ -295,10 +297,15 @@ base-36 suffix.
 Node port. The checkout limiter keys on the **rightmost entry** of
 `X-Forwarded-For` (the shared `clientIp()` seam in `src/lib/rate-limit.ts`,
 Task 125 G-2 — the leftmost hop is the client-forgeable form), falling back
-to `"direct"` when the header is absent. When deploying behind a proxy,
-strip or override `X-Forwarded-For` at the edge so the rightmost hop is the
-proxy-appended client address, otherwise a client can forge its own bucket
-key (the documented TRUST_PROXY caveat).
+to `"direct"` when the header is absent. Since Task 141 the limiter reads
+`X-Forwarded-For` **only** when `TRUST_PROXY` is exactly `"1"` (every other
+value fails closed to the shared `"direct"` bucket — the direct-deploy
+spoofing-rotation bypass was closed): behind a proxy you MUST set
+`TRUST_PROXY="1"` in the server environment, or every visitor collapses
+into one shared 20/min bucket and checkouts mass-429. When deploying behind
+a proxy, also strip or override `X-Forwarded-For` at the edge so the
+rightmost hop is the proxy-appended client address, otherwise a client can
+forge its own bucket key.
 
 **Single-process state.** The checkout rate limiter is an in-process fixed
 window (20 attempts/min/IP, a module-scope Map) and the seed is a
@@ -333,8 +340,8 @@ rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_
 npm run typecheck
 npm run typecheck:tests
 npm run lint                # 0 errors / 0 warnings expected
-npm run test                # 218/218 unit (Vitest, pure seams; TZ-pure — the three-TZ run: UTC/Singapore/New_York)
-npm run test:e2e            # 146/146 e2e — needs the live Postgres (the webServer pins TRUST_PROXY=1 for the XFF-identity probes and ALWAYS boots its own server — reuseExistingServer: false since Task 142 H-4; kill stale :3100 servers first: pkill -f next-server)
+npm run test                # 221/221 unit (Vitest, pure seams; TZ-pure — the three-TZ run: UTC/Singapore/New_York)
+npm run test:e2e            # 152/152 e2e — needs the live Postgres (the webServer pins TRUST_PROXY=1 for the XFF-identity probes and ALWAYS boots its own server — reuseExistingServer: false since Task 142 H-4; kill stale :3100 servers first: pkill -f next-server)
 ```
 
 One-time before e2e: `npm run test:e2e:install` (installs the pinned

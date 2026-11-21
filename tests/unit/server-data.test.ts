@@ -289,3 +289,22 @@ it("the inventory seed consumes the seedInventoryRows seam — zero positional s
     `server-data.ts must not index STORES positionally beyond the sanctioned [0] default (found ${positional.join(", ")}) — derive from the catalogue via seedInventoryRows instead`,
   ).toBe(0);
 });
+
+it("every per-render FK lookup is indexed — reviews AND order_items (Task 144 K-4)", () => {
+  // Task 126 F-7 indexed reviews.productId (getReviews/getReviewCount filter
+  // on it every PDP render) but its order_items sibling was missed:
+  // trackOrder + getOrderByNumber filter order_items on orderId for every
+  // confirmation/tracking view, and Postgres never auto-indexes FK columns —
+  // each lookup seq-scans a table that grows with every order. Pinning the
+  // CLASS (lesson 67): the schema must declare BOTH per-render FK indexes;
+  // deleting either one fails this pin by name.
+  const SCHEMA = readFileSync(resolve(ROOT, "src/db/schema.ts"), "utf8");
+  expect(
+    /index\("reviews_product_idx"\)\.on\(t\.productId\)/.test(SCHEMA),
+    "schema.ts must keep reviews_product_idx (Task 126 F-7) — getReviews/getReviewCount seq-scan without it",
+  ).toBe(true);
+  expect(
+    /index\("order_items_order_idx"\)\.on\(t\.orderId\)/.test(SCHEMA),
+    "schema.ts must declare order_items_order_idx (Task 144 K-4) — trackOrder/getOrderByNumber seq-scan without it",
+  ).toBe(true);
+});

@@ -123,7 +123,12 @@ export const orderItems = pgTable("order_items", {
   imageUrl: text("image_url").notNull().default(""),
   unitPriceCents: integer("unit_price_cents").notNull(),
   qty: integer("qty").notNull(),
-});
+  // The order_items index callback below (Task 144 K-4) mirrors the reviews
+  // sibling: trackOrder/getOrderByNumber filter on orderId for every
+  // confirmation/tracking view — without an index the lookup is a seq scan
+  // as the table grows (Postgres never auto-indexes FK columns).
+},
+(t) => [index("order_items_order_idx").on(t.orderId)]);
 
 // ── Social proof / content ───────────────────────────────
 export const reviews = pgTable(

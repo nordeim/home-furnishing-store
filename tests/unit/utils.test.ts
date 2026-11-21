@@ -67,6 +67,23 @@ describe("priceTotals (server-truth pricing rules)", () => {
     expect(t.discountCents).toBe(10000);
     expect(t.totalCents).toBe(0);
   });
+  it("a negative fixed promo is floored at zero — a DB data fault must never INFLATE the total (Task 144 K-1)", () => {
+    // Task 130 F-7 capped the TOP of the discount at the subtotal but not
+    // the BOTTOM: promotions.value is a plain integer (no CHECK constraint)
+    // and neither validatePromo nor the in-tx re-read checks positivity, so
+    // a value:-2000 row (admin/SQL-level fault — no admin UI exists) minted
+    // discountCents -2000 → net subtotal+2000 → GST/total grew: the customer
+    // was OVERCHARGED at the write boundary. Math.max(0, …) floors both
+    // branches — the money seam mints nonsense cents in NEITHER direction.
+    const t = priceTotals({ subtotalCents: 10000, promo: { kind: "fixed", value: -2000 }, deliveryMethod: "click-collect" });
+    expect(t.discountCents).toBe(0);
+    expect(t.totalCents).toBe(10000);
+  });
+  it("a negative percent promo is floored at zero too (the K-1 parity sibling)", () => {
+    const t = priceTotals({ subtotalCents: 10000, promo: { kind: "percent", value: -10 }, deliveryMethod: "click-collect" });
+    expect(t.discountCents).toBe(0);
+    expect(t.totalCents).toBe(10000);
+  });
   it("percent discount frees delivery when the NET crosses the threshold", () => {
     // 210.00 − 10% = 189.00 < 200 → delivery applies (rule is on net, not subtotal)
     const t = priceTotals({ subtotalCents: 21000, promo: { kind: "percent", value: 10 }, deliveryMethod: "delivery" });

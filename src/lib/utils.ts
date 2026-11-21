@@ -127,13 +127,17 @@ export function priceTotals(input: TotalsInput): Totals {
   const subtotalCents = Math.max(0, Math.round(input.subtotalCents));
   let discountCents = 0;
   if (input.promo) {
+    // Task 130 F-7 caps the TOP at the subtotal — a >100% percent promo
+    // (unreachable today, seed/DB-controlled) must never mint negative
+    // net/GST/total cents at the money seam. Task 144 K-1 floors the BOTTOM
+    // at zero — promotions.value is an unchecked integer, so a negative DB
+    // row (admin/SQL-level data fault) must never mint a NEGATIVE discount
+    // that INFLATES net/GST/total: the seam mints nonsense cents in neither
+    // direction.
     if (input.promo.kind === "percent") {
-      // Task 130 F-7: cap at the subtotal like the fixed branch — a >100%
-      // percent promo (unreachable today, seed/DB-controlled) must never
-      // mint negative net/GST/total cents at the money seam.
-      discountCents = Math.min(subtotalCents, Math.round((subtotalCents * input.promo.value) / 100));
+      discountCents = Math.max(0, Math.min(subtotalCents, Math.round((subtotalCents * input.promo.value) / 100)));
     } else if (input.promo.kind === "fixed") {
-      discountCents = Math.min(subtotalCents, input.promo.value);
+      discountCents = Math.max(0, Math.min(subtotalCents, input.promo.value));
     }
   }
   const net = subtotalCents - discountCents;

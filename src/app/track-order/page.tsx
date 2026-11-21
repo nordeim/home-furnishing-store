@@ -36,6 +36,10 @@ export default function TrackOrderPage() {
       } catch {
         throw new Error("We couldn't reach the tracking service — please try again.");
       }
+      // Task 144 K-2: a JSON-null body parses successfully — the json.data
+      // read below threw the raw TypeError into the outer catch (the H-6
+      // leak class). The null guard joins the transport catch.
+      if (!json || typeof json !== "object") throw new Error("We couldn't reach the tracking service — please try again.");
       // Task 141 F-3 + Task 142 H-1: the gate reaches the NESTED shape the
       // success render interpolates — every order scalar the card copies
       // (orderNumber, fullName, status, deliveryMethod, deliverySlot,

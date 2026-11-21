@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-21 (Task 143: orderSuffix mint-space fold fix, seedInventoryRows store-derivation, vitest config .mts rename)
+last_updated: 2026-11-21 (Task 144: priceTotals negative-promo floor, null-body fixed-copy guards ×4 + shop grid, order_items FK index, doc-de-drift sweep)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -130,19 +130,20 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`src/**`, `next.config.ts`) |
 | `npm run typecheck:tests` | Test-tree TypeScript check (`tests/**` via `tsconfig.tests.json` — both scopes are live gates) |
-| `npm run test` | Vitest unit suite (218 tests, pure seams) |
+| `npm run test` | Vitest unit suite (221 tests, pure seams) |
 | `npm run test:watch` | Vitest in watch mode (the same suite, re-run on change) |
-| `npm run test:e2e` | Playwright e2e (146 tests, production build on :3100 — the suite always boots its own pinned server) |
+| `npm run test:e2e` | Playwright e2e (152 tests, production build on :3100 — the suite always boots its own pinned server) |
 | `npm run test:e2e:install` | One-time: install the pinned Playwright Chromium build (the fresh-clone cache miss) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the database |
 
 ## Testing Strategy
 
-**Current state (Tasks 114–143, extended this cycle):** a NORDHEM-native suite is wired into the gates.
+**Current state (Tasks 114–144, extended this cycle):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 218 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 221 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
-  invariants + `findPromo`, the `local-store.ts` external-store contract,
+  invariants + the promo display seams (`effectivePromo`/`findPromoMinimumCents`) +
+  `seedInventoryRows`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
   candidate-scan guard, and the repo-infrastructure contract (`.env.example`
   single-variable, docker-compose postgres-only, `allowedDevOrigins` — the
@@ -155,7 +156,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   operator docs (AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT — DEPLOYMENT.md
   joined in Task 131), not remembered). Node environment with a localStorage shim
   (`tests/unit/setup.ts`); no jsdom, no component rendering.
-- **E2E (Playwright, 146 tests)** against the **production build** (the webServer
+- **E2E (Playwright, 152 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL` and `TRUST_PROXY=1`,
   and ALWAYS boots its own server — `reuseExistingServer: false` since Task
   142 H-4, so a stale `:3100` can no longer silently void the env pins): a mobile-navigation
@@ -354,8 +355,8 @@ fix and passes after.
   that derive from the same constants the pages interpolate (a rate edit
   self-corrects copy and pins together — the Task-127 claim now true).
   The storefront spec's interaction-first coverage is complete: zero bare
-  interaction-first gotos remain (59 gotoHydrated call sites in the storefront
-  spec after the Task-129 conversions and the Task-131..143 probes — 61 across
+  interaction-first gotos remain (67 gotoHydrated call sites in the storefront
+  spec after the Task-129 conversions and the Task-131..144 probes — 69 across
   both files, the mobile spec contributing its two sites), and every
   write-capable refusal spec carries its RED-run `finally` net.
 - **Task-129 seams:** every write-capable refusal spec is netted — including
@@ -643,7 +644,7 @@ throughout.
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `DATABASE_URL` | Yes | Postgres connection string — the only variable the code reads; module-load throws without it |
+| `DATABASE_URL` | Yes | Postgres connection string — the one REQUIRED variable; module-load throws without it. `TRUST_PROXY` (optional; exactly `"1"` to trust XFF, fail-closed otherwise — `src/lib/rate-limit.ts`, Task 141 G) is the only other variable the code reads |
 
 ## Anti-Patterns to Avoid
 

@@ -56,6 +56,10 @@ export function ReviewSection({ productId, initial, total, unavailable }: { prod
       } catch {
         throw new Error("We couldn't reach the reviews service — please try again.");
       }
+      // Task 144 K-2: a JSON-null body parses successfully — the json.ok
+      // read below threw the raw TypeError into the outer catch (the H-6
+      // leak class). The null guard joins the transport catch.
+      if (!json || typeof json !== "object") throw new Error("We couldn't reach the reviews service — please try again.");
       if (!json.ok || !json.data) throw new Error(json.error?.message ?? "Could not save review");
       // Trust the server-issued timestamp (the API returns createdAt); the
       // client clock is only a fallback for a malformed response.

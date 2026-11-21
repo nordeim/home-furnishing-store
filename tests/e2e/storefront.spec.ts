@@ -3601,6 +3601,98 @@ test.describe("client POST fetch-failure fixed copy (Task 142 H-6)", () => {
   });
 });
 
+test.describe("client POST null-body fixed copy (Task 144 K-2)", () => {
+  // The Task-142 H-6 pair covered transport errors (route.abort) and JSON
+  // PARSE failures — but a body of literal `null` PARSES successfully
+  // (Response.json() returns null), so the subsequent `json.ok` read threw
+  // `TypeError: Cannot read properties of null` into the OUTER catch, which
+  // rendered the raw browser text — the exact leak H-6's claim ("never the
+  // browser's TypeError text") says is impossible. A `null` body is what a
+  // misbehaving intermediary (a broken BFF, a cache serving a stripped
+  // 200) hands back. The null guard now joins the transport catch: both
+  // render that seam's fixed copy.
+  test("checkout shows fixed copy when the body is JSON null (not a TypeError leak)", async ({ page }) => {
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await gotoHydrated(page, "/checkout");
+    await page.route("**/api/checkout*", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "null" }));
+    await page.getByLabel("Email").fill("probe@nordhem.sg");
+    await page.getByLabel("Full name").fill("Null Probe");
+    await page.getByLabel("Phone").fill("+65 91234567");
+    await page.getByLabel("Postal code").fill("089001");
+    await page.getByPlaceholder("Blk, street, unit number").fill("Blk 1 Testing Rd #01-01");
+    await page.getByRole("button", { name: /^Pay / }).click();
+    await expect(page.locator("#main").getByRole("alert")).toContainText("We couldn't reach the checkout service — please try again.");
+    await expect(page.locator("#main").getByRole("alert")).not.toContainText("Cannot read properties of null");
+    await page.unroute("**/api/checkout*");
+  });
+
+  test("track-order shows fixed copy when the body is JSON null (not a TypeError leak)", async ({ page }) => {
+    await gotoHydrated(page, "/track-order");
+    await page.route("**/api/orders/track*", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "null" }));
+    await page.getByLabel("Order number").fill("NH-20261121-PROBE4");
+    await page.getByLabel("Email used at checkout").fill("probe@nordhem.sg");
+    await page.getByRole("button", { name: "Track order" }).click();
+    await expect(page.locator("main").getByRole("alert")).toContainText("We couldn't reach the tracking service — please try again.");
+    await expect(page.locator("main").getByRole("alert")).not.toContainText("Cannot read properties of null");
+    await page.unroute("**/api/orders/track*");
+  });
+
+  test("the review form shows fixed copy when the body is JSON null (not a TypeError leak)", async ({ page }) => {
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
+    await page.route("**/api/reviews*", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "null" }));
+    await page.getByLabel("Your name").fill("Null Probe");
+    await page.getByLabel("Review").fill("A null-body probe review.");
+    await page.getByRole("button", { name: "Publish review" }).click();
+    await expect(page.locator("#reviews").getByRole("alert")).toContainText("We couldn't reach the reviews service — please try again.");
+    await expect(page.locator("#reviews").getByRole("alert")).not.toContainText("Cannot read properties of null");
+    await page.unroute("**/api/reviews*");
+  });
+
+  test("the cart promo apply shows fixed copy when the body is JSON null (not a TypeError leak)", async ({ page }) => {
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await gotoHydrated(page, "/cart");
+    await page.route("**/api/promotions/validate*", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "null" }));
+    await page.getByLabel("Promo code").fill("FESTIVE10");
+    await page.getByRole("button", { name: "Apply" }).click();
+    await expect(page.locator("main").getByRole("alert")).toContainText("We couldn't reach the promo service — please try again.");
+    await expect(page.locator("main").getByRole("alert")).not.toContainText("Cannot read properties of null");
+    await page.unroute("**/api/promotions/validate*");
+  });
+});
+
+test.describe("shop grid fixed copy on transport failure (Task 144 K-3)", () => {
+  // The Task-119 resilience pair covered search + wishlist; Task-142 H-6 the
+  // four POST seams — shop-inner was the LAST surface still interpolating
+  // `e.message` for a TRANSPORT failure, rendering the browser's raw
+  // "Failed to fetch" in the customer-facing error box. The envelope
+  // refusal keeps the server's honest copy (the Task-136 F-1 probes); only
+  // the transport/null window renders fixed copy. The LOCAL keyword filter
+  // drives the client-side refetch (the Task-136 F-1 mechanism).
+  test("shop grid shows fixed copy when the network itself fails (not browser error text)", async ({ page }) => {
+    await page.route("**/api/products*", (route) => route.abort());
+    await gotoHydrated(page, "/shop");
+    await page.getByRole("textbox", { name: "Filter products by keyword" }).fill("oak");
+    await expect(page.locator("main").getByRole("alert")).toBeVisible();
+    await expect(page.locator("main").getByRole("alert")).toContainText("The catalogue service didn't answer — check your connection and retry.");
+    await expect(page.locator("main").getByRole("alert")).not.toContainText("Failed to fetch");
+    await page.unroute("**/api/products*");
+  });
+
+  test("shop grid shows fixed copy when the body is JSON null (not a TypeError leak)", async ({ page }) => {
+    // The K-2 null class at its fifth seam: `json.ok` on a parsed null threw
+    // the raw TypeError into the very catch K-3 fixes.
+    await page.route("**/api/products*", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "null" }));
+    await gotoHydrated(page, "/shop");
+    await page.getByRole("textbox", { name: "Filter products by keyword" }).fill("oak");
+    await expect(page.locator("main").getByRole("alert")).toBeVisible();
+    await expect(page.locator("main").getByRole("alert")).toContainText("The catalogue service didn't answer — check your connection and retry.");
+    await expect(page.locator("main").getByRole("alert")).not.toContainText("Cannot read properties of null");
+    await page.unroute("**/api/products*");
+  });
+});
+
 test.describe("SEO completion: twitter card, OG dimensions, priceValidUntil (Task 126 F-8)", () => {
   test("twitter:card is declared site-wide and inherits to the PDP", async ({ page }) => {
     // The homenest posture: og:* metadata renders for link unfurlers, but

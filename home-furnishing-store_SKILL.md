@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 2.17.0
-last_updated: "2026-11-21 (Task 143: orderSuffix mint-space fold fix + seedInventoryRows store-derivation + vitest config .mts rename)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 218/218 unit (TZ-pure — verified UTC/Singapore/New York; the fs-pin covers all three quote forms + fractional seconds since Task 134) · 146/146 e2e (webServer pins TRUST_PROXY=1 and always boots its own pinned server — reuseExistingServer: false since Task 142) · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body + the gotoHydrated claims + the XFF-probe claims pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
+version: 2.18.0
+last_updated: "2026-11-21 (Task 144: priceTotals negative-promo floor + null-body fixed-copy guards ×4/shop-grid + order_items FK index + the nine-site doc-de-drift sweep)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 221/221 unit (TZ-pure — verified UTC/Singapore/New York; the fs-pin covers all three quote forms + fractional seconds since Task 134) · 152/152 e2e (webServer pins TRUST_PROXY=1 and always boots its own pinned server — reuseExistingServer: false since Task 142) · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body + the gotoHydrated claims + the XFF-probe claims pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -48,7 +48,9 @@ project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 218/218 
 > refetch/TRUST_PROXY-gate cycle, and the Task 142 track-order-full-field/
 > reviews-POST-field-gate/XFF-docs-truth/e2e-boot-contract/fetch-failure-
 > fixed-copy cycle, and the Task 143 orderSuffix-mint-fold/seedInventoryRows-
-> store-derivation/vitest-config-mts cycle.
+> store-derivation/vitest-config-mts cycle, and the Task 144
+> negative-promo-floor/null-body-fixed-copy/order-items-index/doc-de-drift
+> cycle.
 > `AGENTS.md` is the
 > quick operator reference, the PAD is the full blueprint, and this skill is the
 > pattern/lesson layer an agent needs before touching the code. When code and
@@ -122,8 +124,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 218/218
-npm run test:e2e                                               # 146/146 (live Postgres for the journey)
+npm run test                                                   # 221/221
+npm run test:e2e                                               # 152/152 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -218,9 +220,13 @@ same contract the header links already use.
 
 The static catalogue (`src/lib/catalog.ts`) is **the seed AND the
 fallback**: 24 products / 8 categories / 3 stores / 6 inspirations / 3 promos,
-plus `findProduct` and `findPromo`. `findPromo(code)` is the single
-client-side promo lookup for DISPLAY (cart + checkout previews); the server
-re-validates every code against the `promotions` table (ADR-005 stands).
+plus the promo display seams `effectivePromo(code, subtotalCents)` (the
+min-spend gate — Task 122 F-5) and `findPromoMinimumCents(code)` (the
+below-minimum notice), the `seedInventoryRows` inventory-seam (Task 143), and
+`storeName`/`matchesProductQuery`/`productDiscountPercent`.
+`effectivePromo` is the single client-side promo lookup for DISPLAY
+(cart + checkout previews); the server re-validates every code against the
+`promotions` table (ADR-005 stands).
 Pure display helpers worth knowing (Task 117, unit-pinned): `familyVoucherCents(points)`
 implements the Family programme's printed rule ($5 per 1,000 pts) and
 `visibleBadges(badges, { isNew, discountPercent })` dedupes catalogue badge
@@ -275,11 +281,14 @@ matches ("Go" ⊂ "ERGONOMI").
    `/track-order`, `/order/`, `/wishlist`, `/search`, `/api/`. Both are
    unit-pinned (`tests/unit/robots-sitemap.test.ts`).
 7. **Hardcoding promo display values in pages** — the old inline switch gave
-   unknown codes a phantom 10% off. Use `findPromo()` (null for unknown).
+   unknown codes a phantom 10% off. Use `effectivePromo(code, subtotalCents)`
+   (null for unknown or below-minimum codes).
 8. **Forgetting `data-scroll-behavior="smooth"`** on `<html>` when CSS sets
    `scroll-behavior: smooth` — Next 16 warns in dev console.
-9. **Unescaped JSON-LD** — `JSON.stringify(jsonLd).replace(/</g, "\\u003c")`
-   before `dangerouslySetInnerHTML` (server-controlled values only).
+9. **Unescaped JSON-LD** — use the `jsonLdScript(data)` seam from
+   `src/lib/utils.ts` (escapes `<` AND the U+2028/U+2029 line separators,
+   Task 125 G-3) before `dangerouslySetInnerHTML` (server-controlled
+   values only).
 10. **Letting the inherited ely-beauty artifacts back in** — the dead test
     tree and config-restorer scripts were retired in Task 114; pin new tests
     to THIS `src/`.
@@ -1195,6 +1204,41 @@ Task 131).
     totals, because an identical-output refactor is the only kind that can
     land without a DDL cycle.
 
+77. **A parse-successful body is not an envelope — the null-JSON edge
+    defeats "never the browser error text" claims.** Task-142 H-6 wrapped
+    fetch+`res.json()` in a fixed-copy catch and pinned it with route.abort
+    probes; but a body of literal `null` PARSES successfully
+    (`Response.json()` returns null), so the very next `json.ok` read threw
+    `TypeError: Cannot read properties of null` into the OUTER catch —
+    which renders `err.message` — the raw browser text, at all four POST
+    seams AND the shop grid, for a claim the suite said was impossible.
+    Rules: (a) a transport-failure guard that only catches PARSE failures
+    is half a guard — `if (!json || typeof json !== "object")` joins the
+    catch at the same fixed copy; (b) probe the PARSE-EDGE class explicitly
+    (`route.fulfill({ body: "null" })`), not just the transport class
+    (`route.abort()`) — the two exercise different code paths; (c) a
+    "never renders X" claim needs a probe asserting X's absence at EVERY
+    edge that can produce it.
+
+78. **Doc-drift survives green gates when the pin covers COUNTS but not
+    NAMES — sweep the retired-seam references, and pin the class where the
+    drift class lives.** Nine live-tense doc sites drifted past 30+ green
+    cycles: the PAD's tree rows still listed `findProduct`/`productImage`
+    (retired Task 138) and 4-of-7 lib files; SKILL §7/§9/§16 still taught
+    `findPromo` and the retired inline JSON-LD escape; CLAUDE's env table
+    said "the only variable the code reads" a cycle after TRUST_PROXY
+    joined; the PAD said Docker "None" beside a pinned compose file; era
+    labels said 114–138 for five cycles. The docs-counts pin fs-computes
+    NUMBERS — a retired function NAME in a tree row is not a number, so
+    nothing fired. Rules: (a) when a seam is retired, grep the SIX docs for
+    its name in the same commit (the retirement diff's blast radius is the
+    doc layer, not just src/); (b) a tree/diagram row enumerating files or
+    exports is a live-tense claim — regenerate it from the module, don't
+    hand-maintain it; (c) counts-pins protect counts; the name/era/wording
+    classes need either a pin (the env-table "only variable" sentence is
+    now pin-shaped in env-example.test.ts's scope) or a per-cycle sweep
+    discipline.
+
 ## 13. Pitfalls to Avoid
 
 - Adding state/auth/payment SDKs without a decision record (ADR-006 deferrals
@@ -1241,15 +1285,15 @@ if (paramQ !== prevParamQ) { setPrevParamQ(paramQ); setQ(paramQ); }
 // Money truth (placeOrder — the verified example)
 // 259800 − 10% (25980) = 233820 ≥ 20000 → delivery 0; GST = round(233820×0.09/1.09) = 19306
 
-// JSON-LD with escape (product/[slug]/page.tsx)
+// JSON-LD via the seam (product/[slug]/page.tsx + layout.tsx — Task 125 G-3)
 <script type="application/ld+json"
-  dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
+  dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }} />
 ```
 
 ## 16. Coding Anti-Patterns (inverse of §15)
 
 - `useEffect(() => setState(readLocalStorage()))` — the exact pattern §6 replaced.
-- Inline promo-value switches in pages (use `findPromo`).
+- Inline promo-value switches in pages (use `effectivePromo`).
 - Raw `JSON.parse` of client input without narrowing (`unknown` + checks).
 - `any` (strict repo; use `unknown` + narrowing).
 - Importing `@/db` from pages/components (Layer rule).
@@ -1326,5 +1370,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (218) — 10 files |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (146) — 138 storefront + 8 mobile |
+| Unit suite | `tests/unit/*.test.ts` (221) — 10 files |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (152) — 144 storefront + 8 mobile |

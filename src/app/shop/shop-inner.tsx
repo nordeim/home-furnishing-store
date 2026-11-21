@@ -85,14 +85,28 @@ export function ShopInner({ initial }: { initial: ShopInitial }) {
       setLoading(true);
       setError(null);
       try {
-        const url = new URL("/api/products", window.location.origin);
-        url.searchParams.set("cat", cat);
-        url.searchParams.set("sort", sort);
-        url.searchParams.set("q", q);
-        if (max > 0) url.searchParams.set("max", String(max));
-        const res = await fetch(url.toString());
-        const json = (await res.json()) as { ok: boolean; data?: CardProduct[]; error?: { message: string } };
+        // Task 144 K-3: the fetch+parse window renders FIXED copy — this was
+        // the last surface still interpolating `e.message` for a TRANSPORT
+        // failure (the browser's raw "Failed to fetch" in the customer-facing
+        // box; the Task-119 pair fixed search + wishlist, Task-142 H-6 the
+        // four POST seams). A JSON-null body parses successfully, so the null
+        // guard (Task 144 K-2's class at its fifth seam) joins the same
+        // window. The ENVELOPE refusal below keeps the server's honest copy.
+        const FIXED = "The catalogue service didn't answer — check your connection and retry.";
+        let json: { ok: boolean; data?: CardProduct[]; error?: { message: string } };
+        try {
+          const url = new URL("/api/products", window.location.origin);
+          url.searchParams.set("cat", cat);
+          url.searchParams.set("sort", sort);
+          url.searchParams.set("q", q);
+          if (max > 0) url.searchParams.set("max", String(max));
+          const res = await fetch(url.toString());
+          json = (await res.json()) as { ok: boolean; data?: CardProduct[]; error?: { message: string } };
+        } catch {
+          throw new Error(FIXED);
+        }
         if (cancelled) return;
+        if (!json || typeof json !== "object") throw new Error(FIXED);
         // Task 136 F-1: the envelope contract is { ok, data } — an ok:true
         // body WITHOUT an array data (a contract-violating but
         // well-formed-status response) must be an ERROR, never a "resolved

@@ -86,6 +86,12 @@ export default function CheckoutPage() {
       } catch {
         throw new Error("We couldn't reach the checkout service — please try again.");
       }
+      // Task 144 K-2: a body of literal `null` PARSES successfully
+      // (Response.json() returns null), so the `json.ok` read below threw
+      // `TypeError: Cannot read properties of null` into the outer catch —
+      // the raw browser text H-6's claim says never renders. The null guard
+      // joins the transport catch at the same fixed copy.
+      if (!json || typeof json !== "object") throw new Error("We couldn't reach the checkout service — please try again.");
       // Task 141 F-2: the gate reaches the field the success path consumes —
       // the old `!json.data` truthiness check let a contract-violating
       // `{ok:true, data:{}}` CLEAR the bag and navigate to /order/undefined
