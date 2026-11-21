@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 2.13.0
-last_updated: "2026-11-21 (Task 139: store-count derivation completion + gotoHydrated docs-claims pin + starter-kit guard polarity proof + dead-export retirement)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 200/200 unit (TZ-pure — verified UTC/Singapore/New York; the fs-pin covers all three quote forms + fractional seconds since Task 134) · 133/133 e2e · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body + the gotoHydrated claims pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
+version: 2.14.0
+last_updated: "2026-11-21 (Task 140: recovery-count honesty + wishlist removal settle + checkout default derivation + Tailwind v4 button cursor + promo label gate + PDP scan dedup)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 205/205 unit (TZ-pure — verified UTC/Singapore/New York; the fs-pin covers all three quote forms + fractional seconds since Task 134) · 137/137 e2e · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body + the gotoHydrated claims pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -40,7 +40,10 @@ project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 200/200 
 > store-count-derivation/productDiscountPercent-seam/dead-export-retirement/
 > fee-copy-derivation/starter-kit-guard cycle, and the Task 139
 > store-count-derivation-completion/gotoHydrated-docs-claims-pin/
-> starter-kit-guard-polarity-proof/dead-export-retirement cycle.
+> starter-kit-guard-polarity-proof/dead-export-retirement cycle, and the
+> Task 140 recovery-count-honesty/wishlist-removal-settle/checkout-
+> default-derivation/Tailwind-v4-button-cursor/promo-label-gate/PDP-
+> scan-dedup cycle.
 > `AGENTS.md` is the
 > quick operator reference, the PAD is the full blueprint, and this skill is the
 > pattern/lesson layer an agent needs before touching the code. When code and
@@ -114,8 +117,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 200/200
-npm run test:e2e                                               # 133/133 (live Postgres for the journey)
+npm run test                                                   # 205/205
+npm run test:e2e                                               # 137/137 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -1071,6 +1074,33 @@ Task 131).
     the honest demo swaps the BRANCH CONTENTS (every original assertion
     stays green) and proves only the new polarity assertion bites.
 
+69. **Two gates on one honesty concern discard the truth the recovery
+    path needs — one owner per claim (Task 140 F-1).** The PDP's
+    `total={reviewsUnavailable ? undefined : liveCount}` ternary
+    "helped" suppress the count claim under outage — but the
+    sectionUnavailable heading gate ALREADY suppressed it, and the
+    ternary's extra suppression discarded a count the page provably
+    KNEW (the partial outage: count-ok, reviews-null). The recovery
+    path then resumed from zero and rendered "Reviews (1)" against a
+    DB of 43. Rule: when a rendering gate owns an honesty concern, the
+    DATA flows through unconditionally — and a recovery path re-derives
+    its claim from the server (the additive GET `count` field), never
+    resumes from client-side arithmetic (list length saturates at the
+    response cap).
+
+70. **Framework preflight revisions change computed affordances
+    silently — enumerate the base-layer diffs and pin each one with a
+    computed-style probe (Task 140 F-4).** Tailwind v4's preflight
+    dropped `button { cursor: pointer }` the same revision that changed
+    `outline-none`'s computed shape (the Task-120 F-7 focus finding): no
+    utility class changed, no test failed, every CTA simply computed
+    `cursor: default`. Display utilities are caught by interaction
+    taxonomies; BASE-rule regressions need `getComputedStyle`
+    assertions on the affected affordance (cursor on the money button,
+    box-shadow/outline on focus). Rule: on a preflight-revision
+    upgrade, diff the base layer's rules and pin every user-facing
+    computed affordance the diff touches.
+
 ## 13. Pitfalls to Avoid
 
 - Adding state/auth/payment SDKs without a decision record (ADR-006 deferrals
@@ -1192,8 +1222,8 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | Commands & gotchas | `AGENTS.md` |
 | Architecture detail | `Project_Architecture_Document.md` |
 | Decision record | `docs/implementation-plan.md` |
-| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-21-task139-remediation-plan.md` (24 plans: Tasks 114, 117–139) |
-| Screenshots | `docs/screenshots/01…114-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 115 PNGs) |
+| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-21-task140-remediation-plan.md` (25 plans: Tasks 114, 117–140) |
+| Screenshots | `docs/screenshots/01…119-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 120 PNGs) |
 | SSH push runbook | `docs/how-to-git-push-using-ssh-wrapper_SKILL.md` |
 | Working history | `worklog.md` (Tasks 113+ NORDHEM; the 1–112 predecessor lineage was operator-trimmed) |
 | Money/validators | `src/lib/utils.ts` |
@@ -1202,5 +1232,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (200) — 10 files |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (133) — 125 storefront + 8 mobile |
+| Unit suite | `tests/unit/*.test.ts` (205) — 10 files |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (137) — 129 storefront + 8 mobile |

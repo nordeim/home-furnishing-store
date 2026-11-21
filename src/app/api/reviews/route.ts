@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getReviews, submitReview } from "@/lib/server-data";
+import { getReviewCount, getReviews, submitReview } from "@/lib/server-data";
 import { clientIp, createRateLimiter } from "@/lib/rate-limit";
 import { MAX_INT4 } from "@/lib/utils";
 
@@ -26,14 +26,20 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "productId must be a whole number." } }, { status: 422 });
   }
   const productId = Number(raw);
-  const data = await getReviews(productId);
+  // Task 140 F-1: the TRUE row count rides beside the capped list (the
+  // additive `count` field) — the ReviewSection recovery refetch adopts it
+  // instead of minting a count from client-side arithmetic (list length
+  // saturates at the 20-row cap; the count(*) never does). A null count
+  // joins the null list in the DB_DOWN envelope — the Task-137 unified
+  // outage signal, mirrored at the boundary.
+  const [data, count] = await Promise.all([getReviews(productId), getReviewCount(productId)]);
   // Task 136 F-3: the outage signal is null — an honest failure envelope
   // beats the old degrade-to-[] (a false "no reviews" answer for a product
   // with live reviews — the ok-with-data discipline at a boundary that has
   // NO static fallback). The health route's DB_DOWN posture.
-  if (data === null)
+  if (data === null || count === null)
     return NextResponse.json({ ok: false, error: { code: "DB_DOWN", message: "Reviews are unavailable right now — please try again in a moment." } }, { status: 500 });
-  return NextResponse.json({ ok: true, data });
+  return NextResponse.json({ ok: true, data, count });
 }
 
 export async function POST(req: Request) {

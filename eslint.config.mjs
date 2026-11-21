@@ -6,5 +6,10 @@ export default defineConfig([
   ...nextCoreWebVitals,
   // Operator contract: the vendored skills/ folder is excluded from code
   // checking, testing and compilation — it is reference material, not app code.
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "skills/**"]),
+  // playwright-report/ + test-results/ are the Task-126-F-9 html/list
+  // reporter's generated bundles (gitignored build artifacts — the bundled
+  // trace UI trips react-hooks/rules-of-hooks with 60+ phantom errors when
+  // lint runs AFTER an e2e run; the canonical gate order hides the trap,
+  // this closes it).
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "skills/**", "playwright-report/**", "test-results/**"]),
 ]);

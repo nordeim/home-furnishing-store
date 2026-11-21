@@ -23,13 +23,13 @@ ORM + PostgreSQL.
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
 | `npm run typecheck:tests` | `tsc --noEmit -p tsconfig.tests.json` — the **test tree** (`tests/**`; both scopes are live gates) |
-| `npm run test` | Vitest unit suite (200 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, server-data fulfilment-seam fs-pin + the qty-writer clampInt fs-pin + the SORT_KEYS derivation pin + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin + the PDP unified-outage-signal + recovery pins + the outage-branch characterization pins, docs-counts pins incl. the PAD + the TZ-pure-tree fs-pin + the numeric-args-ctor widening + the Task-138 store-count/productDiscountPercent/fee-copy/starter-kit derivation fs-pins + the Task-139 store-count blast-radius fs-pin + the gotoHydrated docs-claims pin) |
+| `npm run test` | Vitest unit suite (205 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, server-data fulfilment-seam fs-pin + the qty-writer clampInt fs-pin + the SORT_KEYS derivation pin + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin + the PDP unified-outage-signal + recovery pins + the outage-branch characterization pins, docs-counts pins incl. the PAD + the TZ-pure-tree fs-pin + the numeric-args-ctor widening + the Task-138 store-count/productDiscountPercent/fee-copy/starter-kit derivation fs-pins + the Task-139 store-count blast-radius fs-pin + the gotoHydrated docs-claims pin + the Task-140 recovery-count/checkout-default-derivation/cache-wrap fs-pins) |
 | `npm run test:watch` | Vitest in watch mode (the same suite, re-run on change) |
-| `npm run test:e2e` | Playwright e2e (133 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
+| `npm run test:e2e` | Playwright e2e (137 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` (Task 140 added the reviews GET count probe, the wishlist removal-window settle pin, the Tailwind-v4 button-cursor pin and the cart promo label-gate probe) |
 | `npm run test:e2e:install` | One-time: install the pinned Playwright Chromium build (the fresh-clone cache miss) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
-The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–139):
+The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–140):
 `tests/unit` (10 files) + `tests/e2e` (mobile-navigation + storefront specs
 incl. the fetch-failure resilience pair, the API rate-limit pins, PDP badge
 dedupe, cart promo persistence, JSON-LD live-inventory + LOW_STOCK commerce
@@ -128,7 +128,7 @@ ISO slice), and the **derived-copy completion** (GST ×7, the $200 shop pair,
 FLAT20 on /offers, the family voucher rule ×3 — all interpolate their
 constants; the GST + family e2e pins derive). Task 127 converted the storefront
 spec's then-21 interaction-first blocks to `gotoHydrated` (the mobile spec's
-Task-125 G-5 discipline) — 45 storefront call sites now (47 across both
+Task-125 G-5 discipline) — 48 storefront call sites now (50 across both
 files), zero bare interaction-first gotos. One Task-124 finding was DISPROVEN (browser
 evidence) and one Task-126 audit finding was DISPROVEN by insert-order
 analysis (the ensureSeed "partial-seed blind spot" — categories/stores/
@@ -159,9 +159,9 @@ AND copy — the family/business halves of the Task-127 F-4 class), the
 **Footer SGT year** (the last bare server-local calendar read in src/), and
 the **producer-side store-key fs-pin** (every createLocalStore key — literal
 or constant — must be a member of PERSISTED_STORAGE_KEYS). The storefront
-spec's interaction-first coverage is now complete: 45 gotoHydrated call
-sites in the storefront spec (47 across both files; the Task-129 conversions
-took it from 34 and the Task-131..138 probes grew it past the Task-129-era
+spec's interaction-first coverage is now complete: 48 gotoHydrated call
+sites in the storefront spec (50 across both files; the Task-129 conversions
+took it from 34 and the Task-131..140 probes grew it past the Task-129-era
 count), zero interaction-first bare gotos
 (mechanically re-verified — the Task-127 conversion had left 13, including
 a /cart site both sweeps under-counted). One reference-agent claim was DISPROVEN by direct read
@@ -466,6 +466,26 @@ guard polarity proof** (the Task-138 F-6 fs-pin was presence-only — an
 inverted ternary satisfied every assertion; the strengthened form pins
 the trio copy to the guard's TRUE branch, mutation-proven twice: the
 `===`→`!==` inversion AND the subtler branch-swap each REDed the pin).
+And the Task-140 pins: the **recovery-count honesty set** (the PDP's
+`total={liveCount}` unconditional form + ReviewSection's refetch
+consumption of the additive GET `count` field, both fs-pinned; the e2e
+GET probe asserts `count === data.length` below the 20-row cap — the
+Task-139 registered understatement promoted and closed), the **wishlist
+removal-window settle pin** (the route-delayed e2e probe — the heading
+quotes the PERSISTED count while the refetch is in flight, never the
+departed view's resolved count; the Task-130 F-8 class on the axis it
+missed), the **checkout default-derivation fs-pins** (the slot and
+store literals banned from the three consumer files while the seam
+derivations `DELIVERY_SLOTS.delivery[0]`/`STORES[0].slug` are present
+at all five sites — the derivation discipline completed; the Task-131
+F-2 fulfilStore pin updated in lockstep), the **Tailwind v4 button-cursor
+e2e pin** (the computed-style sibling of the Task-120 F-7 focus pin —
+the preflight's dropped `cursor: pointer` restored via the base rule),
+the **cart promo label-gate probe** (the Task-137 F-2 class completed to
+the FIELD the copy interpolates — a labelless `data:{}` envelope joins
+the refusal set), and the **cache-wrap fs-pin** (the `getAllProducts`
+const form — the Task-139 registered 3-scans-per-PDP-request candidate,
+closed with React's request-scope `cache()`).
 
 **Test counts are documentation claims, pinned by test** (Task 119):
 `tests/unit/docs-counts.test.ts` fs-computes the real counts and fails the run
@@ -498,6 +518,13 @@ change (count-lockstep, no exceptions).
 | The offers starter-kit set-copy is guarded on the resolved rows (a departed slug degrades to the neutral picks copy, never an assertion the chips contradict) | `tests/unit/catalog.test.ts` (Task 138 F-6 fs-pin, polarity-proofed Task 139 F-3) |
 | The store-count literals ("Three NORDHEM stores", "Three stores, one island", "All 3 SG stores") exist NOWHERE under `src/` — every count site (home hero stat + strip, checkout refusal ×2, /stores metadata ×2 + h1, /sustainability stat) interpolates `STORES.length`, and the e2e metadata expectation derives from the seed | `tests/unit/catalog.test.ts` (Task 139 F-1 blast-radius fs-pin) + `tests/e2e/storefront.spec.ts` (the derived metadata pin) |
 | The gotoHydrated count claims (AGENTS ×2, CLAUDE, PAD) equal the fs-computed per-spec call-site counts | `tests/unit/docs-counts.test.ts` (Task 139 F-2 pin, mutation-proven) |
+| The PDP passes the SSR-known review count through UNCONDITIONALLY (no `reviewsUnavailable` ternary on the total) and ReviewSection's recovery path refetches the GET envelope and adopts the server `count` field | `tests/unit/server-data.test.ts` (Task 140 F-1 fs-pins) |
+| The reviews GET exposes the TRUE row count (additive `count` beside the capped `data` array; `count === data.length` below the 20-row cap) | `tests/e2e/storefront.spec.ts` (Task 140 F-1 GET probe) |
+| The wishlist heading quotes the PERSISTED count during a removal's refetch window (never the departed view's resolved count) | `tests/e2e/storefront.spec.ts` (Task 140 F-2 route-delayed settle probe) |
+| The checkout default slot/store literals exist NOWHERE in the page/route/seam files — every default derives from `DELIVERY_SLOTS.delivery[0]`/`STORES[0].slug` (page, API route, placeOrder default + the ensureSeed inventory rows), and the stale-slot adjust guard covers every method | `tests/unit/catalog.test.ts` (Task 140 F-3 fs-pins; the Task-131 F-2 fulfilStore pin follows the derived form) |
+| Buttons compute `cursor: pointer` when enabled (the Tailwind v4 preflight default restored via the `button:not(:disabled)` base rule; disabled keeps default semantics) | `tests/e2e/storefront.spec.ts` (Task 140 F-4 computed-style pin) |
+| A promo apply on an ok-but-LABELLESS data envelope (`200 {ok:true, data:{}}`) is a FAILURE — no "applied — undefined" copy, no persisted code | `tests/e2e/storefront.spec.ts` (Task 140 F-5 probe) |
+| `getAllProducts` is React `cache()`-wrapped (the PDP's three scans per request dedupe into one) | `tests/unit/server-data.test.ts` (Task 140 F-6 fs-pin) |
 
 ## Hard-won gotchas (read before changing anything)
 
@@ -608,8 +635,8 @@ rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_
 npm run typecheck          # app scope (src/**, next.config.ts)
 npm run typecheck:tests    # the test tree (tsconfig.tests.json) — both scopes are live gates
 npm run lint               # 0 errors expected
-npm run test               # 200/200 unit
-npm run test:e2e           # 133/133 e2e (needs a live Postgres for the checkout journey)
+npm run test               # 205/205 unit
+npm run test:e2e           # 137/137 e2e (needs a live Postgres for the checkout journey)
 ```
 
 There is no hosted CI; the local gate is the only gate.

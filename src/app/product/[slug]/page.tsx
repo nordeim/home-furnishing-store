@@ -208,7 +208,14 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       <ReviewSection
         productId={p.id}
         initial={(reviewsUnavailable ? [] : reviewList).map((r) => ({ id: r.id, author: r.author, rating: r.rating, title: r.title ?? "", body: r.body ?? "", verified: r.verified, createdAt: String(r.createdAt) }))}
-        total={reviewsUnavailable ? undefined : liveCount}
+        // Task 140 F-1: the count flows through UNCONDITIONALLY. The outage
+        // honesty is owned by the sectionUnavailable heading gate (the claim
+        // is suppressed while unavailable) — the old conditional (suppress
+        // the total under outage) discarded a count the page provably KNEW
+        // in the count-ok/reviews-null partial outage, so the recovered
+        // section resumed at 1 instead of liveCount + 1 (the Task-123 F-10
+        // honesty rule, minted-from-zero on the recovery path).
+        total={liveCount}
         unavailable={reviewsUnavailable}
       />
 

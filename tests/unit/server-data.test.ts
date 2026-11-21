@@ -5,13 +5,15 @@ import { resolve } from "node:path";
 /**
  * Task 131 F-2: a STRUCTURAL pin on the placeOrder fulfilment seam. Task 130
  * F-2 scoped the lock/availability query to the chosen store (`fulfilStore`)
- * for every method — but the decrement re-derived `input.storeSlug ||
- * "tampines"` verbatim instead of reading the seam, so the check/decrement
- * coherence (the fix's whole point — check and decrement must read the SAME
- * rows or the greatest(0,·) clamp mints phantom units) rested on textual
+ * for every method — but the decrement re-derived the default expression
+ * verbatim instead of reading the seam, so the check/decrement coherence
+ * (the fix's whole point — check and decrement must read the SAME rows or
+ * the greatest(0,·) clamp mints phantom units) rested on textual
  * duplication. This pin fails the run if the re-derivation ever returns:
  * the default expression must occur EXACTLY ONCE (the `fulfilStore`
  * definition) and the decrement must reference `fulfilStore` itself.
+ * Task 140 F-3: the default itself now derives from the seed
+ * (`STORES[0].slug`) — the pinned form follows the derivation.
  *
  * fs-based by design (the IDEMPOTENCY_KEY_RE / PERSISTED_STORAGE_KEYS
  * producer-pin precedent): placeOrder touches the live DB, so the unit
@@ -22,7 +24,7 @@ const ROOT = resolve(import.meta.dirname, "../..");
 const SOURCE = readFileSync(resolve(ROOT, "src/lib/server-data.ts"), "utf8");
 
 it("the fulfilment-store default is derived EXACTLY ONCE (the fulfilStore seam)", () => {
-  const occurrences = SOURCE.match(/input\.storeSlug \|\| "tampines"/g) ?? [];
+  const occurrences = SOURCE.match(/input\.storeSlug \|\| STORES\[0\]\.slug/g) ?? [];
   expect(occurrences.length, "placeOrder must derive the fulfilment store in ONE place — a second re-derivation (e.g. inside the decrement) re-opens the Task-130 F-2 phantom-unit class by letting check and decrement drift apart").toBe(1);
 });
 
@@ -142,6 +144,66 @@ it("ReviewSection's unavailable state is RECOVERABLE — a successful POST flips
   expect(
     rs.includes('sectionUnavailable ? "Reviews"'),
     "the heading count claim must key on the RECOVERABLE state, not the frozen prop",
+  ).toBe(true);
+});
+
+it("the PDP passes the SSR-known count through UNCONDITIONALLY — a partial outage must not discard the count it knows (Task 140 F-1)", () => {
+  // Task 137 F-1's recovery flip resumes the heading's count claim — but the
+  // Task-136 seam fed it `total={reviewsUnavailable ? undefined : liveCount}`,
+  // so a count-ok/reviews-null PARTIAL outage (the count was KNOWN at SSR
+  // time) seeded the section's count at zero, and the first recovered POST
+  // rendered "Reviews (1)" for a product with 42 live reviews — a specific
+  // false number, the Task-123 F-10 contract the heading exists to enforce.
+  // The outage honesty is owned by the sectionUnavailable heading gate (the
+  // claim is suppressed while unavailable), so the count must flow through
+  // unconditionally: the partial branch resumes at liveCount + 1 (correct),
+  // and the full-outage branch is closed by the recovery refetch below.
+  const pdp = readFileSync(resolve(ROOT, "src/app/product/[slug]/page.tsx"), "utf8");
+  expect(
+    pdp.includes("total={liveCount}"),
+    "the section's total must be the SSR-known liveCount UNCONDITIONALLY — a reviewsUnavailable ternary discards a count the page provably knows and mints a false one on recovery",
+  ).toBe(true);
+  expect(
+    pdp.includes("reviewsUnavailable ? undefined"),
+    "the count-suppression ternary must be gone — the sectionUnavailable heading gate owns the outage honesty, not the total prop",
+  ).toBe(false);
+});
+
+it("ReviewSection RE-DERIVES the count on recovery — the refetch adopts the server truth instead of minting from zero (Task 140 F-1)", () => {
+  // The full-outage branch (both seams null) seeds the count at zero: the
+  // page provably could not know it. A successful POST under that state
+  // proves the DB recovered — the write landed — so the section refetches
+  // the reviews envelope and adopts the server's count (the additive GET
+  // `count` field) instead of incrementing a minted-from-zero figure: the
+  // heading resumes at the TRUE count, not "the ones I saw plus one".
+  const rs = readFileSync(resolve(ROOT, "src/components/ReviewSection.tsx"), "utf8");
+  expect(
+    rs.includes("wasUnavailable"),
+    "the submit path must capture whether this POST is a RECOVERY (the section was unavailable when it landed) — the refetch is the recovery branch's obligation",
+  ).toBe(true);
+  expect(
+    /fetch\(`\/api\/reviews\?productId=\$\{productId\}`\)/.test(rs),
+    "the recovery path must refetch the reviews envelope (fetch(`/api/reviews?productId=${productId}`)) — the count claim cannot resume from client-side arithmetic alone",
+  ).toBe(true);
+  expect(
+    rs.includes("json.count"),
+    "the refetch must adopt the server's count field (the TRUE row count beside the capped list) — list-length arithmetic saturates at the 20-row cap",
+  ).toBe(true);
+});
+
+it("getAllProducts is React cache()-wrapped — the PDP's three scans per request dedupe into one (Task 140 F-6)", () => {
+  // The PDP request path scanned the products table THREE times per
+  // request: generateMetadata → getProductBySlug → getAllProducts (#1),
+  // the page body → getProductBySlug (#2), and the related-products rail
+  // → getAllProducts (#3) — three identical table scans for one render.
+  // React's cache() (the Next.js-documented RSC request-scope memoization)
+  // dedupes them into one: identical results within one request,
+  // INCLUDING the degrade fallback (the wrapped function's behavior is
+  // unchanged; only the call count collapses). Route handlers share the
+  // request scope, so API consumers get the same dedup for free.
+  expect(
+    /export const getAllProducts = cache\(/.test(SOURCE),
+    "getAllProducts must be the cache()-wrapped const form (export const getAllProducts = cache(async …)) — an unwrapped plain function re-scans the products table once per consumer (the PDP alone scans it three times per request)",
   ).toBe(true);
 });
 

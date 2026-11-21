@@ -7,7 +7,7 @@ import { gotoHydrated } from "./helpers";
 // Task 124 F-14: the sitemap count derives from the catalogue constants (the
 // unit suite's approach) — a hardcoded 42 broke on the first catalogue edit.
 import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, catalogMaxDiscountPercent, storeName } from "../../src/lib/catalog";
-import { GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, FAMILY_VOUCHER_CENTS, FAMILY_POINTS_PER_VOUCHER, FAMILY_POINTS_PER_DOLLAR, TRADE_RATE, formatSGD, ASSEMBLY_FEE_CENTS, DESIGN_SERVICE_FEE_CENTS } from "../../src/lib/utils";
+import { GST_RATE, FREE_DELIVERY_THRESHOLD_CENTS, FAMILY_VOUCHER_CENTS, FAMILY_POINTS_PER_VOUCHER, FAMILY_POINTS_PER_DOLLAR, TRADE_RATE, formatSGD, ASSEMBLY_FEE_CENTS, DESIGN_SERVICE_FEE_CENTS, DELIVERY_SLOTS } from "../../src/lib/utils";
 
 // Task 126 F-3: the max-discount pins derive from the catalogue (the same
 // seam the hero/strip/offers copy interpolates) — a catalogue edit
@@ -516,6 +516,39 @@ test.describe("client resilience (fetch failure ≠ empty state)", () => {
     await expect(page.getByText("1 saved item is no longer available")).toBeVisible();
   });
 
+  test("wishlist heading quotes the PERSISTED count during the removal window — no stale departed-count claim (Task 140 F-2)", async ({ page }) => {
+    // The removal axis of the Task-130 F-8 honesty class: heart-removing a
+    // saved card re-runs the [wishlist] effect, but `loading` only ever
+    // starts true and settles false — it never re-flips — so during the
+    // refetch the heading kept quoting the STALE items.length (the departed
+    // view's "2") while the Header badge already said the truth (1). The
+    // window is deterministic here: the route delays every /api/products
+    // fetch 700 ms, and the heading is read SINGLE-SHOT (no auto-retry —
+    // a retrying assertion would bridge the window and false-pass, the
+    // Task-138 F-1 first-draft lesson).
+    await page.addInitScript(() => {
+      localStorage.setItem("nordhem_wish_v1", JSON.stringify(["solbakken-3-seat-sofa", "skagen-media-bench"]));
+    });
+    await page.route("**/api/products", async (route) => {
+      await new Promise((r) => setTimeout(r, 700));
+      await route.continue();
+    });
+    await gotoHydrated(page, "/wishlist");
+    // The first (delayed) resolution lands: two cards.
+    await expect(page.locator("main article")).toHaveCount(2);
+    // Remove one — the store updates instantly, the refetch is in flight.
+    await page.getByRole("button", { name: "Remove SKAGEN media bench from wishlist" }).click();
+    // SINGLE-SHOT heading read inside the 700 ms window: the persisted
+    // count (1) is the honest number while resolution is in flight — the
+    // stale items.length (2) is the departed view's claim.
+    const headingText = (await page.getByRole("heading", { name: /Your wishlist/ }).textContent()) ?? "";
+    expect(headingText, "during the removal window the heading must quote the PERSISTED count — the stale resolved count contradicts the already-updated badge").toContain("(1)");
+    // The settled end state: one card, the heading still (1).
+    await expect(page.locator("main article")).toHaveCount(1);
+    await expect(page.getByRole("heading", { name: "Your wishlist (1)" })).toBeVisible();
+    await page.unroute("**/api/products");
+  });
+
   test("wishlist all-ghost state explains itself — never 'Nothing saved yet' beside the ghost note (Task 132 F-3)", async ({ page }) => {
     // Every persisted slug a ghost: the pre-132 page rendered the TRUE note
     // ("2 saved items are no longer available.") directly above the FALSE
@@ -956,6 +989,23 @@ test.describe("a11y: focus, steppers and announcements (Task 120)", () => {
     expect(indication, "family email shows no visible focus indication").toBe(true);
   });
 
+  test("buttons afford a pointer cursor — the Tailwind v4 preflight default restored (Task 140 F-4)", async ({ page }) => {
+    // The v3→v4 preflight change dropped `button { cursor: pointer }` from
+    // Tailwind's base layer (the v4 trap log's documented regression class —
+    // the same preflight that changed outline-none's computed shape, pinned
+    // above). Every primary CTA in this storefront is a <button>, and
+    // browser-verified at audit time they all computed cursor: default —
+    // the affordance an e-commerce surface's CTAs are expected to carry.
+    // The base rule restores it for enabled controls; disabled controls
+    // keep the default cursor (correct disabled semantics). Probing the
+    // PDP's primary CTA (the storefront's money button).
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
+    const cta = page.getByRole("button", { name: "Add to bag" });
+    await expect(cta).toBeVisible();
+    const cursor = await cta.evaluate((el) => getComputedStyle(el).cursor);
+    expect(cursor, "the Add-to-bag CTA must compute cursor: pointer (Tailwind v4 preflight dropped it — the base rule restores the affordance)").toBe("pointer");
+  });
+
   test("cart quantity minus is disabled at qty 1 (Remove stays the only destructive path)", async ({ page }) => {
     // Task 120 F-15: the − stepper at qty 1 silently deleted the line via
     // setQty(qty-1) — a destructive action reachable from an increment
@@ -1063,6 +1113,37 @@ test.describe("cart promo persistence", () => {
     // Remove button is the persistence tell).
     await expect(page.locator("aside p[role=alert]")).toContainText(/could not verify/i);
     await expect(page.getByText(/applied/i)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Remove code/i })).toHaveCount(0);
+    await page.unroute("**/api/promotions/validate*");
+  });
+
+  test("a promo apply on an ok-but-LABELLESS data envelope is a FAILURE — no 'applied — undefined' copy (Task 140 F-5)", async ({ page }) => {
+    // The Task-137 F-2 gate closed the dataless envelope, one field short
+    // of the full contract: `200 {ok:true, data:{}}` PASSES the
+    // `!json.data` truthiness gate and renders "WELCOME10 applied —
+    // undefined" (json.data.label is undefined — a contract-violating
+    // envelope shipped a literal "undefined" into customer-facing copy).
+    // The gate tightens to the field the copy interpolates: a non-string
+    // label joins the refusal set — the Task-128 boundary discipline
+    // mirrored at the last client-side coercing seam.
+    await page.route(
+      "**/api/promotions/validate*",
+      (route) => route.fulfill({ status: 200, body: JSON.stringify({ ok: true, data: {} }) }),
+    );
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await page.getByRole("link", { name: /Shopping bag, 1 item/ }).click();
+    await expect(page.getByRole("heading", { name: /Your bag \(1\)/ })).toBeVisible();
+
+    await page.getByLabel(/Promo code/i).fill("WELCOME10");
+    await page.getByRole("button", { name: "Apply" }).click();
+
+    // The same refusal shape as the dataless probe: a scoped alert, no
+    // "applied" success copy (and specifically no "undefined" leaking into
+    // it), and no persisted code.
+    await expect(page.locator("aside p[role=alert]")).toContainText(/could not verify/i);
+    await expect(page.getByText(/applied/i)).toHaveCount(0);
+    await expect(page.getByText(/undefined/i)).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Remove code/i })).toHaveCount(0);
     await page.unroute("**/api/promotions/validate*");
   });
@@ -2157,7 +2238,10 @@ test.describe("checkout fulfilment method switch (Task 121 F-20 pin)", () => {
     await page.getByRole("button", { name: "Add to bag" }).click();
     await gotoHydrated(page, "/checkout");
     const slot = page.getByLabel("Time slot");
-    await expect(slot).toHaveValue("Standard (3–5 days)");
+    // Task 140 F-3: the expected default derives from the seam the form
+    // state derives from (DELIVERY_SLOTS.delivery[0]) — a slot-label rename
+    // self-corrects the assertion instead of rotting it.
+    await expect(slot).toHaveValue(DELIVERY_SLOTS.delivery[0]);
     await page.getByRole("button", { name: /Click & Collect/ }).click();
     await expect(page.getByRole("button", { name: /Click & Collect/ })).toHaveAttribute("aria-pressed", "true");
     // The slot list re-derives from the method and resets to its first option.
@@ -3277,6 +3361,36 @@ test.describe("reviews deterministic ordering (Task 126 F-7)", () => {
       await client.query("delete from reviews where title like 'task126-f7-probe-%'");
       await client.end();
     }
+  });
+});
+
+test.describe("reviews GET count field (Task 140 F-1)", () => {
+  test("the GET carries the TRUE row count beside the capped list — the recovery refetch's data source", async ({ request }) => {
+    // The ReviewSection recovery path (Task 140 F-1) adopts the server's
+    // count after a recovered POST — the GET must carry it. The count is the
+    // TRUE count(*) (the getReviewCount seam), NOT the capped 20-row list
+    // length: asserting equality with data.length is only safe below the
+    // cap, so this pins the seeded 2-review product (SOLBAKKEN) and asserts
+    // BOTH the field's presence and its agreement with the list — the
+    // saturation class is covered by the SSR-side saturation spec.
+    const pidRow = await (async () => {
+      const client = new Client({
+        connectionString: process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+      });
+      await client.connect();
+      try {
+        const row = await client.query("select id from products where slug = 'solbakken-3-seat-sofa'");
+        return row.rows[0].id as number;
+      } finally {
+        await client.end();
+      }
+    })();
+    const res = await request.get(`/api/reviews?productId=${pidRow}`);
+    const body = (await res.json()) as { ok: boolean; data: unknown[]; count?: number };
+    expect(body.ok).toBe(true);
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(typeof body.count, "the GET must expose the TRUE row count (the additive Task-140 F-1 field) beside the capped data array").toBe("number");
+    expect(body.count).toBe(body.data.length);
   });
 });
 

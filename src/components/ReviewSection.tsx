@@ -33,6 +33,14 @@ export function ReviewSection({ productId, initial, total, unavailable }: { prod
     e.preventDefault();
     setBusy(true);
     setMsg(null);
+    // Task 140 F-1: capture whether this POST is a RECOVERY — the section
+    // was unavailable when the write landed (the write proves the DB
+    // answered). The recovery branch owes a refetch: the count seeded at
+    // zero under a full outage must not resume as "the ones I saw plus
+    // one" — the heading resumes at the server's TRUE count or the
+    // understatement the Task-139 register documented becomes a rendered
+    // number. wasUnavailable is read BEFORE the flip below.
+    const wasUnavailable = sectionUnavailable;
     try {
       const res = await fetch("/api/reviews", {
         method: "POST",
@@ -50,6 +58,31 @@ export function ReviewSection({ productId, initial, total, unavailable }: { prod
       setAuthor(""); setTitle(""); setBody(""); setRating(5);
       setMsg("Thanks — your review is live.");
       setMsgIsError(false);
+      // Task 140 F-1: the recovery refetch — a failed refetch keeps the
+      // POST-applied state (degrade-never-fail); a successful one adopts
+      // the server truth for BOTH the list and the count (the additive GET
+      // `count` field — the count(*) that never saturates at the 20-row
+      // cap). Fires ONLY on the recovery path; the normal path keeps the
+      // SSR-count + increment design.
+      if (wasUnavailable) {
+        try {
+          const refetch = await fetch(`/api/reviews?productId=${productId}`);
+          const rjson = (await refetch.json()) as {
+            ok: boolean;
+            data?: Array<{ id: number; author: string; rating: number; title: string | null; body: string; verified: boolean; createdAt: string }>;
+            count?: number;
+          };
+          if (rjson.ok && Array.isArray(rjson.data)) {
+            // The PDP's initial-mapping discipline (title is nullable at the
+            // seam; the VM is not).
+            setList(rjson.data.map((r) => ({ id: r.id, author: r.author, rating: r.rating, title: r.title ?? "", body: r.body, verified: r.verified, createdAt: r.createdAt || new Date().toISOString() })));
+            setCount(typeof rjson.count === "number" ? rjson.count : rjson.data.length);
+          }
+        } catch {
+          // The POST already landed and the section already flipped — a
+          // failed refetch degrades to the POST-applied view.
+        }
+      }
     } catch (err) {
       setMsg(err instanceof Error ? err.message : "Could not save review.");
       setMsgIsError(true);

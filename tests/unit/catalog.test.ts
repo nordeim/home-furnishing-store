@@ -304,3 +304,47 @@ describe("starter-kit departure guard (Task 138 F-6)", () => {
     ).toContain('bundles.length === KIT_SLUGS.length ? "Bed + extendable table + kitchen trolley — our first-home picks." : "Our first-home picks."');
   });
 });
+
+describe("checkout default derivation (Task 140 F-3)", () => {
+  // The default delivery slot and the default fulfilment store were
+  // hand-copied literals at FIVE sites across the page, the API route and
+  // the placeOrder seam (the source of truth being DELIVERY_SLOTS.delivery[0]
+  // and the STORES seed's first slug). A slot-label rename drifts every
+  // hand-copy: the controlled <select> displays the renamed first option
+  // while the stale form default submits the departed literal — and the
+  // page's stale-slot adjust guard covered click-collect only, so a drifted
+  // default delivery checkout 422s on its own default. The derivation
+  // discipline the store-count/store-name/SORT_KEYS pins already enforce,
+  // applied to the last hand-duplicated pair.
+  const consumers = [
+    "src/app/checkout/page.tsx",
+    "src/app/api/checkout/route.ts",
+    "src/lib/server-data.ts",
+  ] as const;
+  const sources = consumers.map((f) => readFileSync(resolve(import.meta.dirname, "../../", f), "utf8"));
+
+  it("the default slot derives from DELIVERY_SLOTS.delivery[0] at every consumer — the literal lives only in the seam", () => {
+    for (const [i, src] of sources.entries()) {
+      expect(
+        src.includes('"Standard (3–5 days)"'),
+        `${consumers[i]} must not hand-copy the default slot literal (DELIVERY_SLOTS.delivery[0] in src/lib/utils.ts is the single source — a rename must not drift the checkout default into a guaranteed 422)`,
+      ).toBe(false);
+    }
+    // The page's initial form state and the route's absent-field default
+    // both derive from the seam.
+    expect(sources[0]).toContain("DELIVERY_SLOTS.delivery[0]");
+    expect(sources[1]).toContain("DELIVERY_SLOTS.delivery[0]");
+  });
+
+  it("the default store derives from STORES[0].slug at every consumer — the literal lives only in the seed", () => {
+    for (const [i, src] of sources.entries()) {
+      expect(
+        /"tampines"/.test(src),
+        `${consumers[i]} must not hand-copy the default store slug (STORES[0].slug is the derivation — a store-list edit must not strand a departed default)`,
+      ).toBe(false);
+    }
+    expect(sources[0]).toContain("STORES[0].slug");
+    expect(sources[1]).toContain("STORES[0].slug");
+    expect(sources[2]).toContain("STORES[0].slug");
+  });
+});

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { OrderRefusalError, placeOrder } from "@/lib/server-data";
-import { clampInt, IDEMPOTENCY_KEY_RE, isValidDeliverySlot, isValidEmail, isValidPhone, isValidPostal } from "@/lib/utils";
+import { clampInt, DELIVERY_SLOTS, IDEMPOTENCY_KEY_RE, isValidDeliverySlot, isValidEmail, isValidPhone, isValidPostal } from "@/lib/utils";
 import { STORES } from "@/lib/catalog";
 import { clientIp, createRateLimiter } from "@/lib/rate-limit";
 
@@ -121,14 +121,18 @@ export async function POST(req: Request) {
     // coordinated edits across route/page/Header).
     const STORE_SLUGS = STORES.map((s) => s.slug);
     // Task 130 F-1: storeSlug joins the TYPE-strict set (the lesson-43
-    // field-class rule, one field short in Task 129) — String(["tampines"])
-    // coerced to a real slug and rode the whitelist into a 201 order on a
-    // crafted type. There is no UI null-encoding to preserve (unlike
-    // promoCode): the checkout page's store select always sends a real
-    // string, and an absent field keeps the documented "tampines" default.
+    // field-class rule, one field short in Task 129) — String() on a
+    // single-element store-slug array coerced to a real slug and rode the
+    // whitelist into a 201 order on a crafted type. There is no UI
+    // null-encoding to preserve (unlike promoCode): the checkout page's
+    // store select always sends a real string, and an absent field falls
+    // to the first seed store (Task 140 F-3: derived, not hand-copied).
     if ("storeSlug" in body && typeof body.storeSlug !== "string")
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: `Choose one of our ${STORES.length} stores.` } }, { status: 422 });
-    const storeSlug = String(body.storeSlug ?? "tampines");
+    // Task 140 F-3: the absent-field default derives from the STORES seed
+    // (STORES[0].slug) — the hand-copied literal drifted on any seed edit
+    // while the whitelist above already derived (Task 129 F-11).
+    const storeSlug = String(body.storeSlug ?? STORES[0].slug);
     if (!STORE_SLUGS.includes(storeSlug))
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: `Choose one of our ${STORES.length} stores.` } }, { status: 422 });
     // Task 127 F-2: deliverySlot joins the TYPE-strict set — String() coercion
@@ -137,7 +141,10 @@ export async function POST(req: Request) {
     // still falls to the documented default).
     if ("deliverySlot" in body && typeof body.deliverySlot !== "string")
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Choose one of the offered time slots." } }, { status: 422 });
-    const deliverySlot = String(body.deliverySlot ?? "Standard (3–5 days)");
+    // Task 140 F-3: the absent-slot default derives from the DELIVERY_SLOTS
+    // seam — the hand-copied literal 422'd on its own default after any
+    // slot-label rename (the en-dash literal was extra fragile).
+    const deliverySlot = String(body.deliverySlot ?? DELIVERY_SLOTS.delivery[0]);
     if (deliverySlot.length > 80)
       return NextResponse.json({ ok: false, error: { code: "VALIDATION", message: "Choose one of the offered time slots." } }, { status: 422 });
     // Task 123 F-3: length alone let crafted junk persist into customer-facing

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useCart } from "@/lib/cart-store";
 import { effectivePromo, STORES, storeName } from "@/lib/catalog";
-import { availableDeliverySlots, formatSGD, mintIdempotencyKey, priceTotals, EXPRESS_DELIVERY_FEE_CENTS, FREE_DELIVERY_THRESHOLD_CENTS, GST_RATE, STANDARD_DELIVERY_FEE_CENTS } from "@/lib/utils";
+import { availableDeliverySlots, DELIVERY_SLOTS, formatSGD, mintIdempotencyKey, priceTotals, EXPRESS_DELIVERY_FEE_CENTS, FREE_DELIVERY_THRESHOLD_CENTS, GST_RATE, STANDARD_DELIVERY_FEE_CENTS } from "@/lib/utils";
 
 type Method = "delivery" | "click-collect" | "express";
 
@@ -17,7 +17,11 @@ type Method = "delivery" | "click-collect" | "express";
 export default function CheckoutPage() {
   const { lines, subtotalCents, promoCode, clear } = useCart();
   const router = useRouter();
-  const [form, setForm] = useState({ email: "", fullName: "", phone: "", address: "", postal: "", slot: "Standard (3–5 days)", store: "tampines", pay: "card" });
+  // Task 140 F-3: the form's slot/store defaults derive from the seams
+  // (DELIVERY_SLOTS.delivery[0] + STORES[0].slug) — the hand-copied literals
+  // drifted on any seam rename while the controlled <select> displayed the
+  // renamed option (a stale default submits and 422s on its own).
+  const [form, setForm] = useState({ email: "", fullName: "", phone: "", address: "", postal: "", slot: DELIVERY_SLOTS.delivery[0], store: STORES[0].slug, pay: "card" });
   const [method, setMethod] = useState<Method>("delivery");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -41,7 +45,12 @@ export default function CheckoutPage() {
   // Header prevPathname pattern): reset a held slot the moment it leaves
   // the offered set, so display and submission always agree. Every method
   // always offers at least one slot, so this converges in one render.
-  if (method === "click-collect" && !availableDeliverySlots(method).includes(form.slot)) {
+  // Task 140 F-3: the guard now covers EVERY method, not click-collect
+  // alone — the delivery set is unfiltered so a valid held slot never
+  // resets (the widening is inert for honest state), but a drifted or
+  // departed default resets for delivery too instead of submitting a slot
+  // the boundary refuses.
+  if (!availableDeliverySlots(method).includes(form.slot)) {
     set("slot", availableDeliverySlots(method)[0]);
   }
 

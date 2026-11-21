@@ -9,6 +9,7 @@ import {
   priceTotals,
 } from "@/lib/utils";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { cache } from "react";
 
 let seedPromise: Promise<void> | null = null;
 
@@ -44,9 +45,13 @@ export function ensureSeed(): Promise<void> {
         for (const p of all) {
           const base = (p.id * 37) % 40;
           invRows.push(
-            { productId: p.id, storeSlug: "tampines", quantity: Math.max(0, base + 8), aisleBin: `A${String((p.id % 24) + 1).padStart(2, "0")}-B${String((p.id % 12) + 1).padStart(2, "0")}` },
-            { productId: p.id, storeSlug: "jurong", quantity: Math.max(0, base - 4), aisleBin: `C${String((p.id % 20) + 1).padStart(2, "0")}-D${String((p.id % 10) + 1).padStart(2, "0")}` },
-            { productId: p.id, storeSlug: "alexandra", quantity: Math.max(0, base - 10), aisleBin: `E${String((p.id % 16) + 1).padStart(2, "0")}-F${String((p.id % 8) + 1).padStart(2, "0")}` },
+            // Task 140 F-3: the seed's inventory rows follow the STORES catalogue
+            // order by index (the first store carries the deepest stock, the
+            // later ones thinner) — a store-list edit no longer strands seed
+            // rows under a departed slug (the same derivation the defaults use).
+            { productId: p.id, storeSlug: STORES[0].slug, quantity: Math.max(0, base + 8), aisleBin: `A${String((p.id % 24) + 1).padStart(2, "0")}-B${String((p.id % 12) + 1).padStart(2, "0")}` },
+            { productId: p.id, storeSlug: STORES[1].slug, quantity: Math.max(0, base - 4), aisleBin: `C${String((p.id % 20) + 1).padStart(2, "0")}-D${String((p.id % 10) + 1).padStart(2, "0")}` },
+            { productId: p.id, storeSlug: STORES[2].slug, quantity: Math.max(0, base - 10), aisleBin: `E${String((p.id % 16) + 1).padStart(2, "0")}-F${String((p.id % 8) + 1).padStart(2, "0")}` },
           );
         }
         if (invRows.length) await db.insert(inventory).values(invRows).onConflictDoNothing();
@@ -75,7 +80,15 @@ export function ensureSeed(): Promise<void> {
 
 export type ProductRow = typeof products.$inferSelect;
 
-export async function getAllProducts(): Promise<ProductRow[]> {
+// Task 140 F-6: request-scope memoized via React's cache() — the PDP
+// request path called this seam THREE times per request (generateMetadata's
+// getProductBySlug, the page body's getProductBySlug, and the
+// related-products rail), three identical products-table scans per render.
+// cache() (the Next.js-documented RSC dedup) collapses them into one call
+// per request with identical results — including the degrade fallback
+// (behavior unchanged; only the call count). Route handlers share the
+// request scope, so API consumers dedupe for free.
+export const getAllProducts = cache(async (): Promise<ProductRow[]> => {
   await ensureSeed();
   try {
     return await db.select().from(products).orderBy(products.id);
@@ -83,7 +96,7 @@ export async function getAllProducts(): Promise<ProductRow[]> {
     // Static fallback keeps the storefront alive if Postgres is unreachable.
     return PRODUCTS.map((p, i) => ({ ...p, id: i + 1, compareAtCents: p.compareAtCents ?? null, flatPack: true, createdAt: new Date() }));
   }
-}
+});
 
 export async function getProductBySlug(slug: string): Promise<ProductRow | null> {
   const all = await getAllProducts();
@@ -308,7 +321,11 @@ export async function placeOrder(input: CheckoutInput): Promise<PlaceOrderResult
   // register's redistribution alternative (drain across stores in id order)
   // was rejected: the e2e RED-run nets restore inventory post-hoc from the
   // order rows — a multi-store drain is not reconstructible after the fact.
-  const fulfilStore = input.storeSlug || "tampines";
+  // Task 140 F-3: the fulfilment default derives from the STORES seed
+  // (STORES[0].slug) — the last hand-copied store literal at this seam
+  // (the derivation discipline the Task-131 F-2 pin polices for the
+  // check/decrement coherence now covers the default itself).
+  const fulfilStore = input.storeSlug || STORES[0].slug;
 
   // Task 130 F-4: the transaction body is a helper so a minted
   // order_number collision can be retried with a fresh mint — the whole

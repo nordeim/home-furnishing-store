@@ -47,6 +47,18 @@ body {
   color: #111;
 }
 
+/* Task 140 F-4: Tailwind v4's preflight dropped the v3 `button { cursor:
+ * pointer }` base rule (the v4 trap log's documented preflight change — the
+ * same revision that changed outline-none's computed shape). Every primary
+ * CTA in this storefront is a <button>, and they all computed
+ * cursor: default (browser-verified at audit time). Restored here for
+ * enabled controls; disabled controls keep the default cursor (correct
+ * disabled semantics). No [role="button"] usage exists in src/ (verified —
+ * the element rule alone covers the codebase). */
+button:not(:disabled) {
+  cursor: pointer;
+}
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }

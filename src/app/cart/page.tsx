@@ -63,7 +63,13 @@ export default function CartPage() {
       // code persist into nordhem_promo and render "X applied — discount"
       // (the Task-135/136 class at its fourth consumer, the only POST one —
       // the checkout/track-order/ReviewSection siblings all gate on data).
-      if (!json.ok || !json.data) throw new Error(json.error?.message ?? "Could not verify code");
+      // Task 140 F-5: the gate reaches the FIELD the success copy
+      // interpolates — a 200 {ok:true, data:{}} passed the truthiness gate
+      // and rendered "X applied — undefined" (json.data.label is
+      // undefined). A non-string label joins the refusal set: the
+      // Task-128 boundary discipline mirrored at the last client-side
+      // coercing seam.
+      if (!json.ok || !json.data || typeof json.data.label !== "string") throw new Error(json.error?.message ?? "Could not verify code");
       setPromo(c);
       setApplyMsg({ ok: true, text: `${c} applied — ${json.data.label}` });
     } catch (e) {
