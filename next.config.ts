@@ -6,6 +6,15 @@ const nextConfig: NextConfig = {
   // capabilities this storefront never uses, and HSTS. Values are
   // platform-level (nothing brand-specific); pinned by the security-headers
   // e2e spec.
+  // Task 141 F-4: the reduced CSP joins the set — the register's CSP split,
+  // promoted half. object-src closes the plugin/object embed vector,
+  // base-uri defeats <base>-injection URL hijacking, frame-ancestors
+  // complements XFO for legacy contexts, and form-action pins form
+  // submissions to self (no cross-origin form targets exist — the search
+  // form is router.push). Deliberately NO default-src/script-src/img-src:
+  // Next.js hydration needs inline flight scripts; the full nonce CSP
+  // stays deferred (the silent-no-hydration trap on prerendered hydrating
+  // shells — see the PAD register).
   poweredByHeader: false,
   async headers() {
     return [
@@ -17,6 +26,7 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+          { key: "Content-Security-Policy", value: "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'" },
         ],
       },
     ];

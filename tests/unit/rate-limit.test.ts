@@ -77,18 +77,55 @@ test("size() reflects the live key count (tests/ops observability)", () => {
  * derivation takes the RIGHTMOST hop (the value the nearest proxy appended)
  * and falls back to a shared "direct" bucket when no proxy header exists.
  */
-test("clientIp: takes the rightmost x-forwarded-for hop, not the forgeable leftmost", () => {
+test("clientIp under TRUST_PROXY=1: takes the rightmost x-forwarded-for hop, not the forgeable leftmost", () => {
+  vi.stubEnv("TRUST_PROXY", "1");
   const h = new Headers({ "x-forwarded-for": "1.2.3.4, 5.6.7.8" });
   expect(clientIp(h)).toBe("5.6.7.8");
+  vi.unstubAllEnvs();
 });
 
-test("clientIp: a single-hop value passes through unchanged (the e2e identity pattern)", () => {
+test("clientIp under TRUST_PROXY=1: a single-hop value passes through unchanged (the e2e identity pattern)", () => {
+  vi.stubEnv("TRUST_PROXY", "1");
   const h = new Headers({ "x-forwarded-for": "10.9.125.2" });
   expect(clientIp(h)).toBe("10.9.125.2");
+  vi.unstubAllEnvs();
 });
 
 test("clientIp: absent or empty header falls back to the shared direct bucket", () => {
   expect(clientIp(new Headers())).toBe("direct");
   expect(clientIp(new Headers({ "x-forwarded-for": "" }))).toBe("direct");
   expect(clientIp(new Headers({ "x-forwarded-for": "  " }))).toBe("direct");
+});
+
+test("clientIp: TRUST_PROXY unset ignores XFF entirely — the direct-deploy bypass closes (Task 141 G)", () => {
+  // THE register promotion: on a direct deploy the client's spoofed XFF is
+  // the rightmost hop, so a rotating header minted a fresh 20/min bucket
+  // per request. With the gate unset, any XFF — however well-formed —
+  // collapses into the shared "direct" bucket: honest visitors (who send
+  // no XFF) see NO change, and spoofers lose the rotation.
+  vi.stubEnv("TRUST_PROXY", "");
+  expect(clientIp(new Headers({ "x-forwarded-for": "10.9.125.2" }))).toBe("direct");
+  expect(clientIp(new Headers({ "x-forwarded-for": "1.2.3.4, 5.6.7.8" }))).toBe("direct");
+  vi.unstubAllEnvs();
+});
+
+test("clientIp: TRUST_PROXY fails closed on every non-\"1\" value (Task 141 G)", () => {
+  // The web-application §5 proxy-hop contract: unparsable/ambiguous hop
+  // declarations fail CLOSED. "0", "true", "yes" and garbage are all
+  // refused — the operator must say exactly "1" to open XFF trust.
+  for (const v of ["0", "true", "yes", "on", "garbage"]) {
+    vi.stubEnv("TRUST_PROXY", v);
+    expect(clientIp(new Headers({ "x-forwarded-for": "10.9.125.2" })), `TRUST_PROXY=${v}`).toBe("direct");
+  }
+  vi.unstubAllEnvs();
+});
+
+test("clientIp: TRUST_PROXY=\"1\" is the one value that trusts the proxy-appended hop (Task 141 G)", () => {
+  // The promoted-behavior pin: behind exactly one appending proxy, the
+  // rightmost hop is the proxy-appended client IP and the limiter keys on
+  // it. (Mutation-honest: a gate that returns "direct" unconditionally
+  // fails this test — the promotion must not overcorrect.)
+  vi.stubEnv("TRUST_PROXY", "1");
+  expect(clientIp(new Headers({ "x-forwarded-for": "203.0.113.9, 10.0.0.4" }))).toBe("10.0.0.4");
+  vi.unstubAllEnvs();
 });

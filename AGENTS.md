@@ -23,13 +23,13 @@ ORM + PostgreSQL.
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
 | `npm run typecheck:tests` | `tsc --noEmit -p tsconfig.tests.json` — the **test tree** (`tests/**`; both scopes are live gates) |
-| `npm run test` | Vitest unit suite (205 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, server-data fulfilment-seam fs-pin + the qty-writer clampInt fs-pin + the SORT_KEYS derivation pin + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin + the PDP unified-outage-signal + recovery pins + the outage-branch characterization pins, docs-counts pins incl. the PAD + the TZ-pure-tree fs-pin + the numeric-args-ctor widening + the Task-138 store-count/productDiscountPercent/fee-copy/starter-kit derivation fs-pins + the Task-139 store-count blast-radius fs-pin + the gotoHydrated docs-claims pin + the Task-140 recovery-count/checkout-default-derivation/cache-wrap fs-pins) |
+| `npm run test` | Vitest unit suite (211 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, server-data fulfilment-seam fs-pin + the qty-writer clampInt fs-pin + the SORT_KEYS derivation pin + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin + the PDP unified-outage-signal + recovery pins + the outage-branch characterization pins, docs-counts pins incl. the PAD + the TZ-pure-tree fs-pin + the numeric-args-ctor widening + the Task-138 store-count/productDiscountPercent/fee-copy/starter-kit derivation fs-pins + the Task-139 store-count blast-radius fs-pin + the gotoHydrated docs-claims pin + the Task-140 recovery-count/checkout-default-derivation/cache-wrap fs-pins + the Task-141 Header store-default/no-store-refetch/TRUST_PROXY-gate/env-doc pins) |
 | `npm run test:watch` | Vitest in watch mode (the same suite, re-run on change) |
-| `npm run test:e2e` | Playwright e2e (137 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` (Task 140 added the reviews GET count probe, the wishlist removal-window settle pin, the Tailwind-v4 button-cursor pin and the cart promo label-gate probe) |
+| `npm run test:e2e` | Playwright e2e (140 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` and `TRUST_PROXY=1` (Task 140 added the reviews GET count probe, the wishlist removal-window settle pin, the Tailwind-v4 button-cursor pin and the cart promo label-gate probe; Task 141 added the checkout success-envelope + track-order nested-envelope probes and the reduced-CSP header pin) |
 | `npm run test:e2e:install` | One-time: install the pinned Playwright Chromium build (the fresh-clone cache miss) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
-The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–140):
+The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–141):
 `tests/unit` (10 files) + `tests/e2e` (mobile-navigation + storefront specs
 incl. the fetch-failure resilience pair, the API rate-limit pins, PDP badge
 dedupe, cart promo persistence, JSON-LD live-inventory + LOW_STOCK commerce
@@ -128,7 +128,7 @@ ISO slice), and the **derived-copy completion** (GST ×7, the $200 shop pair,
 FLAT20 on /offers, the family voucher rule ×3 — all interpolate their
 constants; the GST + family e2e pins derive). Task 127 converted the storefront
 spec's then-21 interaction-first blocks to `gotoHydrated` (the mobile spec's
-Task-125 G-5 discipline) — 48 storefront call sites now (50 across both
+Task-125 G-5 discipline) — 51 storefront call sites now (53 across both
 files), zero bare interaction-first gotos. One Task-124 finding was DISPROVEN (browser
 evidence) and one Task-126 audit finding was DISPROVEN by insert-order
 analysis (the ensureSeed "partial-seed blind spot" — categories/stores/
@@ -159,9 +159,9 @@ AND copy — the family/business halves of the Task-127 F-4 class), the
 **Footer SGT year** (the last bare server-local calendar read in src/), and
 the **producer-side store-key fs-pin** (every createLocalStore key — literal
 or constant — must be a member of PERSISTED_STORAGE_KEYS). The storefront
-spec's interaction-first coverage is now complete: 48 gotoHydrated call
-sites in the storefront spec (50 across both files; the Task-129 conversions
-took it from 34 and the Task-131..140 probes grew it past the Task-129-era
+spec's interaction-first coverage is now complete: 51 gotoHydrated call
+sites in the storefront spec (53 across both files; the Task-129 conversions
+took it from 34 and the Task-131..141 probes grew it past the Task-129-era
 count), zero interaction-first bare gotos
 (mechanically re-verified — the Task-127 conversion had left 13, including
 a /cart site both sweeps under-counted). One reference-agent claim was DISPROVEN by direct read
@@ -487,6 +487,26 @@ the refusal set), and the **cache-wrap fs-pin** (the `getAllProducts`
 const form — the Task-139 registered 3-scans-per-PDP-request candidate,
 closed with React's request-scope `cache()`).
 
+And the Task-141 pins: the **Header store-default fs-pin** (the persisted
+picker's fallback derives through `storeName(STORES[0].slug)` — the
+capitalized display-label form was the sixth hand-copied store literal,
+invisible to the Task-140 pin's case-sensitive slug ban), the **checkout
+success-envelope + track-order nested-envelope e2e probes** (the
+Task-140 F-5 class completed at its last two consumers — the gates now
+reach the fields the success paths interpolate: a non-string
+`orderNumber` refuses BEFORE `clear()`/navigation, and a nested-shape
+violation takes the scoped-error path instead of a render crash), the
+**reduced-CSP e2e pin** (the register's CSP split, promoted half — the
+four no-hydration-risk directives asserted on every response; the full
+nonce CSP stays deferred), the **no-store-refetch fs-pin** (the recovery
+refetch's post-write truth fetch is uncachable), and the **TRUST_PROXY
+gate pins** (the register promotion — `clientIp` ignores XFF entirely
+unless `TRUST_PROXY` is exactly `"1"`; every other value fails closed to
+the shared `"direct"` bucket, closing the verified direct-deploy
+rate-limit bypass; the e2e webServer opts in with `TRUST_PROXY=1` so
+the 16 XFF-identity probes keep their buckets; `.env.example` documents
+the commented gate, pinned by the env-doc test).
+
 **Test counts are documentation claims, pinned by test** (Task 119):
 `tests/unit/docs-counts.test.ts` fs-computes the real counts and fails the run
 if any live-tense claim in AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT disagrees
@@ -525,6 +545,13 @@ change (count-lockstep, no exceptions).
 | Buttons compute `cursor: pointer` when enabled (the Tailwind v4 preflight default restored via the `button:not(:disabled)` base rule; disabled keeps default semantics) | `tests/e2e/storefront.spec.ts` (Task 140 F-4 computed-style pin) |
 | A promo apply on an ok-but-LABELLESS data envelope (`200 {ok:true, data:{}}`) is a FAILURE — no "applied — undefined" copy, no persisted code | `tests/e2e/storefront.spec.ts` (Task 140 F-5 probe) |
 | `getAllProducts` is React `cache()`-wrapped (the PDP's three scans per request dedupe into one) | `tests/unit/server-data.test.ts` (Task 140 F-6 fs-pin) |
+| The Header store-picker default derives through `storeName(STORES[0].slug)` — no hand-copied display label anywhere in Header.tsx | `tests/unit/catalog.test.ts` (Task 141 F-1 fs-pin, the 4th consumer) |
+| An ok-but-orderless checkout envelope is a FAILURE — no `/order/undefined` navigation, the bag is NOT cleared (the gate reaches `orderNumber` before `clear()`) | `tests/e2e/storefront.spec.ts` (Task 141 F-2 probe) |
+| An ok-but-orderless track envelope is a FAILURE — the scoped error renders, no render crash (the gate reaches the nested `order.orderNumber`/`items` shape) | `tests/e2e/storefront.spec.ts` (Task 141 F-3 probe) |
+| Every response carries the reduced CSP — `object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'` (the register's promoted half; the full nonce CSP stays deferred) | `tests/e2e/storefront.spec.ts` (Task 141 F-4 header pin) |
+| The recovery refetch passes `{ cache: "no-store" }` — the post-write truth fetch bypasses every HTTP-cache heuristic | `tests/unit/server-data.test.ts` (Task 141 F-5 fs-pin) |
+| `clientIp` ignores x-forwarded-for unless `TRUST_PROXY` is exactly `"1"`; every other value fails closed to the shared `"direct"` bucket (the direct-deploy bypass closed; the e2e webServer pins `TRUST_PROXY=1` for the 16 XFF-identity probes) | `tests/unit/rate-limit.test.ts` (Task 141 G gate matrix) + `playwright.config.ts` |
+| `.env.example` documents the optional TRUST_PROXY gate — commented (never an active assignment), exactly-"1" contract, fail-closed rationale | `tests/unit/env-example.test.ts` (Task 141 G env-doc pin) |
 
 ## Hard-won gotchas (read before changing anything)
 
@@ -635,8 +662,8 @@ rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_
 npm run typecheck          # app scope (src/**, next.config.ts)
 npm run typecheck:tests    # the test tree (tsconfig.tests.json) — both scopes are live gates
 npm run lint               # 0 errors expected
-npm run test               # 205/205 unit
-npm run test:e2e           # 137/137 e2e (needs a live Postgres for the checkout journey)
+npm run test               # 211/211 unit
+npm run test:e2e           # 140/140 e2e (needs a live Postgres for the checkout journey)
 ```
 
 There is no hosted CI; the local gate is the only gate.

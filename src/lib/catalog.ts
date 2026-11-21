@@ -1,6 +1,6 @@
 /** Static catalogue fallback + seed source. Original names, copy and imagery via Pexels. */
 
-export interface SeedCategory {
+interface SeedCategory {
   slug: string;
   name: string;
   tagline: string;
@@ -9,7 +9,7 @@ export interface SeedCategory {
   sortOrder: number;
 }
 
-export interface SeedProduct {
+interface SeedProduct {
   slug: string;
   sku: string;
   name: string;
@@ -92,7 +92,7 @@ export const PRODUCTS: SeedProduct[] = [
   { slug: "bukit-bookshelf-tall", sku: "NH-100106", name: "BUKIT tall bookshelf", tagline: "80 cm wide, wall-strapped", description: "Tall 200 cm bookshelf with adjustable shelves and included wall strap — holds 60 kg of books per shelf.", details: "W80 × D30 × H200 cm. 5 adjustable shelves. Wall strap included.", categorySlug: "living", priceCents: 19900, compareAtCents: 24900, ratingAvg: "4.5", ratingCount: 302, colors: ["Oak", "White", "Black-brown"], materials: "Particleboard", dimensions: "W80 × D30 × H200 cm", imageUrls: [IMG.living2, IMG.living6], badges: ["-20%"], isNew: false, isBestseller: false, stockTotal: 141 },
 ];
 
-export interface SeedStore {
+interface SeedStore {
   slug: string;
   name: string;
   address: string;
@@ -107,7 +107,7 @@ export const STORES: SeedStore[] = [
   { slug: "alexandra", name: "NORDHEM Alexandra", address: "317 Alexandra Road, Singapore 159965", hours: "Mon–Sun 10:00–21:00 · Click & Collect till 21:30", phone: "+65 6788 0602", imageUrl: IMG.kitchen1 },
 ];
 
-export interface SeedInspiration {
+interface SeedInspiration {
   slug: string;
   title: string;
   room: string;
@@ -127,7 +127,7 @@ export const INSPIRATIONS: SeedInspiration[] = [
   { slug: "renter-refresh-800", title: "A renter refresh under $800", room: "Living · 18 sqm", sqm: 18, budgetCents: 80000, description: "No drilling, no painting, no regrets: a flatweave rug, blackout curtains and a pendant cluster transform any rental.", imageUrl: IMG.living1, productSlugs: ["pandan-rug-200", "blackout-curtain-pair", "hygge-pendant-cluster"] },
 ];
 
-export interface PromoLike {
+interface PromoLike {
   code: string;
   label: string;
   kind: "percent" | "fixed";

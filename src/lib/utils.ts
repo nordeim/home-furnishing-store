@@ -108,7 +108,7 @@ export function clampInt(n: unknown, min: number, max: number, fallback: number)
   return Math.min(max, Math.max(min, v));
 }
 
-export interface TotalsInput {
+interface TotalsInput {
   subtotalCents: number;
   promo?: { kind: string; value: number } | null;
   deliveryMethod: "delivery" | "click-collect" | "express";
@@ -347,7 +347,7 @@ export function sgTomorrowISO(now: Date = new Date()): string {
 // Task 121 F-17: the shop page now server-renders its initial grid — the
 // display sort previously lived ONLY inside the /api/products route, so the
 // SSR path would have duplicated it. One seam, two callers.
-export type ProductSortKey =
+type ProductSortKey =
   | "featured"
   | "popular"
   | "price-asc"

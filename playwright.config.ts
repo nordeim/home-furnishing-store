@@ -56,6 +56,12 @@ export default defineConfig({
       PORT: "3100",
       DATABASE_URL:
         process.env.E2E_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/app_db",
+      // Task 141 G: the rate-limit probes below key their identities on
+      // x-forwarded-for (16 sites) — under the TRUST_PROXY gate they would
+      // collapse into ONE shared "direct" bucket and 429 mid-suite. The
+      // e2e server runs "behind" Playwright's own loopback proxy posture,
+      // so it opts INTO the promoted trust explicitly.
+      TRUST_PROXY: "1",
     },
   },
 });

@@ -66,7 +66,9 @@ export function ReviewSection({ productId, initial, total, unavailable }: { prod
       // SSR-count + increment design.
       if (wasUnavailable) {
         try {
-          const refetch = await fetch(`/api/reviews?productId=${productId}`);
+          // Task 141 F-5: no-store — this fetch exists to read the
+          // post-write truth; a cacheable answer defeats its own purpose.
+          const refetch = await fetch(`/api/reviews?productId=${productId}`, { cache: "no-store" });
           const rjson = (await refetch.json()) as {
             ok: boolean;
             data?: Array<{ id: number; author: string; rating: number; title: string | null; body: string; verified: boolean; createdAt: string }>;

@@ -164,13 +164,13 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 205 tests at the pure seams
+npm run test             # Vitest unit — 211 tests at the pure seams
 npm run test:watch       # the same suite, re-run on change
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 137 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 140 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
@@ -245,7 +245,7 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 205 unit + 137 e2e, all green | NORDHEM-native harness (Tasks 114/117–140); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131; the unit tree is TZ-pure since Task 132 — verified by the three-TZ run; the gotoHydrated count claims joined the pinned scope in Task 139; Task 140 added the recovery-count/checkout-derivation/cache-wrap unit pins and the reviews-count/wishlist-settle/cursor/promo-label e2e probes) |
+| Test suite | ✅ 211 unit + 140 e2e, all green | NORDHEM-native harness (Tasks 114/117–141); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131; the unit tree is TZ-pure since Task 132 — verified by the three-TZ run; the gotoHydrated count claims joined the pinned scope in Task 139; Task 140 added the recovery-count/checkout-derivation/cache-wrap unit pins and the reviews-count/wishlist-settle/cursor/promo-label e2e probes; Task 141 added the Header-default/no-store/TRUST_PROXY-gate unit pins, the checkout/track-order envelope probes, the reduced-CSP header pin and the rate-limit proxy gate) |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |

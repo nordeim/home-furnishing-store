@@ -22,8 +22,20 @@
  * the client alone), and fall back to one shared "direct" bucket when no
  * proxy header exists. When a real trusted proxy fronts this app, prepend
  * its private hop-stripping before this seam (homenest session-6 pattern).
+ *
+ * Task 141 G (the register promotion): the rightmost-hop rule is only
+ * honest when a trusted proxy actually appended it. On a DIRECT deploy
+ * (this repo's documented single-node posture) the client's own spoofed
+ * XFF IS the rightmost hop — rotating the header minted a fresh 20/min
+ * bucket per request (the register's verified bypass). TRUST_PROXY must
+ * now be exactly "1" for any XFF trust; every other value (unset, "0",
+ * "true", garbage) fails CLOSED to the shared "direct" bucket. Honest
+ * direct-deploy visitors send no XFF and see no change; spoofers lose
+ * the rotation. The env is read at CALL time (test-controllable, and a
+ * runtime export can flip it without a re-import).
  */
 export function clientIp(headers: Headers): string {
+  if (process.env.TRUST_PROXY !== "1") return "direct";
   const xff = headers.get("x-forwarded-for");
   if (!xff) return "direct";
   const hops = xff.split(",").map((h) => h.trim()).filter((h) => h.length > 0);
@@ -31,7 +43,7 @@ export function clientIp(headers: Headers): string {
   return hops[hops.length - 1];
 }
 
-export interface RateLimiter {
+interface RateLimiter {
   /** Record a request; true = over the limit → respond 429. */
   throttled(ip: string): boolean;
   /** Seconds until the key's window resets; 0 when the key is allowed. */
@@ -40,7 +52,7 @@ export interface RateLimiter {
   size(): number;
 }
 
-export interface RateLimiterOptions {
+interface RateLimiterOptions {
   /** Requests allowed per window. */
   limit: number;
   /** Window length in ms. */

@@ -202,7 +202,7 @@ export async function validatePromo(code: string, subtotalCents: number) {
   }
 }
 
-export interface CheckoutInput {
+interface CheckoutInput {
   email: string;
   fullName: string;
   phone: string;
@@ -233,7 +233,7 @@ export class OrderRefusalError extends Error {
 /** What placeOrder returns: the order row plus whether this call REPLAYED an
  * existing order (Task 126 F-1) — the route answers 200 on a replay (nothing
  * was created) vs 201 on a fresh insert. */
-export interface PlaceOrderResult {
+interface PlaceOrderResult {
   order: Order;
   replayed: boolean;
 }

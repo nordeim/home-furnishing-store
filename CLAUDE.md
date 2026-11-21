@@ -130,7 +130,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`src/**`, `next.config.ts`) |
 | `npm run typecheck:tests` | Test-tree TypeScript check (`tests/**` via `tsconfig.tests.json` — both scopes are live gates) |
-| `npm run test` | Vitest unit suite (205 tests, pure seams) |
+| `npm run test` | Vitest unit suite (211 tests, pure seams) |
 | `npm run test:watch` | Vitest in watch mode (the same suite, re-run on change) |
 | `npm run test:e2e` | Playwright e2e (137 tests, production build on :3100) |
 | `npm run test:e2e:install` | One-time: install the pinned Playwright Chromium build (the fresh-clone cache miss) |
@@ -140,7 +140,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 
 **Current state (Tasks 114–139, extended this cycle):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 205 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 211 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
@@ -155,7 +155,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
   operator docs (AGENTS/README/CLAUDE/SKILL/PAD/DEPLOYMENT — DEPLOYMENT.md
   joined in Task 131), not remembered). Node environment with a localStorage shim
   (`tests/unit/setup.ts`); no jsdom, no component rendering.
-- **E2E (Playwright, 137 tests)** against the **production build** (the webServer
+- **E2E (Playwright, 140 tests)** against the **production build** (the webServer
   builds and boots `:3100` with a pinned `DATABASE_URL`): a mobile-navigation
   project (390×844 — drawer open/Escape/toggle/navigate/auto-close, hamburger
   hidden ≥1024) and a desktop project (home, shop filters, PDP SEO + JSON-LD
@@ -352,8 +352,8 @@ fix and passes after.
   that derive from the same constants the pages interpolate (a rate edit
   self-corrects copy and pins together — the Task-127 claim now true).
   The storefront spec's interaction-first coverage is complete: zero bare
-  interaction-first gotos remain (48 gotoHydrated call sites in the storefront
-  spec after the Task-129 conversions and the Task-131..140 probes — 50 across
+  interaction-first gotos remain (51 gotoHydrated call sites in the storefront
+  spec after the Task-129 conversions and the Task-131..141 probes — 53 across
   both files, the mobile spec contributing its two sites), and every
   write-capable refusal spec carries its RED-run `finally` net.
 - **Task-129 seams:** every write-capable refusal spec is netted — including

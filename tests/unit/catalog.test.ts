@@ -347,4 +347,20 @@ describe("checkout default derivation (Task 140 F-3)", () => {
     expect(sources[1]).toContain("STORES[0].slug");
     expect(sources[2]).toContain("STORES[0].slug");
   });
+
+  it("the Header store-picker default derives from the seed too — the display-label form is the sixth site (Task 141 F-1)", () => {
+    // The Task-140 pin above bans the lowercase SLUG literal across its
+    // three consumers — but the Header's persisted store picker defaulted
+    // via the capitalized DISPLAY LABEL ("Tampines"), invisible to both the
+    // file list and the regex. A store rename/reorder strands the picker's
+    // default on no <option> while every other surface self-corrects. The
+    // derivation goes through storeName (the display seam) so the fallback
+    // is the first seed store's CURRENT label, byte-identical today.
+    const header = readFileSync(resolve(import.meta.dirname, "../../src/components/Header.tsx"), "utf8");
+    expect(
+      header.includes('"Tampines"'),
+      "src/components/Header.tsx must not hand-copy the store display label (storeName(STORES[0].slug) is the derivation — the picker default must follow a store rename)",
+    ).toBe(false);
+    expect(header).toContain("storeName(STORES[0].slug)");
+  });
 });

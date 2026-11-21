@@ -28,7 +28,14 @@ export default function TrackOrderPage() {
         body: JSON.stringify({ orderNumber: num, email }),
       });
       const json = (await res.json()) as { ok: boolean; data?: Found; error?: { message: string } };
-      if (!json.ok || !json.data) throw new Error(json.error?.message ?? "Order not found");
+      // Task 141 F-3: the gate reaches the NESTED shape the success render
+      // interpolates (found.order.orderNumber/.fullName/.deliverySlot,
+      // items.map) — the old `!json.data` truthiness check let a
+      // contract-violating `{ok:true, data:{}}` through and the render threw
+      // a TypeError into the error boundary instead of the page's own
+      // scoped-error path. The F-2 sibling at one level deeper.
+      if (!json.ok || !json.data || typeof json.data.order?.orderNumber !== "string" || !Array.isArray(json.data.items))
+        throw new Error(json.error?.message ?? "Order not found");
       setFound(json.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Order not found.");

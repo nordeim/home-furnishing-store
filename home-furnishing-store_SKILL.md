@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 2.14.0
-last_updated: "2026-11-21 (Task 140: recovery-count honesty + wishlist removal settle + checkout default derivation + Tailwind v4 button cursor + promo label gate + PDP scan dedup)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 205/205 unit (TZ-pure — verified UTC/Singapore/New York; the fs-pin covers all three quote forms + fractional seconds since Task 134) · 137/137 e2e · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body + the gotoHydrated claims pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
+version: 2.15.0
+last_updated: "2026-11-21 (Task 141: Header store-default derivation + checkout/track-order envelope field gates + reduced CSP + no-store recovery refetch + dead-export retirement + the TRUST_PROXY rate-limit gate)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 211/211 unit (TZ-pure — verified UTC/Singapore/New York; the fs-pin covers all three quote forms + fractional seconds since Task 134) · 140/140 e2e (webServer pins TRUST_PROXY=1) · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body + the gotoHydrated claims pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -117,8 +117,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 205/205
-npm run test:e2e                                               # 137/137 (live Postgres for the journey)
+npm run test                                                   # 211/211
+npm run test:e2e                                               # 140/140 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -1101,6 +1101,35 @@ Task 131).
     upgrade, diff the base layer's rules and pin every user-facing
     computed affordance the diff touches.
 
+71. **A truthiness gate one field short of the success copy is a
+    landing-page bug, not a type nit — gate the FIELD the copy
+    interpolates, at every consumer, BEFORE any side effect (Task 141
+    F-2/F-3).** The checkout submit passed `!json.data` and then
+    cleared the bag and navigated to `/order/${json.data.orderNumber}`
+    — a contract-violating `{ok:true, data:{}}` emptied the cart and
+    landed on `/order/undefined` AFTER a successful order; the
+    track-order sibling crashed the render on the nested shape. Rule:
+    enumerate every envelope consumer whose success path INTERPOLATES
+    a field or runs a SIDE EFFECT, and make the gate reach that field
+    (string check) or nested shape — the refusal must fire before
+    `clear()`/navigation/render. The class closes only when the last
+    consumer is gated; probe each one with a route-fulfilled
+    labelless/dataless envelope.
+
+72. **An XFF-trusting rate limiter is an open bucket market on a
+    direct deploy — trust must be declared, exactly, and fail closed
+    (Task 141 G).** The rightmost-hop rule was written to beat
+    leftmost-hop spoofing, but on a direct deploy the client's own
+    header IS the rightmost hop: rotating `x-forwarded-for` minted a
+    fresh 20/min bucket per request (verified class). The env-gated
+    fix: no XFF is read unless `TRUST_PROXY` is exactly `"1"`;
+    every other value fails closed to the shared `"direct"` bucket
+    (honest no-XFF visitors see no change). Rule: identity derived
+    from a client-controllable header needs an explicit,
+    fail-closed operator declaration — and the test suite's own
+    XFF-keyed identities must opt in explicitly (the webServer env
+    pin), or the promotion collapses the suite into one bucket.
+
 ## 13. Pitfalls to Avoid
 
 - Adding state/auth/payment SDKs without a decision record (ADR-006 deferrals
@@ -1222,8 +1251,8 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | Commands & gotchas | `AGENTS.md` |
 | Architecture detail | `Project_Architecture_Document.md` |
 | Decision record | `docs/implementation-plan.md` |
-| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-21-task140-remediation-plan.md` (25 plans: Tasks 114, 117–140) |
-| Screenshots | `docs/screenshots/01…119-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 120 PNGs) |
+| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-21-task141-remediation-plan.md` (26 plans: Tasks 114, 117–141) |
+| Screenshots | `docs/screenshots/01…124-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 125 PNGs) |
 | SSH push runbook | `docs/how-to-git-push-using-ssh-wrapper_SKILL.md` |
 | Working history | `worklog.md` (Tasks 113+ NORDHEM; the 1–112 predecessor lineage was operator-trimmed) |
 | Money/validators | `src/lib/utils.ts` |
@@ -1232,5 +1261,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (205) — 10 files |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (137) — 129 storefront + 8 mobile |
+| Unit suite | `tests/unit/*.test.ts` (211) — 10 files |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (140) — 132 storefront + 8 mobile |

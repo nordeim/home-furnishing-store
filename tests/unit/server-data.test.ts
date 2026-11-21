@@ -182,12 +182,27 @@ it("ReviewSection RE-DERIVES the count on recovery — the refetch adopts the se
     "the submit path must capture whether this POST is a RECOVERY (the section was unavailable when it landed) — the refetch is the recovery branch's obligation",
   ).toBe(true);
   expect(
-    /fetch\(`\/api\/reviews\?productId=\$\{productId\}`\)/.test(rs),
-    "the recovery path must refetch the reviews envelope (fetch(`/api/reviews?productId=${productId}`)) — the count claim cannot resume from client-side arithmetic alone",
+    /fetch\(`\/api\/reviews\?productId=\$\{productId\}`/.test(rs),
+    "the recovery path must refetch the reviews envelope (fetch(`/api/reviews?productId=${productId}`, …)) — the count claim cannot resume from client-side arithmetic alone",
   ).toBe(true);
   expect(
     rs.includes("json.count"),
     "the refetch must adopt the server's count field (the TRUE row count beside the capped list) — list-length arithmetic saturates at the 20-row cap",
+  ).toBe(true);
+});
+
+it("the recovery refetch is cache: no-store — the post-write truth fetch must never ride an HTTP-cache heuristic (Task 141 F-5)", () => {
+  // The refetch's entire purpose is POST-write truth: it fires once, on
+  // the recovery path, immediately after the write landed. The route is
+  // force-dynamic and the page made no prior GET on that URL, so a stale
+  // answer is only a theoretical browser-heuristic risk — but a truth
+  // fetch that can be answered from any cache is one word short of its
+  // own contract. The option makes the intent explicit and the heuristic
+  // impossible.
+  const rs = readFileSync(resolve(ROOT, "src/components/ReviewSection.tsx"), "utf8");
+  expect(
+    /fetch\(`\/api\/reviews\?productId=\$\{productId\}`, \{ cache: "no-store" \}\)/.test(rs),
+    'the recovery refetch must pass { cache: "no-store" } — the post-write truth fetch must bypass every HTTP-cache heuristic',
   ).toBe(true);
 });
 

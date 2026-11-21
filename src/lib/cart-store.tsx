@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { createLocalStore } from "@/lib/local-store";
 import { clampInt } from "@/lib/utils";
 
-export interface CartLine {
+interface CartLine {
   productId: number;
   slug: string;
   name: string;

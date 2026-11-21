@@ -23,7 +23,7 @@
 
 type Listener<T> = (value: T) => void;
 
-export interface LocalStore<T> {
+interface LocalStore<T> {
   key(): string;
   getSnapshot(): T;
   getServerSnapshot(): T;

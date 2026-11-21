@@ -1149,6 +1149,72 @@ test.describe("cart promo persistence", () => {
   });
 });
 
+test.describe("checkout success-envelope field gate (Task 141 F-2)", () => {
+  test("an ok-but-orderless checkout envelope is a FAILURE — no /order/undefined navigation, bag preserved", async ({ page }) => {
+    // The Task-140 F-5 class at its last consumer: the checkout submit's
+    // success path gated on `json.data` truthiness while the very next
+    // statement interpolates `json.data.orderNumber`. A contract-violating
+    // `200 {ok:true, data:{}}` PASSED the gate, CLEARED the cart, and
+    // navigated to /order/undefined — the shopper lands on "We can't find
+    // that order" after a successful order with an emptied bag. The gate
+    // must reach the field the success path consumes (the Task-128 boundary
+    // discipline at the final client-side coercing seam).
+    await page.route(
+      "**/api/checkout*",
+      (route) => route.fulfill({ status: 200, body: JSON.stringify({ ok: true, data: {} }) }),
+    );
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await gotoHydrated(page, "/checkout");
+    await expect(page.getByRole("heading", { name: "Checkout" })).toBeVisible();
+
+    await page.getByLabel("Email").fill("probe@nordhem.sg");
+    await page.getByLabel("Full name").fill("Envelope Probe");
+    await page.getByLabel("Phone").fill("+65 91234567");
+    await page.getByLabel("Postal code").fill("089001");
+    await page.getByPlaceholder("Blk, street, unit number").fill("Blk 1 Testing Rd #01-01");
+    await page.getByRole("button", { name: /^Pay / }).click();
+
+    // The refusal shape: the scoped alert (above the form — the Task-121
+    // F-12 surface), the URL stays on /checkout, and the bag is NOT
+    // cleared (the header badge keeps its count — clear() must not run
+    // before the envelope is trusted).
+    await expect(page.locator("#main").getByRole("alert")).toBeVisible();
+    await expect(page).toHaveURL(/\/checkout/);
+    await expect(page.getByRole("link", { name: /Shopping bag, 1 item/ })).toBeVisible();
+    await page.unroute("**/api/checkout*");
+  });
+});
+
+test.describe("track-order nested-envelope gate (Task 141 F-3)", () => {
+  test("an ok-but-orderless track envelope is a FAILURE — scoped error, no render crash", async ({ page }) => {
+    // The F-2 sibling at the tracking consumer, one level deeper: the gate
+    // stopped at `json.data` truthiness while the success render
+    // interpolates NESTED fields (found.order.orderNumber, .fullName,
+    // .deliverySlot, items.map). A contract-violating
+    // `200 {ok:true, data:{}}` passed the gate and crashed the render
+    // (found.order is undefined → TypeError → the error boundary) instead
+    // of taking the page's own scoped-error path. The gate must reach the
+    // nested shape the render consumes.
+    await page.route(
+      "**/api/orders/track*",
+      (route) => route.fulfill({ status: 200, body: JSON.stringify({ ok: true, data: {} }) }),
+    );
+    await gotoHydrated(page, "/track-order");
+    await page.getByLabel("Order number").fill("NH-20261121-PROBE1");
+    await page.getByLabel("Email used at checkout").fill("probe@nordhem.sg");
+    await page.getByRole("button", { name: "Track order" }).click();
+
+    // The refusal shape: the scoped alert renders (the page's own error
+    // surface), and the page does NOT crash — the form is still there and
+    // no order card rendered.
+    await expect(page.locator("main").getByRole("alert")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Track order" })).toBeVisible();
+    await expect(page.getByText(/Order NH-/)).toHaveCount(0);
+    await page.unroute("**/api/orders/track*");
+  });
+});
+
 test.describe("PDP JSON-LD availability source (Task 119)", () => {
   test("availability follows live store inventory, not the stale stockTotal seed", async ({ page }) => {
     // Task 119 F-3: JSON-LD availability derived from products.stockTotal — a
@@ -3096,6 +3162,27 @@ test.describe("security headers + fingerprint suppression (Task 125 G-1)", () =>
       expect(res.headers()["permissions-policy"], path).toContain("payment=()");
       expect(res.headers()["strict-transport-security"], path).toContain("max-age=63072000");
       expect(res.headers()["x-powered-by"], path).toBeUndefined();
+    }
+  });
+
+  test("every response carries the reduced CSP — the four no-hydration-risk directives (Task 141 F-4)", async ({ request }) => {
+    // The register's CSP split, reduced half promoted: object-src closes
+    // the plugin/object embed vector, base-uri defeats <base>-injection
+    // URL hijacking, frame-ancestors complements XFO for legacy contexts,
+    // and form-action pins form submissions to self (no cross-origin form
+    // targets exist — the search form is router.push). Deliberately NO
+    // default-src/script-src/img-src: Next.js hydration needs inline
+    // flight scripts, and the full nonce CSP stays deferred (the register's
+    // silent-no-hydration trap — prerendered hydrating shells would need
+    // the per-request-nonce + await connection() discipline).
+    for (const path of ["/", "/api/products"]) {
+      const res = await request.get(path);
+      const csp = res.headers()["content-security-policy"];
+      expect(csp, path).toBeDefined();
+      expect(csp, path).toContain("object-src 'none'");
+      expect(csp, path).toContain("base-uri 'self'");
+      expect(csp, path).toContain("frame-ancestors 'none'");
+      expect(csp, path).toContain("form-action 'self'");
     }
   });
 });

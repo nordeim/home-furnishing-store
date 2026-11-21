@@ -18,8 +18,11 @@ const TOP_LINKS = [
 // Persisted store picker (nordhem_store) as an external store — the same
 // useSyncExternalStore pattern as the cart (see cart-store.tsx for why).
 // Task 121 F-4: the parsed shape is validated (a wrong-shape payload in the
-// key degrades to the "Tampines" fallback instead of poisoning the header).
-const storePick = createLocalStore<string>("nordhem_store", "Tampines", (v) => typeof v === "string");
+// key degrades to the derived default instead of poisoning the header).
+// Task 141 F-1: the default derives from the seed via the display seam —
+// the hand-copied label was the last store literal outside the checkout
+// consumers, and a store rename stranded the picker on no <option>.
+const storePick = createLocalStore<string>("nordhem_store", storeName(STORES[0].slug), (v) => typeof v === "string");
 
 export function Header() {
   const { count, wishlist } = useCart();

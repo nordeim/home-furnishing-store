@@ -28,10 +28,25 @@ function activeVars(content: string): string[] {
 describe(".env.example matches the codebase", () => {
   const env = readRoot(".env.example");
 
-  it("defines DATABASE_URL — the only variable src/ reads", () => {
+  it("defines DATABASE_URL — the one REQUIRED variable (active assignments stay exactly one)", () => {
     const vars = activeVars(env);
     expect(vars).toContain("DATABASE_URL");
     expect(vars).toEqual(["DATABASE_URL"]);
+  });
+
+  it("documents the optional TRUST_PROXY gate — commented, fail-closed, exactly-\"1\" (Task 141 G)", () => {
+    // The register promotion: src/lib/rate-limit.ts now reads TRUST_PROXY.
+    // The honest direct-deploy default is UNSET (fails closed to the shared
+    // "direct" bucket), so the example ships it COMMENTED — an active
+    // assignment here would silently trust XFF for every copy-paste setup.
+    // The block must document the exactly-"1" contract and the spoofed-XFF
+    // bypass it closes (the docs-truth stance: the claim stays load-bearing).
+    expect(env).toMatch(/#TRUST_PROXY="1"/);
+    expect(env).toMatch(/TRUST_PROXY is EXACTLY "1"/);
+    expect(env).toMatch(/fails closed/);
+    expect(env.toLowerCase()).toContain("spoofer");
+    // …and the variable never becomes an active assignment.
+    expect(activeVars(env)).not.toContain("TRUST_PROXY");
   });
 
   it("carries no sibling-lineage variables this codebase never reads", () => {

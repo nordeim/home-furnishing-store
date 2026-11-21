@@ -75,7 +75,14 @@ export default function CheckoutPage() {
         }),
       });
       const json = (await res.json()) as { ok: boolean; data?: { orderNumber: string }; error?: { message: string } };
-      if (!json.ok || !json.data) throw new Error(json.error?.message ?? "Checkout failed");
+      // Task 141 F-2: the gate reaches the field the success path consumes —
+      // the old `!json.data` truthiness check let a contract-violating
+      // `{ok:true, data:{}}` CLEAR the bag and navigate to /order/undefined
+      // (the shopper landed on "We can't find that order" after a successful
+      // order with an emptied bag). A non-string orderNumber joins the
+      // refusal set — the Task-128 boundary discipline at the last
+      // client-side coercing seam.
+      if (!json.ok || !json.data || typeof json.data.orderNumber !== "string") throw new Error(json.error?.message ?? "Checkout failed");
       clear();
       router.push(`/order/${json.data.orderNumber}`);
     } catch (err) {
