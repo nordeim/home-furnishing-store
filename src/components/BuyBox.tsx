@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useCart } from "@/lib/cart-store";
 import { storeName } from "@/lib/catalog";
 
-export interface StockRow { storeSlug: string; quantity: number; aisleBin: string; }
+interface StockRow { storeSlug: string; quantity: number; aisleBin: string; }
 
 export function BuyBox({ product, stock }: {
   product: { productId: number; slug: string; name: string; sku: string; imageUrl: string; unitPriceCents: number };

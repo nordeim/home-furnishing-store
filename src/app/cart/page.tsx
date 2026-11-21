@@ -51,12 +51,20 @@ export default function CartPage() {
     setChecking(true);
     setApplyMsg(null);
     try {
-      const res = await fetch("/api/promotions/validate", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ code: c, subtotalCents }),
-      });
-      const json = (await res.json()) as { ok: boolean; data?: { label: string }; error?: { message: string } };
+      // Task 142 H-6: the transport failure renders FIXED copy (never the
+      // browser's TypeError text); the envelope refusal below keeps the
+      // server's honest copy.
+      let json: { ok: boolean; data?: { label: string }; error?: { message: string } };
+      try {
+        const res = await fetch("/api/promotions/validate", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ code: c, subtotalCents }),
+        });
+        json = (await res.json()) as { ok: boolean; data?: { label: string }; error?: { message: string } };
+      } catch {
+        throw new Error("We couldn't reach the promo service — please try again.");
+      }
       // Task 137 F-2: the envelope contract is { ok, data } — an ok:true body
       // WITHOUT data (a contract-violating but well-formed-status response)
       // is a FAILURE, never a false "applied" claim: the old gate let the

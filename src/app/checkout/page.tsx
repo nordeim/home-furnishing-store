@@ -63,18 +63,29 @@ export default function CheckoutPage() {
     setError(null);
     setBusy(true);
     try {
-      const res = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          email: form.email, fullName: form.fullName, phone: form.phone,
-          address: form.address, postal: form.postal, deliveryMethod: method,
-          deliverySlot: form.slot, storeSlug: form.store, paymentMethod: form.pay,
-          promoCode, lines: lines.map((l) => ({ productId: l.productId, qty: l.qty })),
-          idempotencyKey: idemKey,
-        }),
-      });
-      const json = (await res.json()) as { ok: boolean; data?: { orderNumber: string }; error?: { message: string } };
+      // Task 142 H-6: the transport failure (offline, a proxy 502 HTML
+      // page) must render FIXED copy — the browser's TypeError text
+      // ("Failed to fetch", browser-dependent) used to leak into the
+      // customer-facing alert. The envelope refusal below keeps the
+      // server's honest copy (the Task-141 F-2 probe pins exactly that
+      // path); only the fetch/json-parse seam gets the fixed message.
+      let json: { ok: boolean; data?: { orderNumber: string }; error?: { message: string } };
+      try {
+        const res = await fetch("/api/checkout", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            email: form.email, fullName: form.fullName, phone: form.phone,
+            address: form.address, postal: form.postal, deliveryMethod: method,
+            deliverySlot: form.slot, storeSlug: form.store, paymentMethod: form.pay,
+            promoCode, lines: lines.map((l) => ({ productId: l.productId, qty: l.qty })),
+            idempotencyKey: idemKey,
+          }),
+        });
+        json = (await res.json()) as { ok: boolean; data?: { orderNumber: string }; error?: { message: string } };
+      } catch {
+        throw new Error("We couldn't reach the checkout service — please try again.");
+      }
       // Task 141 F-2: the gate reaches the field the success path consumes —
       // the old `!json.data` truthiness check let a contract-violating
       // `{ok:true, data:{}}` CLEAR the bag and navigate to /order/undefined

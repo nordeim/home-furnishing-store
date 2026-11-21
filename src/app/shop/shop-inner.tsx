@@ -15,7 +15,7 @@ const SORTS = [
   { v: "new", l: "Newest" },
 ];
 
-export interface ShopInitial {
+interface ShopInitial {
   items: CardProduct[];
   cat: string;
   sort: string;

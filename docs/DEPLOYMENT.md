@@ -333,8 +333,8 @@ rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_
 npm run typecheck
 npm run typecheck:tests
 npm run lint                # 0 errors / 0 warnings expected
-npm run test                # 211/211 unit (Vitest, pure seams; TZ-pure — the three-TZ run: UTC/Singapore/New_York)
-npm run test:e2e            # 140/140 e2e — needs the live Postgres (the webServer pins TRUST_PROXY=1 for the XFF-identity probes)
+npm run test                # 213/213 unit (Vitest, pure seams; TZ-pure — the three-TZ run: UTC/Singapore/New_York)
+npm run test:e2e            # 146/146 e2e — needs the live Postgres (the webServer pins TRUST_PROXY=1 for the XFF-identity probes and ALWAYS boots its own server — reuseExistingServer: false since Task 142 H-4; kill stale :3100 servers first: pkill -f next-server)
 ```
 
 One-time before e2e: `npm run test:e2e:install` (installs the pinned

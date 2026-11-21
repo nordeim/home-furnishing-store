@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { clientIp, createRateLimiter } from "@/lib/rate-limit";
 
 /**
@@ -128,4 +130,20 @@ test("clientIp: TRUST_PROXY=\"1\" is the one value that trusts the proxy-appende
   vi.stubEnv("TRUST_PROXY", "1");
   expect(clientIp(new Headers({ "x-forwarded-for": "203.0.113.9, 10.0.0.4" }))).toBe("10.0.0.4");
   vi.unstubAllEnvs();
+});
+
+// Task 142 H-4: the e2e BOOT contract is pinned — the webServer env pins
+// (TRUST_PROXY=1, DATABASE_URL) apply only to a server Playwright itself
+// boots. `reuseExistingServer: !CI` silently reused a stale :3100 server
+// WITHOUT the pinned env: every XFF identity collapsed into the shared
+// "direct" bucket and the per-route 20/min windows 429'd mid-suite — the
+// XFF probes failed loudly but UNRELATED journey specs flaked in ways that
+// looked like app bugs. The suite now always boots its own pinned server;
+// a stale :3100 fails immediately with EADDRINUSE (honest and attributable).
+// This fs-pin also closes the previously-unpinned Task-141 webServer env
+// declaration — the config cannot silently regress either half.
+test("the e2e boot contract: webServer pins TRUST_PROXY=\"1\" and reuseExistingServer is false (Task 142 H-4)", () => {
+  const cfg = readFileSync(resolve(join(import.meta.dirname, "../../playwright.config.ts")), "utf8");
+  expect(cfg, "the webServer env must pin TRUST_PROXY exactly \"1\" (the Task-141 G promotion)").toContain('TRUST_PROXY: "1"');
+  expect(cfg, "the suite must boot its own pinned server — a reused stale server voids the env pins").toContain("reuseExistingServer: false");
 });

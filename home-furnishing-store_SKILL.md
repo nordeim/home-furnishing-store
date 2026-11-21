@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 2.15.0
-last_updated: "2026-11-21 (Task 141: Header store-default derivation + checkout/track-order envelope field gates + reduced CSP + no-store recovery refetch + dead-export retirement + the TRUST_PROXY rate-limit gate)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 211/211 unit (TZ-pure — verified UTC/Singapore/New York; the fs-pin covers all three quote forms + fractional seconds since Task 134) · 140/140 e2e (webServer pins TRUST_PROXY=1) · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body + the gotoHydrated claims pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
+version: 2.16.0
+last_updated: "2026-11-21 (Task 142: track-order full-field gate + reviews POST field gate + XFF docs-truth pin + e2e boot-contract pin + fetch-failure fixed copy + dead-export retirement)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 213/213 unit (TZ-pure — verified UTC/Singapore/New York; the fs-pin covers all three quote forms + fractional seconds since Task 134) · 146/146 e2e (webServer pins TRUST_PROXY=1 and always boots its own pinned server — reuseExistingServer: false since Task 142) · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body + the gotoHydrated claims + the XFF-probe claims pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -117,8 +117,8 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 211/211
-npm run test:e2e                                               # 140/140 (live Postgres for the journey)
+npm run test                                                   # 213/213
+npm run test:e2e                                               # 146/146 (live Postgres for the journey)
 ```
 
 Rootless PostgreSQL (no sudo): the `skills/rootless-postgresql` procedure —
@@ -1129,6 +1129,29 @@ Task 131).
     fail-closed operator declaration — and the test suite's own
     XFF-keyed identities must opt in explicitly (the webServer env
     pin), or the promotion collapses the suite into one bucket.
+73. **A count claim written without a computer is already wrong —
+    fs-pin every number the docs assert at birth (Task 142 H-3).**
+    Task 141 wrote "the 16 XFF-identity probes" while the spec
+    already carried 39 `x-forwarded-for` sites / 36 distinct
+    identities; the number survived a full cycle because NOTHING
+    computed it — the docs-counts pin held the test counts, the
+    gotoHydrated counts, even the health body, but not this one.
+    Rule: any count a doc asserts about the repo's own artifacts is
+    a documentation claim like the others — add the fs-computation
+    to docs-counts in the SAME commit that writes the claim, or the
+    claim starts its life as drift (this one did).
+74. **An env pin on a REUSED server is a pin on nothing — test-infra
+    trust must cover the boot path, not just the config file
+    (Task 142 H-4).** Playwright's `reuseExistingServer: !CI` silently
+    adopted any stale `:3100` process — WITHOUT the webServer's
+    pinned `TRUST_PROXY=1`/`DATABASE_URL`. Under the Task-141 gate
+    the XFF identities collapsed into one shared bucket and
+    UNRELATED specs 429'd mid-suite: a test-infra misconfiguration
+    masquerading as app bugs. Rule: when a suite's correctness
+    depends on server env, the suite must own the server's LIFECYCLE
+    (`reuseExistingServer: false` — a stale port fails fast with
+    EADDRINUSE, an honest, attributable error) and a pin must hold
+    the config's boot contract, not just its env block.
 
 ## 13. Pitfalls to Avoid
 
@@ -1251,8 +1274,8 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | Commands & gotchas | `AGENTS.md` |
 | Architecture detail | `Project_Architecture_Document.md` |
 | Decision record | `docs/implementation-plan.md` |
-| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-21-task141-remediation-plan.md` (26 plans: Tasks 114, 117–141) |
-| Screenshots | `docs/screenshots/01…124-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 125 PNGs) |
+| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-21-task142-remediation-plan.md` (27 plans: Tasks 114, 117–142) |
+| Screenshots | `docs/screenshots/01…129-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 130 PNGs) |
 | SSH push runbook | `docs/how-to-git-push-using-ssh-wrapper_SKILL.md` |
 | Working history | `worklog.md` (Tasks 113+ NORDHEM; the 1–112 predecessor lineage was operator-trimmed) |
 | Money/validators | `src/lib/utils.ts` |
@@ -1261,5 +1284,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (211) — 10 files |
-| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (140) — 132 storefront + 8 mobile |
+| Unit suite | `tests/unit/*.test.ts` (213) — 10 files |
+| E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (146) — 138 storefront + 8 mobile |

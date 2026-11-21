@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export interface ReviewVM { id: number; author: string; rating: number; title: string; body: string; verified: boolean; createdAt: string; }
+interface ReviewVM { id: number; author: string; rating: number; title: string; body: string; verified: boolean; createdAt: string; }
 
 export function ReviewSection({ productId, initial, total, unavailable }: { productId: number; initial: ReviewVM[]; total?: number; unavailable?: boolean }) {
   const [list, setList] = useState<ReviewVM[]>(initial);
@@ -42,16 +42,35 @@ export function ReviewSection({ productId, initial, total, unavailable }: { prod
     // number. wasUnavailable is read BEFORE the flip below.
     const wasUnavailable = sectionUnavailable;
     try {
-      const res = await fetch("/api/reviews", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ productId, author, rating, title, body }),
-      });
-      const json = (await res.json()) as { ok: boolean; data?: ReviewVM; error?: { message: string } };
+      // Task 142 H-6: the transport failure renders FIXED copy (never the
+      // browser's TypeError text); the envelope refusal below keeps the
+      // server's honest copy.
+      let json: { ok: boolean; data?: ReviewVM; error?: { message: string } };
+      try {
+        const res = await fetch("/api/reviews", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ productId, author, rating, title, body }),
+        });
+        json = (await res.json()) as { ok: boolean; data?: ReviewVM; error?: { message: string } };
+      } catch {
+        throw new Error("We couldn't reach the reviews service — please try again.");
+      }
       if (!json.ok || !json.data) throw new Error(json.error?.message ?? "Could not save review");
       // Trust the server-issued timestamp (the API returns createdAt); the
       // client clock is only a fallback for a malformed response.
       const saved = json.data;
+      // Task 142 H-2: the gate reaches the fields the success path
+      // interpolates — `saved.id` (the React key), `saved.author`,
+      // `saved.rating` (the star row) and `saved.body`. The old
+      // truthiness-only check let a contract-violating `{ok:true, data:{}}`
+      // prepend a BLANK card (key={undefined}) and bump the heading count
+      // to a number the list disavowed. title/verified/createdAt already
+      // carry graceful fallbacks (`r.title &&`, `r.verified &&`, the
+      // `createdAt ||` below) — the Task-140 F-5 class at its last POST
+      // consumer.
+      if (typeof saved.id !== "number" || typeof saved.author !== "string" || typeof saved.rating !== "number" || typeof saved.body !== "string")
+        throw new Error(json.error?.message ?? "Could not save review");
       setList((prev) => [{ ...saved, createdAt: saved.createdAt || new Date().toISOString() }, ...prev]);
       setCount((c) => c + 1);
       setSectionUnavailable(false);

@@ -214,3 +214,26 @@ test("gotoHydrated call-site claims === fs reality (AGENTS ×2, CLAUDE, PAD — 
   const pad = readFileSync(join(ROOT, "Project_Architecture_Document.md"), "utf8");
   expect(pad, "PAD claim site").toContain(`gotoHydrated ${storefront}+${mobile}`);
 });
+
+// Task 142 H-3: the XFF-probe COUNT claims are live-tense but were unpinned —
+// and the claim was WRONG ON ARRIVAL (Task 141 wrote "the 16 XFF-identity
+// probes" while the spec already carried 39 x-forwarded-for sites / 36
+// distinct identities; nothing computed the number, so it survived an entire
+// cycle). The counts are fs-computed from the storefront spec, and each doc
+// claim site must carry them. GREEN-on-arrival after this cycle's claim
+// corrections; mutation-honest RED by a temporary claim edit.
+test("XFF probe-site claims === fs reality (AGENTS ×2, PAD — Task 142 H-3)", () => {
+  const spec = readFileSync(join(e2eDir, "storefront.spec.ts"), "utf8");
+  const sites = (spec.match(/x-forwarded-for/g) ?? []).length;
+  const identities = new Set(spec.match(/10\.9\.\d+\.\d+/g) ?? []).size;
+  expect(sites).toBeGreaterThan(0);
+  expect(identities).toBeGreaterThan(0);
+  expect(identities).toBeLessThanOrEqual(sites);
+
+  const phrase = `${sites} x-forwarded-for probe sites (${identities} distinct identities)`;
+  const agents = readFileSync(join(ROOT, "AGENTS.md"), "utf8");
+  expect(agents, "AGENTS Task-141 pins paragraph claim site").toContain(phrase);
+  expect(agents, "AGENTS pin-map row claim site").toContain(`for the suite's ${sites} XFF probe sites`);
+  const pad = readFileSync(join(ROOT, "Project_Architecture_Document.md"), "utf8");
+  expect(pad, "PAD revision-block claim site").toContain(phrase);
+});

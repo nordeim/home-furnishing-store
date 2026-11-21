@@ -22,19 +22,43 @@ export default function TrackOrderPage() {
     setError(null);
     setFound(null);
     try {
-      const res = await fetch("/api/orders/track", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ orderNumber: num, email }),
-      });
-      const json = (await res.json()) as { ok: boolean; data?: Found; error?: { message: string } };
-      // Task 141 F-3: the gate reaches the NESTED shape the success render
-      // interpolates (found.order.orderNumber/.fullName/.deliverySlot,
-      // items.map) — the old `!json.data` truthiness check let a
-      // contract-violating `{ok:true, data:{}}` through and the render threw
-      // a TypeError into the error boundary instead of the page's own
-      // scoped-error path. The F-2 sibling at one level deeper.
-      if (!json.ok || !json.data || typeof json.data.order?.orderNumber !== "string" || !Array.isArray(json.data.items))
+      // Task 142 H-6: the transport failure renders FIXED copy (never the
+      // browser's TypeError text); the envelope refusal below keeps the
+      // server's honest copy.
+      let json: { ok: boolean; data?: Found; error?: { message: string } };
+      try {
+        const res = await fetch("/api/orders/track", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ orderNumber: num, email }),
+        });
+        json = (await res.json()) as { ok: boolean; data?: Found; error?: { message: string } };
+      } catch {
+        throw new Error("We couldn't reach the tracking service — please try again.");
+      }
+      // Task 141 F-3 + Task 142 H-1: the gate reaches the NESTED shape the
+      // success render interpolates — every order scalar the card copies
+      // (orderNumber, fullName, status, deliveryMethod, deliverySlot,
+      // storeSlug, totalCents) AND the items element shape the list maps
+      // (id, name, qty, unitPriceCents). The old checks let a
+      // contract-violating envelope through in two steps: `!json.data`
+      // truthiness crashed on ANY nested read, and the orderNumber+array
+      // form still crashed inside `storeName(found.order.storeSlug)`
+      // (`slug.trim()` on undefined) when a sibling scalar was absent —
+      // the Task-128 boundary discipline at the full interpolated set.
+      const o = json.data?.order;
+      const validOrder =
+        typeof o?.orderNumber === "string" &&
+        typeof o?.fullName === "string" &&
+        typeof o?.status === "string" &&
+        typeof o?.deliveryMethod === "string" &&
+        typeof o?.deliverySlot === "string" &&
+        typeof o?.storeSlug === "string" &&
+        typeof o?.totalCents === "number";
+      const validItems =
+        Array.isArray(json.data?.items) &&
+        json.data.items.every((i) => !!i && typeof i.id === "number" && typeof i.name === "string" && typeof i.qty === "number" && typeof i.unitPriceCents === "number");
+      if (!json.ok || !json.data || !validOrder || !validItems)
         throw new Error(json.error?.message ?? "Order not found");
       setFound(json.data);
     } catch (err) {

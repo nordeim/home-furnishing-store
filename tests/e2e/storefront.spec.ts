@@ -1213,6 +1213,36 @@ test.describe("track-order nested-envelope gate (Task 141 F-3)", () => {
     await expect(page.getByText(/Order NH-/)).toHaveCount(0);
     await page.unroute("**/api/orders/track*");
   });
+
+  test("an order-present-but-degenerate track envelope is a FAILURE — the gate reaches every interpolated field (Task 142 H-1)", async ({ page }) => {
+    // The Task-141 F-3 gate reached `order.orderNumber` + the items ARRAY
+    // but not the FIELDS the success render interpolates. A
+    // contract-violating `{ok:true, data:{order:{orderNumber}, items:[]}}`
+    // (storeSlug absent) passed the gate and crashed the render inside
+    // `storeName(found.order.storeSlug)` — `slug.trim()` on undefined →
+    // TypeError → the error boundary. The Task-128 boundary discipline
+    // completed: the gate must reach the FULL interpolated set (order
+    // scalars + items element shape).
+    await page.route(
+      "**/api/orders/track*",
+      (route) =>
+        route.fulfill({
+          status: 200,
+          body: JSON.stringify({ ok: true, data: { order: { orderNumber: "NH-20261121-PROBE2" }, items: [] } }),
+        }),
+    );
+    await gotoHydrated(page, "/track-order");
+    await page.getByLabel("Order number").fill("NH-20261121-PROBE2");
+    await page.getByLabel("Email used at checkout").fill("probe@nordhem.sg");
+    await page.getByRole("button", { name: "Track order" }).click();
+
+    // The refusal shape: the scoped alert (never the error boundary), the
+    // form intact, and no order card rendered.
+    await expect(page.locator("main").getByRole("alert")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Track order" })).toBeVisible();
+    await expect(page.getByText(/Order NH-/)).toHaveCount(0);
+    await page.unroute("**/api/orders/track*");
+  });
 });
 
 test.describe("PDP JSON-LD availability source (Task 119)", () => {
@@ -3478,6 +3508,96 @@ test.describe("reviews GET count field (Task 140 F-1)", () => {
     expect(Array.isArray(body.data)).toBe(true);
     expect(typeof body.count, "the GET must expose the TRUE row count (the additive Task-140 F-1 field) beside the capped data array").toBe("number");
     expect(body.count).toBe(body.data.length);
+  });
+});
+
+test.describe("reviews POST envelope field gate (Task 142 H-2)", () => {
+  test("an ok-but-fieldless reviews envelope is a FAILURE — no junk card, no count bump, the scoped error renders", async ({ page }) => {
+    // The Task-140 F-5 class at its last POST consumer: the submit gate
+    // stopped at `json.data` truthiness while the success path interpolates
+    // `saved.id` (the React key), `saved.author`, `saved.rating` and
+    // `saved.body`, and bumps the heading count. A contract-violating
+    // `200 {ok:true, data:{}}` prepended a BLANK review card (key=
+    // {undefined}), bumped "Reviews (N)" to a number the list disavowed,
+    // and rendered the success note. The gate must reach the fields the
+    // success path consumes.
+    await page.route(
+      "**/api/reviews*",
+      (route) => route.fulfill({ status: 200, body: JSON.stringify({ ok: true, data: {} }) }),
+    );
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
+    const heading = page.getByRole("heading", { name: /^Reviews \(\d+\)/ });
+    const before = await heading.textContent();
+    await page.getByLabel("Your name").fill("Envelope Probe");
+    await page.getByLabel("Review").fill("A probe review body.");
+    await page.getByRole("button", { name: "Publish review" }).click();
+
+    // The refusal shape: the scoped ALERT (never the success status note),
+    // the heading count UNCHANGED (no bump), and the success copy absent.
+    await expect(page.locator("#reviews").getByRole("alert")).toBeVisible();
+    await expect(heading).toHaveText(before ?? "");
+    await expect(page.getByText("Thanks — your review is live.")).toHaveCount(0);
+    await page.unroute("**/api/reviews*");
+  });
+});
+
+test.describe("client POST fetch-failure fixed copy (Task 142 H-6)", () => {
+  // The Task-119 resilience pair covered the GET consumers (search/wishlist
+  // render fixed copy when the API dies); the four POST consumers still
+  // interpolated `err.message` — CORRECT for envelope refusals (the server's
+  // honest 422 copy, pinned by the Task-140/141 probes) but a transport
+  // failure (offline, a proxy 502 HTML page) leaked the BROWSER's TypeError
+  // text ("Failed to fetch", "Unexpected token '<'…" — browser-dependent)
+  // into the customer-facing alert. The transport failure now renders fixed
+  // copy; the envelope refusal keeps the server copy.
+  test("checkout shows fixed copy when the network itself fails (not browser error text)", async ({ page }) => {
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await gotoHydrated(page, "/checkout");
+    await page.route("**/api/checkout*", (route) => route.abort());
+    await page.getByLabel("Email").fill("probe@nordhem.sg");
+    await page.getByLabel("Full name").fill("Transport Probe");
+    await page.getByLabel("Phone").fill("+65 91234567");
+    await page.getByLabel("Postal code").fill("089001");
+    await page.getByPlaceholder("Blk, street, unit number").fill("Blk 1 Testing Rd #01-01");
+    await page.getByRole("button", { name: /^Pay / }).click();
+    await expect(page.locator("#main").getByRole("alert")).toContainText("We couldn't reach the checkout service — please try again.");
+    await expect(page.locator("#main").getByRole("alert")).not.toContainText("Failed to fetch");
+    await page.unroute("**/api/checkout*");
+  });
+
+  test("track-order shows fixed copy when the network itself fails (not browser error text)", async ({ page }) => {
+    await gotoHydrated(page, "/track-order");
+    await page.route("**/api/orders/track*", (route) => route.abort());
+    await page.getByLabel("Order number").fill("NH-20261121-PROBE3");
+    await page.getByLabel("Email used at checkout").fill("probe@nordhem.sg");
+    await page.getByRole("button", { name: "Track order" }).click();
+    await expect(page.locator("main").getByRole("alert")).toContainText("We couldn't reach the tracking service — please try again.");
+    await expect(page.locator("main").getByRole("alert")).not.toContainText("Failed to fetch");
+    await page.unroute("**/api/orders/track*");
+  });
+
+  test("the review form shows fixed copy when the network itself fails (not browser error text)", async ({ page }) => {
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
+    await page.route("**/api/reviews*", (route) => route.abort());
+    await page.getByLabel("Your name").fill("Transport Probe");
+    await page.getByLabel("Review").fill("A probe review body.");
+    await page.getByRole("button", { name: "Publish review" }).click();
+    await expect(page.locator("#reviews").getByRole("alert")).toContainText("We couldn't reach the reviews service — please try again.");
+    await expect(page.locator("#reviews").getByRole("alert")).not.toContainText("Failed to fetch");
+    await page.unroute("**/api/reviews*");
+  });
+
+  test("the cart promo apply shows fixed copy when the network itself fails (not browser error text)", async ({ page }) => {
+    await gotoHydrated(page, "/product/solbakken-3-seat-sofa");
+    await page.getByRole("button", { name: "Add to bag" }).click();
+    await gotoHydrated(page, "/cart");
+    await page.route("**/api/promotions/validate*", (route) => route.abort());
+    await page.getByLabel("Promo code").fill("FESTIVE10");
+    await page.getByRole("button", { name: "Apply" }).click();
+    await expect(page.locator("main").getByRole("alert")).toContainText("We couldn't reach the promo service — please try again.");
+    await expect(page.locator("main").getByRole("alert")).not.toContainText("Failed to fetch");
+    await page.unroute("**/api/promotions/validate*");
   });
 });
 

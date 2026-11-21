@@ -114,7 +114,7 @@ interface TotalsInput {
   deliveryMethod: "delivery" | "click-collect" | "express";
 }
 
-export interface Totals {
+interface Totals {
   subtotalCents: number;
   discountCents: number;
   deliveryFeeCents: number;

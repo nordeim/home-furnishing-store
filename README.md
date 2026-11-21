@@ -164,13 +164,13 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 211 tests at the pure seams
+npm run test             # Vitest unit — 213 tests at the pure seams
 npm run test:watch       # the same suite, re-run on change
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
                          #  local-store contract, maskEmail, robots/sitemap
                          #  SEO policy)
-npm run test:e2e         # Playwright e2e — 140 tests against the PRODUCTION build
+npm run test:e2e         # Playwright e2e — 146 tests against the PRODUCTION build
                          # (boots :3100 with a pinned DATABASE_URL): mobile
                          # navigation @390×844 incl. Escape-close, PDP SEO +
                          # JSON-LD, robots/sitemap, API envelope + boundary
@@ -245,13 +245,16 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 211 unit + 140 e2e, all green | NORDHEM-native harness (Tasks 114/117–141); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131; the unit tree is TZ-pure since Task 132 — verified by the three-TZ run; the gotoHydrated count claims joined the pinned scope in Task 139; Task 140 added the recovery-count/checkout-derivation/cache-wrap unit pins and the reviews-count/wishlist-settle/cursor/promo-label e2e probes; Task 141 added the Header-default/no-store/TRUST_PROXY-gate unit pins, the checkout/track-order envelope probes, the reduced-CSP header pin and the rate-limit proxy gate) |
+| Test suite | ✅ 213 unit + 146 e2e, all green | NORDHEM-native harness (Tasks 114/117–142); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131; the unit tree is TZ-pure since Task 132 — verified by the three-TZ run; the gotoHydrated count claims joined the pinned scope in Task 139; Task 140 added the recovery-count/checkout-derivation/cache-wrap unit pins and the reviews-count/wishlist-settle/cursor/promo-label e2e probes; Task 141 added the Header-default/no-store/TRUST_PROXY-gate unit pins, the checkout/track-order envelope probes, the reduced-CSP header pin and the rate-limit proxy gate; Task 142 added the XFF-docs-claims + e2e-boot-contract unit pins, the track-order full-field + reviews field-gate + four fetch-failure fixed-copy e2e probes, retired the last four dead exports and flipped the e2e suite to always boot its own pinned server) |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
 
-Current cycle (2026-11-21, Task 139): fresh-clone workspace re-audit (the
+Current cycle (2026-11-21, Task 142): workspace-refresh re-audit (fast-forward to `a5feb79`; the stale postmaster recovered via the idempotent `setup_pg_z.sh` — seed 24/8/3/72 @ 1379, zero residue; baseline gates 211/140 exactly as documented; mobile drawer taxonomy 8/8, no Tailwind v4 bug, cursor fix live; SEO/sitemap re-verified incl. the reduced CSP; reference repo quiescent — the eighteenth "nothing to port"). The audit (0 CRITICAL/HIGH/MEDIUM, 4 LOW + 6 INFO, every finding line-verified) fixed six TDD-first: the track-order full-field gate (H-1 — `storeName(undefined)` crashed the render on a degenerate envelope), the ReviewSection POST field gate (H-2 — a `data:{}` envelope prepended a junk card + a false count), the XFF docs-truth + pin (H-3 — the "16 probes" claim was wrong on arrival; the fs-computed 39/36 is now pinned), the e2e boot contract (H-4 — `reuseExistingServer: false`, a stale :3100 can no longer silently void the TRUST_PROXY/DATABASE_URL pins), the last four dead exports (H-5), and the fetch-failure fixed copy at all four POST consumers (H-6 — never the browser's "Failed to fetch" text). Registered: the schema seed-slug defaults (dormant), the store-picker predicate (wired to the wiring deferral), the submitReview transaction window (theoretical), the footer editorial links. Gates after: lint 0/0 · typechecks ×2 · 213/213 unit × 3 TZ · 146/146 e2e (cold) · zero residue. Details in
+`worklog.md` and `docs/plans/2026-11-21-task142-remediation-plan.md`.
+
+Previous cycle (2026-11-21, Task 139 — the Task 140/141 cycles updated the counts + status row above; their narratives live in worklog.md): fresh-clone workspace re-audit (the
 sandbox was fully reset — node_modules + `.env` rebuilt, the pinned
 Playwright Chromium 1255 re-installed after the cache miss; the rootless
 PostgreSQL 17.12 tree did NOT survive this recycle — the full
