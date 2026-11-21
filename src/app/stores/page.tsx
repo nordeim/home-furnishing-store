@@ -5,11 +5,14 @@ import { SITE_ORIGIN } from "@/lib/utils";
 export const metadata = {
   title: "Our stores",
   description:
-    "Three NORDHEM stores on one island — Tampines, Jurong and Alexandra, each with a restaurant, Småland play corner and As-Is bargain level.",
+    // Task 139 F-1: the count derives from the STORES seed (the Task-138
+    // F-2 derivation, completed — this page + the sustainability stat card
+    // kept hand-drawn "Three"/"3" literals beside derived siblings).
+    `${STORES.length} NORDHEM stores on one island — Tampines, Jurong and Alexandra, each with a restaurant, Småland play corner and As-Is bargain level.`,
   alternates: { canonical: "/stores" },
   openGraph: {
     title: "Our stores · NORDHEM Singapore",
-    description: "Three NORDHEM stores on one island — Tampines, Jurong and Alexandra.",
+    description: `${STORES.length} NORDHEM stores on one island — Tampines, Jurong and Alexandra.`,
     type: "website",
     siteName: "NORDHEM Singapore",
     url: `${SITE_ORIGIN}/stores`,
@@ -20,7 +23,7 @@ export default function StoresPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <p className="text-[12px] font-black uppercase tracking-[0.16em] text-[#0058a3]">Visit us</p>
-      <h1 className="mt-1 text-[clamp(1.9rem,4vw,3rem)] font-black tracking-tight">Three stores, one island</h1>
+      <h1 className="mt-1 text-[clamp(1.9rem,4vw,3rem)] font-black tracking-tight">{STORES.length} stores, one island</h1>
       <div className="mt-8 grid gap-5 lg:grid-cols-3">
         {STORES.map((s) => (
           <article key={s.slug} className="overflow-hidden rounded-2xl ring-1 ring-[#ece8df]">

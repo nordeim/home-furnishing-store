@@ -164,7 +164,7 @@ codebase (canonical origin `https://nordhem.sg` is set in `layout.tsx`).
 A NORDHEM-native suite is wired into the gates (Tasks 114 + 117):
 
 ```bash
-npm run test             # Vitest unit — 198 tests at the pure seams
+npm run test             # Vitest unit — 200 tests at the pure seams
 npm run test:watch       # the same suite, re-run on change
                          # (money math, validators, Family voucher rule,
                          #  badge dedupe, catalogue invariants, findPromo,
@@ -245,11 +245,39 @@ animation (0.7s cubic-bezier), `prefers-reduced-motion` respected.
 | Storefront build (20 routes, 6 APIs, 9 tables) | ✅ Done | built from the `ely-beauty` template lineage |
 | Build/typecheck gate | ✅ Green | scan guard in `globals.css`; cold build re-verified with live Postgres |
 | Lint gate | ✅ 0 errors / 0 warnings | the 7-error `set-state-in-effect` debt was fixed (external stores + render-derivation), not suppressed |
-| Test suite | ✅ 198 unit + 133 e2e, all green | NORDHEM-native harness (Tasks 114/117–138); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131; the unit tree is TZ-pure since Task 132 — verified by the three-TZ run) |
+| Test suite | ✅ 200 unit + 133 e2e, all green | NORDHEM-native harness (Tasks 114/117–139); counts pinned by tests/unit/docs-counts.test.ts (DEPLOYMENT.md joined the pinned scope in Task 131; the unit tree is TZ-pure since Task 132 — verified by the three-TZ run; the gotoHydrated count claims joined the pinned scope in Task 139) |
 | Mobile navigation | ✅ Verified (agent-browser + e2e, dev AND production) | open/navigate/auto-close/toggle/Escape; no Tailwind v4 bug; the 127.0.0.1 dev-hydration trap fixed via `allowedDevOrigins` (Task 118) |
 | SEO | ✅ robots policy + sitemap + PDP OG/JSON-LD + metadata blanket | coherent policy: sitemap = indexable only, robots excludes utility/personal; every sitemap-indexed route ships its own title/description/canonical (client pages via route layouts); order pages carry noindex; Organization/WebSite JSON-LD in the root layout |
 | PII on order pages | ✅ Masked | email masked, no street address on `/order/[number]`; full detail behind email match on `/track-order` |
 | Auth + real payments | ⏸️ Deferred by decision | documented in the plan's deviations ledger |
+
+Current cycle (2026-11-21, Task 139): fresh-clone workspace re-audit (the
+sandbox was fully reset — node_modules + `.env` rebuilt, the pinned
+Playwright Chromium 1255 re-installed after the cache miss; the rootless
+PostgreSQL 17.12 tree did NOT survive this recycle — the full
+`docs/setup_pg_z.sh` path ran from zero (deb extraction → initdb → scram
+hba → first start), DDL contract + seed quantities verified by direct
+SQL, inventory 1379; mobile-nav taxonomy 8/8 at 390/1440 — no Tailwind v4
+bug; sitemap/robots/og/noindex/404/security headers re-verified live;
+baseline gates green at 198/133 with zero DB residue; the reference repo
+quiescent — fifteenth cycle of "nothing to port") that caught **the
+store-count derivation's tier-over** (the Task-138 pin scoped its
+negative checks to the two files it fixed — the /stores metadata
+description + og description + h1 and the /sustainability stat card kept
+hand-drawn "Three"/"3" literals with every gate green, and the e2e
+metadata pin ASSERTED the hand-copied form; all four interpolate
+`STORES.length` now, the e2e expectation derives from the seed, and the
+new fs-pin is blast-radius-scoped — the count literals must not exist
+anywhere under `src/`), **the unpinned gotoHydrated docs claims** (AGENTS
+×2 + CLAUDE + PAD carried live-tense 45/47 counts no test enforced —
+docs-counts now fs-computes the per-spec call-site counts and fails the
+run on drift; mutation-proven), **the polarity-blind starter-kit pin**
+(the Task-138 F-6 fs-pin was presence-only — an inverted ternary
+satisfied every assertion; the strengthened form pins the trio copy to
+the guard's TRUE branch, mutation-proven twice), and **one dead export**
+(`CLICK_COLLECT_TODAY_CUTOFF_SGT_HOUR` — module-private now, the typecheck
+proves the deletion). Suite grew to 200 unit + 133 e2e. Details in
+`worklog.md` and `docs/plans/2026-11-21-task139-remediation-plan.md`.
 
 Current cycle (2026-11-21, Task 138): fresh-clone workspace re-audit (the
 sandbox had been reset — node_modules + `.env` rebuilt, the pinned

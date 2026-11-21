@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, readdirSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { CATEGORIES, INSPIRATIONS, PRODUCTS, PROMOS, STORES, effectivePromo, findPromoMinimumCents, storeName, matchesProductQuery, catalogMaxDiscountPercent, productDiscountPercent } from "@/lib/catalog";
 
 describe("catalogue invariants (seed + static fallback contract)", () => {
@@ -212,6 +212,36 @@ describe("store-count derivation (Task 138 F-2)", () => {
     expect(route).not.toContain("three stores");
     expect(route).toContain("STORES.length");
   });
+
+  // Task 139 F-1: the Task-138 pin scoped its negative checks to the two files
+  // it fixed — four sibling sites kept hand-drawn counts with every gate green
+  // (the /stores metadata ×2 + h1, the /sustainability stat card). This pin
+  // covers the CLASS, not the site: the count literals may not exist anywhere
+  // under src/, and both sibling files carry the derivation.
+  it("the /stores metadata + h1 and the /sustainability stat derive the store count from the seed — and the literals exist nowhere under src/ (fs-pin, Task 139 F-1)", () => {
+    const storesPage = readFileSync(resolve(import.meta.dirname, "../../src/app/stores/page.tsx"), "utf8");
+    const sustainability = readFileSync(resolve(import.meta.dirname, "../../src/app/sustainability/page.tsx"), "utf8");
+    expect(
+      (storesPage.match(/STORES\.length/g) ?? []).length,
+      "all three /stores count sites (metadata description, og description, h1) derive from the seed",
+    ).toBeGreaterThanOrEqual(3);
+    expect(
+      (sustainability.match(/STORES\.length/g) ?? []).length,
+      "the sustainability stat card derives from the seed",
+    ).toBeGreaterThanOrEqual(1);
+    // The pre-139 hand-copied forms must not survive ANYWHERE under src/ —
+    // the blast-radius negative (readdir sweep, the class-level form).
+    const appDir = resolve(import.meta.dirname, "../../src");
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)],
+      );
+    const sources = walk(appDir).filter((f) => /\.(ts|tsx)$/.test(f));
+    for (const literal of ["Three NORDHEM stores", "Three stores, one island", "All 3 SG stores"]) {
+      const offenders = sources.filter((f) => readFileSync(f, "utf8").includes(literal));
+      expect(offenders, `the hand-copied form "${literal}" must not exist under src/`).toEqual([]);
+    }
+  });
 });
 
 // Task 138 F-3: the per-product discount-percent chip formula was
@@ -259,5 +289,18 @@ describe("starter-kit departure guard (Task 138 F-6)", () => {
     // …and the pre-138 unconditional concat (set-copy fused with the "Pair
     // the set" sentence) is gone.
     expect(offers).not.toContain("trolley — our first-home picks. Pair");
+
+    // Task 139 F-3: the three assertions above are PRESENCE-only — an
+    // inverted ternary (neutral copy when the trio IS complete, trio copy
+    // on departure — the exact falsehood F-6 fixed) satisfied every one of
+    // them. The strengthened form pins POLARITY: the guard expression must
+    // be followed on its TRUE branch by the trio copy, with the neutral
+    // fallback present as the FALSE branch (mutation-proven by a temporary
+    // ternary inversion — the Task-132 F-2 discipline).
+    const joined = offers.replace(/\s+/g, " ");
+    expect(
+      joined,
+      "the trio copy sits on the TRUE branch of the guard",
+    ).toContain('bundles.length === KIT_SLUGS.length ? "Bed + extendable table + kitchen trolley — our first-home picks." : "Our first-home picks."');
   });
 });

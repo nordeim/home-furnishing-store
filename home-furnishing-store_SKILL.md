@@ -1,9 +1,9 @@
 ---
 name: home-furnishing-store
 description: "NORDHEM Singapore — furniture & home-furnishing e-commerce storefront on Next.js 16 App Router + React 19 + TypeScript strict + Tailwind CSS v4 (CSS-first @theme) + Drizzle ORM + PostgreSQL. Distilled engineering memory: architecture contracts (Degrade-Never-Fail, integer-cents money, API envelope), the Tailwind v4 candidate-scan guard, external-store client state, SEO policy, the NORDHEM-native test harness, and the hard-won lessons of the build/remediation lineage."
-version: 2.12.0
-last_updated: "2026-11-21 (Task 138: shop resync-window honesty + store-count derivation + productDiscountPercent seam + dead-export retirement + fee-copy derivation + starter-kit guard)"
-project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 198/198 unit (TZ-pure — verified UTC/Singapore/New York; the fs-pin covers all three quote forms + fractional seconds since Task 134) · 133/133 e2e · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
+version: 2.13.0
+last_updated: "2026-11-21 (Task 139: store-count derivation completion + gotoHydrated docs-claims pin + starter-kit guard polarity proof + dead-export retirement)"
+project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 200/200 unit (TZ-pure — verified UTC/Singapore/New York; the fs-pin covers all three quote forms + fractional seconds since Task 134) · 133/133 e2e · cold build green · PostgreSQL 17 live-verified (docs/setup_pg_z.sh) · counts + the health-envelope body + the gotoHydrated claims pinned by tests/unit/docs-counts.test.ts (incl. the PAD + DEPLOYMENT.md since Task 131)"
 ---
 
 # NORDHEM (home-furnishing-store) — Engineering Skill
@@ -36,9 +36,12 @@ project_state: "gates: lint 0/0 · typecheck + typecheck:tests clean · 198/198 
 > reviews-degrade-honesty/promo-in-tx-coherence/docs-truth cycle, and the
 > Task 137 PDP-unified-outage-signal/ReviewSection-recovery-state/cart-
 > promo-envelope-trust-completion/outage-branch-pin-coverage/shop-strip-
-> honesty/docs-truth cycle, and the Task 138 shop-resync-window-honesty/
+> honesty/docs-truth cycle, the Task 138 shop-resync-window-honesty/
 > store-count-derivation/productDiscountPercent-seam/dead-export-retirement/
-> fee-copy-derivation/starter-kit-guard cycle. `AGENTS.md` is the
+> fee-copy-derivation/starter-kit-guard cycle, and the Task 139
+> store-count-derivation-completion/gotoHydrated-docs-claims-pin/
+> starter-kit-guard-polarity-proof/dead-export-retirement cycle.
+> `AGENTS.md` is the
 > quick operator reference, the PAD is the full blueprint, and this skill is the
 > pattern/lesson layer an agent needs before touching the code. When code and
 > this document disagree, **the code wins** — then fix this document in the
@@ -111,7 +114,7 @@ Gate chain (there is no hosted CI; the local gate is the only gate):
 rm -rf .next && DATABASE_URL="postgresql://…" npm run build   # COLD (cache masks the scan-guard failure)
 npm run typecheck && npm run typecheck:tests
 npm run lint                                                   # 0 errors / 0 warnings
-npm run test                                                   # 198/198
+npm run test                                                   # 200/200
 npm run test:e2e                                               # 133/133 (live Postgres for the journey)
 ```
 
@@ -1045,6 +1048,29 @@ Task 131).
     names its states, audit the gaps BETWEEN the states before declaring
     the class closed.
 
+67. **A derivation pin scoped to the files it fixed leaves the sibling
+    sites unpinned — pin the CLASS, not the site (Task 139 F-1).** The
+    Task-138 store-count fs-pin read only `page.tsx` + the checkout
+    route, so four sibling count literals (/stores metadata ×2 + h1,
+    the /sustainability stat) survived with every gate green — and the
+    e2e metadata pin even ASSERTED the hand-copied "Three" (the inverse
+    of the derivation discipline: a derived expectation must interpolate
+    the seed, never re-hardcode the literal it replaced). Rule: when a
+    finding names a literal class, the pin's negative checks walk the
+    WHOLE tree for the literal forms (the blast-radius form — a readdir
+    sweep, not a fixed file list), or the next audit finds the tier-over.
+
+68. **Presence-only fs-pins are polarity-blind — assert the guarded
+    form, and mutation-prove with the branch swap (Task 139 F-3).** A pin
+    that asserts the file CONTAINS the guard expression + the fallback
+    copy is satisfied by an INVERTED ternary — the exact falsehood the
+    guard exists to prevent. The polarity-proof form asserts the exact
+    joined expression (`guard ? "the guarded copy" : "the fallback copy"`)
+    so the TRUE branch is named. Mutation discipline: the operator flip
+    (`===`→`!==`) trips the presence checks too, which proves little;
+    the honest demo swaps the BRANCH CONTENTS (every original assertion
+    stays green) and proves only the new polarity assertion bites.
+
 ## 13. Pitfalls to Avoid
 
 - Adding state/auth/payment SDKs without a decision record (ADR-006 deferrals
@@ -1166,8 +1192,8 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | Commands & gotchas | `AGENTS.md` |
 | Architecture detail | `Project_Architecture_Document.md` |
 | Decision record | `docs/implementation-plan.md` |
-| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-21-task138-remediation-plan.md` (23 plans: Tasks 114, 117–138) |
-| Screenshots | `docs/screenshots/01…109-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 110 PNGs) |
+| Remediation plans + evidence | `docs/plans/2026-11-18-task114-remediation-plan.md` … through … `docs/plans/2026-11-21-task139-remediation-plan.md` (24 plans: Tasks 114, 117–139) |
+| Screenshots | `docs/screenshots/01…114-*.png` (numbered per capture cycle; two `05-*` mobile/desktop variants — 115 PNGs) |
 | SSH push runbook | `docs/how-to-git-push-using-ssh-wrapper_SKILL.md` |
 | Working history | `worklog.md` (Tasks 113+ NORDHEM; the 1–112 predecessor lineage was operator-trimmed) |
 | Money/validators | `src/lib/utils.ts` |
@@ -1176,5 +1202,5 @@ docs lockstep, Verified/Reasoned/Assumed handoff). Full text in `CLAUDE.md`.
 | External store factory | `src/lib/local-store.ts` |
 | PII masking | `src/lib/mask.ts` |
 | SEO surfaces | `src/app/robots.ts` · `src/app/sitemap.ts` · PDP `generateMetadata` |
-| Unit suite | `tests/unit/*.test.ts` (198) — 10 files |
+| Unit suite | `tests/unit/*.test.ts` (200) — 10 files |
 | E2E suite | `tests/e2e/mobile-navigation.spec.ts` · `tests/e2e/storefront.spec.ts` (133) — 125 storefront + 8 mobile |

@@ -228,7 +228,11 @@ export function isValidDeliverySlot(method: string, slot: string): boolean {
 // of sgTomorrowISO/orderNumber); the API boundary keeps validating against
 // the full DELIVERY_SLOTS sets — a stale tab submitting a just-expired
 // slot is grace, not junk (method coherence remains the boundary contract).
-export const CLICK_COLLECT_TODAY_CUTOFF_SGT_HOUR = 14; // the slot's own time
+// Task 139 F-4: the `export` was retired — the constant is consumed only
+// inside this module (availableDeliverySlots below); the keyword implied a
+// consumer that never existed (the Task-138 F-4 dead-export class,
+// miniature). The typecheck gate proves the deletion.
+const CLICK_COLLECT_TODAY_CUTOFF_SGT_HOUR = 14; // the slot's own time
 
 export function availableDeliverySlots(method: string, now: Date = new Date()): string[] {
   const allowed = DELIVERY_SLOTS[method] ?? DELIVERY_SLOTS.delivery;

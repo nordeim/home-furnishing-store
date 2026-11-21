@@ -1206,7 +1206,10 @@ test.describe("SEO metadata blanket (Task 119)", () => {
       // decor and sleep", both ≤17%).
       [`/offers`, new RegExp(`Up to ${MAX_OFF}% off lighting`)],
       ["/services", /deliver, assemble/],
-      ["/stores", /Three NORDHEM stores/],
+      // Task 139 F-1: the store-count metadata derives from the STORES seed
+      // (the /stores page interpolates it — the pin must not re-hardcode the
+      // hand-copied "Three" it replaced).
+      ["/stores", new RegExp(`${STORES.length} NORDHEM stores`)],
       ["/food", /Swedish-inspired/],
       ["/help", /How can we help/],
     ];

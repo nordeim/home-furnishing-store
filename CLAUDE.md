@@ -2,7 +2,7 @@
 IMPORTANT: File is read fresh for every conversation. Be brief and practical.
 project_type: nextjs
 framework_version: "16.4.2 (App Router)"
-last_updated: 2026-11-21 (Task 138: shop resync-window honesty, store-count derivation, productDiscountPercent seam, dead-export retirement, fee-copy derivation, starter-kit guard)
+last_updated: 2026-11-21 (Task 139: store-count derivation completion, gotoHydrated docs-claims pin, starter-kit guard polarity proof, dead-export retirement)
 ---
 
 # NORDHEM Singapore (home-furnishing-store)
@@ -130,7 +130,7 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 | `npm run lint` | ESLint (`skills/` ignored by operator contract) — 0 errors expected |
 | `npm run typecheck` | App-scope TypeScript check (`src/**`, `next.config.ts`) |
 | `npm run typecheck:tests` | Test-tree TypeScript check (`tests/**` via `tsconfig.tests.json` — both scopes are live gates) |
-| `npm run test` | Vitest unit suite (198 tests, pure seams) |
+| `npm run test` | Vitest unit suite (200 tests, pure seams) |
 | `npm run test:watch` | Vitest in watch mode (the same suite, re-run on change) |
 | `npm run test:e2e` | Playwright e2e (133 tests, production build on :3100) |
 | `npm run test:e2e:install` | One-time: install the pinned Playwright Chromium build (the fresh-clone cache miss) |
@@ -138,9 +138,9 @@ order tracking) will fail until `DATABASE_URL` points at a live database.
 
 ## Testing Strategy
 
-**Current state (Tasks 114–138, extended this cycle):** a NORDHEM-native suite is wired into the gates.
+**Current state (Tasks 114–139, extended this cycle):** a NORDHEM-native suite is wired into the gates.
 
-- **Unit (Vitest, 198 tests)** at the pure seams — `src/lib/utils.ts` money math,
+- **Unit (Vitest, 200 tests)** at the pure seams — `src/lib/utils.ts` money math,
   validators, `familyVoucherCents` and `visibleBadges` (Task 117), `src/lib/catalog.ts`
   invariants + `findPromo`, the `local-store.ts` external-store contract,
   `maskEmail`, the `robots.ts` / `sitemap.ts` SEO policy, the `globals.css`
@@ -554,6 +554,20 @@ fix and passes after.
   last hand-copied pair); and the offers starter-kit set-copy is guarded on
   the resolved rows (`KIT_SLUGS` + `bundles.length === KIT_SLUGS.length` —
   the HERO_SLUG departure-guard discipline).
+- **Task-139 seams:** the store-count derivation is COMPLETE and
+  class-pinned (the Task-138 pin scoped its negatives to the two files it
+  fixed — the /stores metadata description + og description + h1 and the
+  /sustainability stat card kept hand-drawn "Three"/"3" literals with
+  every gate green; all four interpolate `STORES.length` now and the
+  blast-radius fs-pin fails if any count literal exists anywhere under
+  `src/`; the e2e metadata-blanket expectation derives from the seed —
+  never re-hardcode the count a pin replaced); the gotoHydrated count
+  claims are PINNED (AGENTS ×2 + CLAUDE + PAD must carry the fs-computed
+  per-spec counts — docs-counts fails the run on drift); the starter-kit
+  guard pin proves POLARITY (the trio copy on the guard's TRUE branch —
+  presence-only pins are satisfiable by the inverted falsehood);
+  `CLICK_COLLECT_TODAY_CUTOFF_SGT_HOUR` is module-private (its dead
+  `export` retired — the constant feeds only `availableDeliverySlots`).
 
 - **`main` branch only** — no feature branches (operator contract).
 - Conventional Commits, atomic units (`fix:`, `feat:`, `docs:` — history uses

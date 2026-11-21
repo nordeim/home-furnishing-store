@@ -23,13 +23,13 @@ ORM + PostgreSQL.
 | `npm run lint` | ESLint (flat config; `skills/` is ignored per the operator contract) — **0 errors expected** |
 | `npm run typecheck` | `tsc --noEmit` over the **app scope only** (`src/**`, `next.config.ts`) |
 | `npm run typecheck:tests` | `tsc --noEmit -p tsconfig.tests.json` — the **test tree** (`tests/**`; both scopes are live gates) |
-| `npm run test` | Vitest unit suite (198 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, server-data fulfilment-seam fs-pin + the qty-writer clampInt fs-pin + the SORT_KEYS derivation pin + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin + the PDP unified-outage-signal + recovery pins + the outage-branch characterization pins, docs-counts pins incl. the PAD + the TZ-pure-tree fs-pin + the numeric-args-ctor widening + the Task-138 store-count/productDiscountPercent/fee-copy/starter-kit derivation fs-pins) |
+| `npm run test` | Vitest unit suite (200 tests, pure seams: utils, catalog, local-store, mask, robots/sitemap + the env/compose/config, scan-guard, rate-limit factory, server-data fulfilment-seam fs-pin + the qty-writer clampInt fs-pin + the SORT_KEYS derivation pin + the DB-funnel golden-rule fs-pin + the reviews-degrade fs-pin + the promo in-tx fs-pin + the PDP unified-outage-signal + recovery pins + the outage-branch characterization pins, docs-counts pins incl. the PAD + the TZ-pure-tree fs-pin + the numeric-args-ctor widening + the Task-138 store-count/productDiscountPercent/fee-copy/starter-kit derivation fs-pins + the Task-139 store-count blast-radius fs-pin + the gotoHydrated docs-claims pin) |
 | `npm run test:watch` | Vitest in watch mode (the same suite, re-run on change) |
 | `npm run test:e2e` | Playwright e2e (133 tests) — builds + boots the production server on `:3100` with a pinned `DATABASE_URL` |
 | `npm run test:e2e:install` | One-time: install the pinned Playwright Chromium build (the fresh-clone cache miss) |
 | `npx drizzle-kit push` | Apply `src/db/schema.ts` to the DB in `drizzle.config.json` (9 tables) |
 
-The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–138):
+The test suite is **NORDHEM-native** (Task 114; extended in Tasks 117–139):
 `tests/unit` (10 files) + `tests/e2e` (mobile-navigation + storefront specs
 incl. the fetch-failure resilience pair, the API rate-limit pins, PDP badge
 dedupe, cart promo persistence, JSON-LD live-inventory + LOW_STOCK commerce
@@ -447,7 +447,25 @@ pin mutation-proven), and the **offers starter-kit departure guard** (the
 hand-curated slug trio's copy asserted "Bed + extendable table + kitchen
 trolley" unconditionally — a departed slug silently shrank the chips while
 the copy kept asserting the set; the set-copy derives from the resolved
-rows now, fs-pinned — the HERO_SLUG sibling's discipline).
+rows now, fs-pinned — the HERO_SLUG sibling's discipline). And the
+Task-139 pins: the **store-count derivation completion** (the Task-138 F-2
+pin scoped its negative checks to the two files it fixed — four sibling
+sites kept hand-drawn counts with every gate green: the /stores metadata
+description + og description + h1 ("Three NORDHEM stores…"/"Three
+stores, one island") and the /sustainability stat card ("All 3 SG
+stores"); all four interpolate `STORES.length` now, and the new fs-pin is
+CLASS-scoped — the count literals must not exist anywhere under `src/`,
+so the next tier-over cannot land silently; the e2e metadata-blanket pin
+derives its expectation from the seed too — it used to assert the
+hand-copied "Three" it now replaces), the **gotoHydrated docs-claims pin**
+(the AGENTS ×2 + CLAUDE + PAD count claims were live-tense but unpinned —
+docs-counts fs-computes the per-spec `gotoHydrated(` counts and fails the
+run if any of the four claim sites drifts; GREEN-on-arrival, mutation-
+honest RED by a temporary AGENTS "45"→"44" edit), and the **starter-kit
+guard polarity proof** (the Task-138 F-6 fs-pin was presence-only — an
+inverted ternary satisfied every assertion; the strengthened form pins
+the trio copy to the guard's TRUE branch, mutation-proven twice: the
+`===`→`!==` inversion AND the subtler branch-swap each REDed the pin).
 
 **Test counts are documentation claims, pinned by test** (Task 119):
 `tests/unit/docs-counts.test.ts` fs-computes the real counts and fails the run
@@ -477,7 +495,9 @@ change (count-lockstep, no exceptions).
 | The store COUNT derives from the STORES seed (the hero stat, the Click-&-Collect strip, both checkout refusal messages — the Task-129 list-derivation class completed) | `tests/unit/catalog.test.ts` (Task 138 F-2 fs-pins) |
 | The per-product discount-percent formula lives ONLY in `productDiscountPercent` — the card chip, the PDP chip and `catalogMaxDiscountPercent` consume the seam | `tests/unit/catalog.test.ts` (Task 138 F-3 unit pins + the derivation fs-pin) |
 | The $25 assembly + $190 design-service fee copy interpolates `ASSEMBLY_FEE_CENTS`/`DESIGN_SERVICE_FEE_CENTS` at every site (home strip + design card, services metadata + both card prices, the PDP chip + details copy) | `tests/unit/utils.test.ts` (Task 138 F-5 fs-pins) + `tests/e2e/storefront.spec.ts` (the value-level sibling, mutation-proven) |
-| The offers starter-kit set-copy is guarded on the resolved rows (a departed slug degrades to the neutral picks copy, never an assertion the chips contradict) | `tests/unit/catalog.test.ts` (Task 138 F-6 fs-pin) |
+| The offers starter-kit set-copy is guarded on the resolved rows (a departed slug degrades to the neutral picks copy, never an assertion the chips contradict) | `tests/unit/catalog.test.ts` (Task 138 F-6 fs-pin, polarity-proofed Task 139 F-3) |
+| The store-count literals ("Three NORDHEM stores", "Three stores, one island", "All 3 SG stores") exist NOWHERE under `src/` — every count site (home hero stat + strip, checkout refusal ×2, /stores metadata ×2 + h1, /sustainability stat) interpolates `STORES.length`, and the e2e metadata expectation derives from the seed | `tests/unit/catalog.test.ts` (Task 139 F-1 blast-radius fs-pin) + `tests/e2e/storefront.spec.ts` (the derived metadata pin) |
+| The gotoHydrated count claims (AGENTS ×2, CLAUDE, PAD) equal the fs-computed per-spec call-site counts | `tests/unit/docs-counts.test.ts` (Task 139 F-2 pin, mutation-proven) |
 
 ## Hard-won gotchas (read before changing anything)
 
@@ -588,7 +608,7 @@ rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_
 npm run typecheck          # app scope (src/**, next.config.ts)
 npm run typecheck:tests    # the test tree (tsconfig.tests.json) — both scopes are live gates
 npm run lint               # 0 errors expected
-npm run test               # 198/198 unit
+npm run test               # 200/200 unit
 npm run test:e2e           # 133/133 e2e (needs a live Postgres for the checkout journey)
 ```
 

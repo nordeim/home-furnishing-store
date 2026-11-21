@@ -186,3 +186,31 @@ test("README /api/health table row tells the envelope truth (Task 124 F-1)", () 
   expect(row, "README /api/health table row not found").not.toBe("");
   expect(row).toContain('data: { db: "up" }');
 });
+
+// Task 139 F-2: the gotoHydrated COUNT claims in the operator docs are
+// live-tense but were unpinned (AGENTS ×2, CLAUDE ×1, PAD ×1 — the fs-reality
+// was true at audit, but the next interaction-first spec added or removed
+// would drift every claim with all gates green — the copied-count drift class
+// this file exists to kill). The counts are fs-computed from the two spec
+// files (helpers.ts DEFINES gotoHydrated — excluded), and each doc site must
+// carry its computed form. GREEN-on-arrival by design (the docs were true);
+// mutation-honest RED demonstrated by a temporary AGENTS "45"→"44" edit.
+test("gotoHydrated call-site claims === fs reality (AGENTS ×2, CLAUDE, PAD — Task 139 F-2)", () => {
+  const storefront = (readFileSync(join(e2eDir, "storefront.spec.ts"), "utf8").match(/gotoHydrated\(/g) ?? []).length;
+  const mobile = (readFileSync(join(e2eDir, "mobile-navigation.spec.ts"), "utf8").match(/gotoHydrated\(/g) ?? []).length;
+  const both = storefront + mobile;
+  expect(storefront).toBeGreaterThan(0);
+  expect(mobile).toBeGreaterThan(0);
+
+  const agents = readFileSync(join(ROOT, "AGENTS.md"), "utf8");
+  expect(agents, "AGENTS narrative claim site").toContain(`${storefront} storefront call sites now (${both} across both`);
+  expect(agents, "AGENTS coverage claim site (count)").toContain(`${storefront} gotoHydrated call`);
+  expect(agents, "AGENTS coverage claim site (both-files count)").toContain(`sites in the storefront spec (${both} across both files`);
+
+  const claude = readFileSync(join(ROOT, "CLAUDE.md"), "utf8");
+  expect(claude, "CLAUDE claim site (storefront count)").toContain(`${storefront} gotoHydrated call sites in the storefront`);
+  expect(claude, "CLAUDE claim site (both-files count)").toContain(`probes — ${both} across`);
+
+  const pad = readFileSync(join(ROOT, "Project_Architecture_Document.md"), "utf8");
+  expect(pad, "PAD claim site").toContain(`gotoHydrated ${storefront}+${mobile}`);
+});

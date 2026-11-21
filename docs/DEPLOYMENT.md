@@ -2,7 +2,7 @@
 
 NORDHEM ships as a **single Next.js application over one PostgreSQL
 database**: one Node process plus Postgres, nothing else. This revision
-(2026-11-21, Tasks 115-138; counts re-pinned by the docs-counts test since
+(2026-11-21, Tasks 115-139; counts re-pinned by the docs-counts test since
 Task 131 F-7) replaces the inherited ElyBeauty-era guide wholesale —
 that document described Prisma + SQLite file databases, an
 `output: "standalone"` build with `.env` baking, `AUTH_SECRET` / Stripe /
@@ -333,7 +333,7 @@ rm -rf .next && DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/app_
 npm run typecheck
 npm run typecheck:tests
 npm run lint                # 0 errors / 0 warnings expected
-npm run test                # 198/198 unit (Vitest, pure seams; TZ-pure — the three-TZ run: UTC/Singapore/New_York)
+npm run test                # 200/200 unit (Vitest, pure seams; TZ-pure — the three-TZ run: UTC/Singapore/New_York)
 npm run test:e2e            # 133/133 e2e — needs the live Postgres
 ```
 
